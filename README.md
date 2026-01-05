@@ -36,7 +36,7 @@ FB2 (в планах EPUB, PDF, MOBI, TXT)
 **Установка и запуск:**  
 **Требования**  
 Для Ubuntu/Debian  
-*sudo apt-get install libsqlite3-dev libarchive-dev libssl-dev libmysqlclient-dev libiconv-hook-dev*
+*sudo apt-get install libsqlite3-dev libarchive-dev libssl-dev libmysqlclient-dev libiconv*
 
 **Компиляция**  
 *make*
