@@ -1,99 +1,67 @@
 <?php
 
+require_once __DIR__ . '/../config/config.php';
+
 class Cache {
-    private static $memcached = null;
     private static $apcuEnabled = false;
-    private static $memcachedEnabled = false;
+    private static $initialized = false;
     
+    /**
+     * Инициализация кэша
+     */
     public static function init() {
-        // Проверяем APCu
-        self::$apcuEnabled = Config::USE_APCU && extension_loaded('apcu') && apcu_enabled();
-        
-        // Инициализируем Memcached
-        if (Config::USE_MEMCACHED && extension_loaded('memcached')) {
-            self::$memcached = new Memcached();
-            self::$memcached->addServer(Config::MEMCACHED_HOST, Config::MEMCACHED_PORT);
-            self::$memcachedEnabled = self::$memcached->getVersion() !== false;
+        if (self::$initialized) {
+            return;
         }
+        
+        self::$apcuEnabled = Config::USE_APCU && extension_loaded('apcu') && apcu_enabled();
         
         if (self::$apcuEnabled) {
             error_log("APCu cache enabled");
+        } else {
+            error_log("APCu cache disabled or not available");
         }
-        if (self::$memcachedEnabled) {
-            error_log("Memcached cache enabled");
-        }
+        
+        self::$initialized = true;
     }
     
     /**
      * Получить данные из кэша
      */
     public static function get($key, $type = 'default') {
-        if (!Config::ENABLE_CACHE) return null;
-        
-        $config = Config::CACHE_CONFIG[$type] ?? ['level' => Config::CACHE_LEVEL_APCU, 'ttl' => Config::CACHE_TTL];
-        
-        // Пробуем APCu first (самый быстрый)
-        if (self::$apcuEnabled && in_array($config['level'], [Config::CACHE_LEVEL_APCU, 'default'])) {
-            $value = apcu_fetch($key, $success);
-            if ($success) {
-                return $value;
-            }
+        if (!Config::ENABLE_CACHE || !self::$apcuEnabled) {
+            return null;
         }
         
-        // Пробуем Memcached
-        if (self::$memcachedEnabled && in_array($config['level'], [Config::CACHE_LEVEL_MEMCACHED, 'default'])) {
-            $value = self::$memcached->get($key);
-            if (self::$memcached->getResultCode() === Memcached::RES_SUCCESS) {
-                // Сохраняем в APCu для будущих быстрых обращений
-                if (self::$apcuEnabled) {
-                    apcu_store($key, $value, min($config['ttl'], 3600)); // APCu max 1 hour
-                }
-                return $value;
-            }
-        }
+        $success = false;
+        $value = apcu_fetch($key, $success);
         
-        return null;
+        return $success ? $value : null;
     }
     
     /**
      * Сохранить данные в кэш
      */
     public static function set($key, $data, $type = 'default') {
-        if (!Config::ENABLE_CACHE) return false;
+        if (!Config::ENABLE_CACHE || !self::$apcuEnabled) {
+            return false;
+        }
         
-        $config = Config::CACHE_CONFIG[$type] ?? ['level' => Config::CACHE_LEVEL_APCU, 'ttl' => Config::CACHE_TTL];
+        $config = Config::CACHE_CONFIG[$type] ?? ['ttl' => Config::CACHE_TTL];
         $ttl = $config['ttl'];
         
-        $success = true;
-        
-        // Сохраняем в APCu
-        if (self::$apcuEnabled && in_array($config['level'], [Config::CACHE_LEVEL_APCU, 'default'])) {
-            $success = $success && apcu_store($key, $data, min($ttl, 3600));
-        }
-        
-        // Сохраняем в Memcached
-        if (self::$memcachedEnabled && in_array($config['level'], [Config::CACHE_LEVEL_MEMCACHED, 'default'])) {
-            $success = $success && self::$memcached->set($key, $data, $ttl);
-        }
-        
-        return $success;
+        return apcu_store($key, $data, $ttl);
     }
     
     /**
      * Удалить данные из кэша
      */
     public static function delete($key) {
-        $success = true;
-        
-        if (self::$apcuEnabled) {
-            $success = $success && apcu_delete($key);
+        if (!self::$apcuEnabled) {
+            return false;
         }
         
-        if (self::$memcachedEnabled) {
-            $success = $success && self::$memcached->delete($key);
-        }
-        
-        return $success;
+        return apcu_delete($key);
     }
     
     /**
@@ -102,17 +70,10 @@ class Cache {
     public static function clear() {
         if (self::$apcuEnabled) {
             apcu_clear_cache();
+            return true;
         }
         
-        if (self::$memcachedEnabled) {
-            self::$memcached->flush();
-        }
-        
-        // Очищаем файловый кэш
-        $files = glob(Config::CACHE_DIR . '/cache_*');
-        foreach ($files as $file) {
-            if (is_file($file)) unlink($file);
-        }
+        return false;
     }
     
     /**
@@ -124,31 +85,85 @@ class Cache {
         if (self::$apcuEnabled) {
             $apcuStats = apcu_cache_info(true);
             $stats['apcu'] = [
-                'hits' => $apcuStats['num_hits'],
-                'misses' => $apcuStats['num_misses'],
-                'memory_usage' => $apcuStats['mem_size'],
-                'entries' => $apcuStats['num_entries']
+                'hits' => $apcuStats['num_hits'] ?? 0,
+                'misses' => $apcuStats['num_misses'] ?? 0,
+                'memory_usage' => $apcuStats['mem_size'] ?? 0,
+                'entries' => $apcuStats['num_entries'] ?? 0,
+                'effectiveness' => ($apcuStats['num_hits'] + $apcuStats['num_misses']) > 0 ? 
+                    round($apcuStats['num_hits'] / ($apcuStats['num_hits'] + $apcuStats['num_misses']) * 100, 1) : 0
             ];
-        }
-        
-        if (self::$memcachedEnabled) {
-            $memcachedStats = self::$memcached->getStats();
-            $serverKey = Config::MEMCACHED_HOST . ':' . Config::MEMCACHED_PORT;
-            if (isset($memcachedStats[$serverKey])) {
-                $s = $memcachedStats[$serverKey];
-                $stats['memcached'] = [
-                    'hits' => $s['get_hits'],
-                    'misses' => $s['get_misses'],
-                    'memory_usage' => $s['bytes'],
-                    'connections' => $s['curr_connections']
-                ];
-            }
         }
         
         return $stats;
     }
+    
+    /**
+     * Проверить наличие ключа в кэше
+     */
+    public static function exists($key) {
+        if (!Config::ENABLE_CACHE || !self::$apcuEnabled) {
+            return false;
+        }
+        
+        return apcu_exists($key);
+    }
+    
+    /**
+     * Получить несколько значений за раз
+     */
+    public static function getMultiple($keys) {
+        if (!Config::ENABLE_CACHE || !self::$apcuEnabled) {
+            return [];
+        }
+        
+        return apcu_fetch($keys);
+    }
+    
+    /**
+     * Сохранить несколько значений за раз
+     */
+    public static function setMultiple($values, $type = 'default') {
+        if (!Config::ENABLE_CACHE || !self::$apcuEnabled) {
+            return false;
+        }
+        
+        $config = Config::CACHE_CONFIG[$type] ?? ['ttl' => Config::CACHE_TTL];
+        $ttl = $config['ttl'];
+        
+        return apcu_store($values, null, $ttl);
+    }
+    
+    /**
+     * Увеличить значение (для счетчиков)
+     */
+    public static function increment($key, $step = 1) {
+        if (!Config::ENABLE_CACHE || !self::$apcuEnabled) {
+            return false;
+        }
+        
+        if (!apcu_exists($key)) {
+            return apcu_store($key, $step);
+        }
+        
+        return apcu_inc($key, $step);
+    }
+    
+    /**
+     * Уменьшить значение (для счетчиков)
+     */
+    public static function decrement($key, $step = 1) {
+        if (!Config::ENABLE_CACHE || !self::$apcuEnabled) {
+            return false;
+        }
+        
+        if (!apcu_exists($key)) {
+            return apcu_store($key, -$step);
+        }
+        
+        return apcu_dec($key, $step);
+    }
 }
 
-// Инициализируем кэш при загрузке
+// Автоматическая инициализация
 Cache::init();
 ?>

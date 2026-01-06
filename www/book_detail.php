@@ -3,6 +3,8 @@
 require_once 'config/config.php';
 require_once 'lib/Database.php';
 require_once 'lib/Fb2CoverParser.php';
+require_once 'lib/Cache.php';
+require_once 'lib/PageCache.php';
 
 $db = Database::getInstance();
 
@@ -12,6 +14,10 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 }
 
 $bookId = intval($_GET['id']);
+
+// Начинаем кэширование страницы на 10 минут
+PageCache::start('book_detail_' . $bookId . '_' . date('YmdH'));
+
 $book = $db->getBook($bookId);
 
 if (!$book) {
@@ -27,497 +33,466 @@ $hasCover = hasBookCover($book);
 $coverCachePath = Config::COVER_CACHE_DIR . '/' . $bookId . '.jpg';
 $coverExistsInCache = file_exists($coverCachePath);
 
-// Получаем связанные книги (с защитой от ошибок)
+// Извлекаем описание из файла, если его нет в базе
+$description = $book['description'] ?? '';
+if (empty($description) && strtolower($book['file_type']) === 'fb2') {
+    $description = extractBookDescription($book);
+    // Кэшируем описание
+    if (!empty($description)) {
+        Cache::set('book_desc_' . $bookId, $description, 86400);
+    }
+}
+
+// Проверяем кэшированное описание
+if (empty($description)) {
+    $cachedDesc = Cache::get('book_desc_' . $bookId);
+    if ($cachedDesc) {
+        $description = $cachedDesc;
+    }
+}
+
+// Получаем связанные книги
 $relatedBooks = getRelatedBooks($book, $db);
+
+// Информация о файле
+$fileExists = checkFileExists($book);
+$fileSize = !empty($book['file_size']) ? formatFileSize($book['file_size']) : null;
+
+// Определяем кодировку файла для информации
+$fileEncoding = detectFileEncoding($book);
 
 require 'templates/header.php';
 ?>
 
-<div class="row">
-    <div class="col-md-3 text-center">
-        <!-- Блок обложки -->
-        <div class="cover-container mb-3">
-            <?php if ($hasCover): ?>
-                <img src="./api/cover_direct.php?id=<?php echo $book['id']; ?>" 
-                     class="img-fluid book-cover-main shadow" 
-                     alt="Обложка книги <?php echo htmlspecialchars($book['title']); ?>"
-                     style="max-width: 100%; height: auto; border-radius: 8px;"
-                     id="mainCover"
-                     onerror="handleCoverError(this)"
-                     loading="eager">
-                
-                <!-- Запасной вариант если обложка не загрузится -->
-                <div class="cover-placeholder bg-light d-none align-items-center justify-content-center" 
-                     style="height: 400px; border-radius: 8px;">
-                    <div class="text-center">
-                        <span class="text-muted d-block">📚</span>
-                        <small class="text-muted">Обложка не загружена</small>
-                    </div>
-                </div>
-                
-                <!-- Миниатюра для предпросмотра -->
-                <div class="mt-3 text-center">
-                    <small class="text-muted d-block mb-2">Миниатюра:</small>
-                    <img src="./api/cover_direct.php?id=<?php echo $book['id']; ?>&thumb=1" 
-                         class="img-thumbnail cover-thumb" 
-                         alt="Миниатюра"
-                         style="max-width: 100px; border-radius: 4px;"
-                         onerror="this.style.display='none'">
-                </div>
-            <?php else: ?>
-                <!-- Заглушка если обложки нет в книге -->
-                <div class="cover-placeholder bg-light d-flex align-items-center justify-content-center shadow" 
-                     style="height: 400px; border-radius: 8px;">
-                    <div class="text-center">
-                        <span class="text-muted d-block mb-2" style="font-size: 4rem;">📖</span>
-                        <span class="text-muted">Нет обложки</span>
-                    </div>
-                </div>
-            <?php endif; ?>
-        </div>
-        
-        <!-- Блок действий -->
-        <div class="action-buttons mt-3">
-            <a href="./api/download.php?id=<?php echo $book['id']; ?>" 
-               class="btn btn-success btn-lg w-100 mb-2" 
-               id="downloadBtn">
-                📥 Скачать книгу
-            </a>
-            
-            <div class="btn-group w-100" role="group">
-                <a href="./api/opds.php" class="btn btn-outline-secondary btn-sm">OPDS-каталог</a>
-                <button type="button" class="btn btn-outline-info btn-sm" onclick="shareBook()">📤 Поделиться</button>
-            </div>
-        </div>
-        
-        <!-- Блок с технической информацией -->
-        <div class="card mt-3">
-            <div class="card-header bg-light">
-                <h6 class="card-title mb-0">📄 Информация о файле</h6>
-            </div>
-            <div class="card-body p-2">
-                <small>
-                    <strong>Формат:</strong> 
-                    <span class="badge bg-primary"><?php echo strtoupper($book['file_type']); ?></span>
-                    <br>
-                    
-                    <?php if ($book['archive_path']): ?>
-                        <strong>📦 В архиве:</strong> 
-                        <br><small class="text-muted"><?php echo htmlspecialchars(basename($book['archive_path'])); ?></small>
-                        <br>
-                        <strong>📄 Файл:</strong> 
-                        <br><small class="text-muted"><?php echo htmlspecialchars($book['archive_internal_path']); ?></small>
-                    <?php else: ?>
-                        <strong>📄 Файл:</strong> 
-                        <br><small class="text-muted"><?php echo htmlspecialchars(basename($book['file_path'])); ?></small>
-                    <?php endif; ?>
-                    
-                    <br>
-                    <strong>🖼️ Обложка:</strong> 
-                    <?php if ($hasCover): ?>
-                        <span class="text-success">✅ Встроенная</span>
-                        <?php if ($coverExistsInCache): ?>
-                            <br><small class="text-muted">(кэширована)</small>
-                        <?php endif; ?>
-                    <?php else: ?>
-                        <span class="text-muted">❌ Отсутствует</span>
-                    <?php endif; ?>
-                    
-                    <?php if (isset($book['file_size']) && $book['file_size']): ?>
-                        <br><strong>📏 Размер:</strong> 
-                        <small class="text-muted"><?php echo formatFileSize($book['file_size']); ?></small>
-                    <?php endif; ?>
-                </small>
-            </div>
-        </div>
-        
-        <!-- Статус файла -->
-        <div class="card mt-2">
-            <div class="card-body p-2 text-center">
-                <small>
-                    <?php if (checkFileExists($book)): ?>
-                        <span class="text-success">✅ Файл доступен</span>
-                    <?php else: ?>
-                        <span class="text-danger">❌ Файл не найден</span>
-                    <?php endif; ?>
-                </small>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-9">
-        <!-- Навигация -->
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="index.php">🏠 Главная</a></li>
-                <li class="breadcrumb-item"><a href="index.php">📚 Все книги</a></li>
-                <li class="breadcrumb-item active"><?php echo htmlspecialchars($book['title'] ?: 'Без названия'); ?></li>
-            </ol>
-        </nav>
-        
-        <!-- Заголовок и автор -->
-        <h1 class="display-6 mb-3"><?php echo htmlspecialchars($book['title'] ?: 'Без названия'); ?></h1>
-        
-        <?php if (!empty($book['author'])): ?>
-            <p class="lead mb-4">
-                <strong>✍️ Автор:</strong> 
-                <a href="index.php?field=author&q=<?php echo urlencode($book['author']); ?>" 
-                   class="text-decoration-none fw-bold author-link">
-                    <?php echo htmlspecialchars($book['author']); ?>
-                </a>
-            </p>
-        <?php endif; ?>
-        
-        <!-- Блок с метаданными -->
-        <div class="row mb-4">
-            <?php if ($readableGenre): ?>
-                <div class="col-md-6 mb-2">
-                    <div class="card h-100">
-                        <div class="card-body py-2">
-                            <strong>📚 Жанр:</strong><br>
-                            <a href="index.php?field=genre&q=<?php echo urlencode($book['genre']); ?>" 
-                               class="badge bg-primary text-decoration-none genre-badge">
-                                <?php echo htmlspecialchars($readableGenre); ?>
-                            </a>
-                            <?php if ($book['genre'] !== $readableGenre): ?>
-                                <br><small class="text-muted">(<?php echo htmlspecialchars($book['genre']); ?>)</small>
+<div class="container py-4">
+    <!-- Хлебные крошки -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="index.php" class="text-decoration-none">🏠 Главная</a></li>
+            <li class="breadcrumb-item"><a href="index.php" class="text-decoration-none">📚 Все книги</a></li>
+            <li class="breadcrumb-item active"><?php echo htmlspecialchars(mb_substr($book['title'] ?: 'Без названия', 0, 40)); ?></li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <!-- Левая колонка - Обложка и действия -->
+        <div class="col-lg-4 mb-4">
+            <!-- Обложка -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-body p-3 text-center">
+                    <div class="cover-container mb-3">
+                        <?php if ($hasCover): ?>
+                            <img src="./api/cover_direct.php?id=<?php echo $book['id']; ?>" 
+                                 class="img-fluid rounded shadow" 
+                                 alt="Обложка книги <?php echo htmlspecialchars($book['title']); ?>"
+                                 id="mainCover"
+                                 onerror="handleCoverError(this)"
+                                 style="max-height: 400px; width: auto;"
+                                 loading="eager">
+                            
+                            <!-- Индикатор кэша -->
+                            <?php if ($coverExistsInCache): ?>
+                            <div class="mt-2">
+                                <span class="badge bg-success bg-opacity-25 text-success">
+                                    <i class="fas fa-bolt me-1"></i>Из кэша
+                                </span>
+                            </div>
                             <?php endif; ?>
+                            
+                        <?php else: ?>
+                            <!-- Заглушка если обложки нет -->
+                            <div class="bg-light d-flex align-items-center justify-content-center rounded" 
+                                 style="height: 300px;">
+                                <div class="text-center">
+                                    <i class="fas fa-book text-muted mb-3" style="font-size: 4rem;"></i>
+                                    <p class="text-muted mb-0">Нет обложки</p>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <!-- Действия -->
+                    <div class="d-grid gap-2">
+                        <a href="./api/download.php?id=<?php echo $book['id']; ?>" 
+                           class="btn btn-lg btn-success" id="downloadBtn">
+                            <i class="fas fa-download me-2"></i>Скачать книгу
+                        </a>
+                        
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-primary" onclick="shareBook()">
+                                <i class="fas fa-share-alt me-2"></i>Поделиться
+                            </button>
+                            <a href="./api/opds.php" class="btn btn-outline-secondary" target="_blank">
+                                <i class="fas fa-rss me-2"></i>OPDS
+                            </a>
                         </div>
                     </div>
                 </div>
-            <?php endif; ?>
+            </div>
             
-            <?php if (!empty($book['series'])): ?>
-                <div class="col-md-6 mb-2">
-                    <div class="card h-100">
-                        <div class="card-body py-2">
-                            <strong>📖 Серия:</strong><br>
+            <!-- Техническая информация -->
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title border-bottom pb-2 mb-3">
+                        <i class="fas fa-info-circle me-2"></i>Информация
+                    </h6>
+                    
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">Формат</small>
+                            <span class="badge bg-primary"><?php echo strtoupper($book['file_type']); ?></span>
+                        </div>
+                        
+                        <?php if ($fileSize): ?>
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">Размер</small>
+                            <strong><?php echo $fileSize; ?></strong>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <?php if ($fileEncoding): ?>
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">Кодировка</small>
+                            <span class="badge bg-info"><?php echo $fileEncoding; ?></span>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">Статус файла</small>
+                            <?php if ($fileExists): ?>
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check me-1"></i>Доступен
+                                </span>
+                            <?php else: ?>
+                                <span class="badge bg-danger">
+                                    <i class="fas fa-times me-1"></i>Не найден
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                        
+                        <div class="col-12">
+                            <small class="text-muted d-block">Добавлено</small>
+                            <strong><?php echo date('d.m.Y H:i', strtotime($book['added_date'])); ?></strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Правая колонка - Основная информация -->
+        <div class="col-lg-8">
+            <!-- Заголовок и автор -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <h1 class="h2 mb-3"><?php echo htmlspecialchars($book['title'] ?: 'Без названия'); ?></h1>
+                    
+                    <?php if (!empty($book['author'])): ?>
+                    <div class="mb-4">
+                        <h5 class="text-muted mb-2">Автор</h5>
+                        <a href="index.php?field=author&q=<?php echo urlencode($book['author']); ?>" 
+                           class="h4 text-decoration-none author-link">
+                            <?php echo htmlspecialchars($book['author']); ?>
+                        </a>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            
+            <!-- Метаданные -->
+            <div class="row g-3 mb-4">
+                <?php if ($readableGenre): ?>
+                <div class="col-md-6">
+                    <div class="card h-100 border-0 bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted mb-2">Жанр</h6>
+                            <a href="index.php?field=genre&q=<?php echo urlencode($book['genre']); ?>" 
+                               class="text-decoration-none">
+                                <span class="h5"><?php echo htmlspecialchars($readableGenre); ?></span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+                
+                <?php if (!empty($book['series'])): ?>
+                <div class="col-md-6">
+                    <div class="card h-100 border-0 bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted mb-2">Серия</h6>
                             <a href="index.php?field=series&q=<?php echo urlencode($book['series']); ?>" 
-                               class="text-decoration-none series-link">
-                                <?php echo htmlspecialchars($book['series']); ?>
+                               class="text-decoration-none">
+                                <span class="h5"><?php echo htmlspecialchars($book['series']); ?></span>
                             </a>
                             <?php if (!empty($book['series_number'])): ?>
-                                <span class="badge bg-secondary ms-1">Книга <?php echo $book['series_number']; ?></span>
+                            <span class="badge bg-secondary">Книга <?php echo $book['series_number']; ?></span>
                             <?php endif; ?>
                         </div>
                     </div>
                 </div>
-            <?php endif; ?>
-            
-            <?php if (!empty($book['year'])): ?>
-                <div class="col-md-3 mb-2">
-                    <div class="card h-100">
-                        <div class="card-body py-2 text-center">
-                            <strong>📅 Год</strong><br>
-                            <span class="year-badge"><?php echo $book['year']; ?></span>
+                <?php endif; ?>
+                
+                <?php if (!empty($book['year'])): ?>
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 bg-light">
+                        <div class="card-body text-center">
+                            <h6 class="card-title text-muted mb-2">Год</h6>
+                            <span class="h3 text-primary"><?php echo $book['year']; ?></span>
                         </div>
                     </div>
                 </div>
-            <?php endif; ?>
-            
-            <?php if (!empty($book['language'])): ?>
-                <div class="col-md-3 mb-2">
-                    <div class="card h-100">
-                        <div class="card-body py-2 text-center">
-                            <strong>🌐 Язык</strong><br>
-                            <?php echo getLanguageName($book['language']); ?>
+                <?php endif; ?>
+                
+                <?php if (!empty($book['language'])): ?>
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 bg-light">
+                        <div class="card-body text-center">
+                            <h6 class="card-title text-muted mb-2">Язык</h6>
+                            <span class="h5"><?php echo getLanguageName($book['language']); ?></span>
                         </div>
                     </div>
                 </div>
-            <?php endif; ?>
-            
-            <?php if (!empty($book['publisher'])): ?>
-                <div class="col-md-6 mb-2">
-                    <div class="card h-100">
-                        <div class="card-body py-2">
-                            <strong>🏢 Издательство:</strong><br>
-                            <?php echo htmlspecialchars($book['publisher']); ?>
+                <?php endif; ?>
+                
+                <?php if (!empty($book['publisher'])): ?>
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted mb-2">Издательство</h6>
+                            <span class="h6"><?php echo htmlspecialchars($book['publisher']); ?></span>
                         </div>
                     </div>
                 </div>
-            <?php endif; ?>
-        </div>
-        
-        <!-- Аннотация -->
-        <?php if (!empty($book['description'])): ?>
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">📝 Аннотация</h5>
-                </div>
+                <?php endif; ?>
+            </div>
+            
+            <!-- ОПИСАНИЕ КНИГИ -->
+            <div class="card shadow-sm mb-4">
                 <div class="card-body">
+                    <h5 class="card-title mb-3 border-bottom pb-2">
+                        <i class="fas fa-file-alt me-2"></i>Описание книги
+                    </h5>
                     <div class="book-description">
-                        <?php echo formatDescription($book['description']); ?>
+                        <?php if (!empty($description)): ?>
+                            <?php echo formatDescription($description); ?>
+                            
+                            <!-- Информация о кодировке -->
+                            <?php if ($fileEncoding && $fileEncoding !== 'UTF-8'): ?>
+                            <div class="alert alert-info mt-3 mb-0 small">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Описание конвертировано из <?php echo $fileEncoding; ?> в UTF-8
+                            </div>
+                            <?php endif; ?>
+                            
+                        <?php else: ?>
+                            <div class="alert alert-info mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Описание книги отсутствует. 
+                                <?php if (strtolower($book['file_type']) === 'fb2'): ?>
+                                Для FB2 файлов описание можно извлечь из файла книги.
+                                <?php endif; ?>
+                            </div>
+                            
+                            <!-- Кнопка для извлечения описания -->
+                            <?php if (strtolower($book['file_type']) === 'fb2'): ?>
+                            <div class="mt-3 text-center">
+                                <button type="button" class="btn btn-outline-primary" onclick="extractDescription(<?php echo $bookId; ?>)">
+                                    <i class="fas fa-sync me-2"></i>Извлечь описание из файла
+                                </button>
+                                <small class="text-muted d-block mt-2">
+                                    Будет выполнена попытка извлечения и конвертации описания
+                                </small>
+                            </div>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
-        <?php endif; ?>
-        
-        <!-- Связанные книги -->
-        <?php if (!empty($relatedBooks)): ?>
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">📚 Похожие книги</h5>
-                </div>
+            
+            <!-- Связанные книги -->
+            <?php if (!empty($relatedBooks)): ?>
+            <div class="card shadow-sm mb-4">
                 <div class="card-body">
-                    <div class="row">
-                        <?php foreach (array_slice($relatedBooks, 0, 4) as $relatedBook): ?>
-                            <div class="col-md-6 mb-2">
-                                <div class="d-flex align-items-center">
-                                    <div class="flex-shrink-0">
+                    <h5 class="card-title mb-3 border-bottom pb-2">
+                        <i class="fas fa-books me-2"></i>Похожие книги
+                    </h5>
+                    <div class="row g-3">
+                        <?php foreach (array_slice($relatedBooks, 0, 6) as $relatedBook): ?>
+                        <div class="col-md-6">
+                            <div class="card border h-100">
+                                <div class="row g-0 h-100">
+                                    <div class="col-4">
                                         <?php if (hasBookCover($relatedBook)): ?>
-                                            <img src="./api/cover_direct.php?id=<?php echo $relatedBook['id']; ?>&thumb=1" 
-                                                 class="img-thumbnail" 
-                                                 alt="Обложка"
-                                                 style="width: 50px; height: 75px; object-fit: cover;"
-                                                 onerror="this.style.display='none'">
+                                        <img src="./api/cover_direct.php?id=<?php echo $relatedBook['id']; ?>&thumb=1" 
+                                             class="img-fluid rounded-start h-100" 
+                                             style="object-fit: cover;"
+                                             alt="Обложка"
+                                             onerror="this.style.display='none'">
+                                        <?php else: ?>
+                                        <div class="bg-light d-flex align-items-center justify-content-center h-100 rounded-start">
+                                            <i class="fas fa-book text-muted"></i>
+                                        </div>
                                         <?php endif; ?>
                                     </div>
-                                    <div class="flex-grow-1 ms-2">
-                                        <a href="book_detail.php?id=<?php echo $relatedBook['id']; ?>" 
-                                           class="text-decoration-none">
-                                            <small class="d-block fw-bold"><?php echo htmlspecialchars($relatedBook['title'] ?: 'Без названия'); ?></small>
-                                        </a>
-                                        <?php if (!empty($relatedBook['author'])): ?>
-                                            <small class="text-muted"><?php echo htmlspecialchars($relatedBook['author']); ?></small>
-                                        <?php endif; ?>
+                                    <div class="col-8">
+                                        <div class="card-body p-3">
+                                            <a href="book_detail.php?id=<?php echo $relatedBook['id']; ?>" 
+                                               class="text-decoration-none">
+                                                <small class="d-block fw-bold text-dark mb-1">
+                                                    <?php echo htmlspecialchars(mb_substr($relatedBook['title'] ?: 'Без названия', 0, 30)); ?>
+                                                </small>
+                                            </a>
+                                            <?php if (!empty($relatedBook['author'])): ?>
+                                            <small class="text-muted d-block">
+                                                <?php echo htmlspecialchars(mb_substr($relatedBook['author'], 0, 25)); ?>
+                                            </small>
+                                            <?php endif; ?>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
+                        </div>
                         <?php endforeach; ?>
                     </div>
                 </div>
             </div>
-        <?php endif; ?>
-        
-        <!-- Дополнительная информация -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">🔍 Дополнительная информация</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <p><strong>📁 Полный путь:</strong><br>
-                        <small class="text-muted file-path"><?php echo htmlspecialchars($book['file_path']); ?></small></p>
-                        
-                        <?php if (!empty($book['archive_path'])): ?>
-                            <p><strong>🗜️ Архив:</strong><br>
-                            <small class="text-muted"><?php echo htmlspecialchars($book['archive_path']); ?></small></p>
-                            
-                            <p><strong>📄 Файл в архиве:</strong><br>
-                            <small class="text-muted"><?php echo htmlspecialchars($book['archive_internal_path']); ?></small></p>
-                        <?php endif; ?>
+            <?php endif; ?>
+            
+            <!-- Дополнительная информация -->
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3 border-bottom pb-2">
+                        <i class="fas fa-ellipsis-h me-2"></i>Дополнительно
+                    </h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <small class="text-muted d-block mb-1">Путь к файлу:</small>
+                                <div class="bg-light p-2 rounded">
+                                    <small class="text-muted file-path">
+                                        <?php echo htmlspecialchars($book['file_path']); ?>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <small class="text-muted d-block mb-1">Обложка:</small>
+                                <div class="bg-light p-2 rounded">
+                                    <?php if ($hasCover): ?>
+                                        <span class="text-success">
+                                            <i class="fas fa-check me-1"></i>Есть в файле
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="text-muted">
+                                            <i class="fas fa-times me-1"></i>Отсутствует
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-6">
-                        <p><strong>⏰ Добавлено в каталог:</strong><br>
-                        <small class="text-muted"><?php echo date('d.m.Y H:i', strtotime($book['added_date'])); ?></small></p>
-                        
-                        <?php if (!empty($book['last_modified']) && $book['last_modified'] !== $book['added_date']): ?>
-                            <p><strong>✏️ Обновлено:</strong><br>
-                            <small class="text-muted"><?php echo date('d.m.Y H:i', strtotime($book['last_modified'])); ?></small></p>
-                        <?php endif; ?>
-                        
-                        <?php if ($hasCover): ?>
-                            <p><strong>🖼️ Обложка:</strong><br>
-                            <small class="text-success">✅ Извлечена из файла книги</small></p>
-                        <?php else: ?>
-                            <p><strong>🖼️ Обложка:</strong><br>
-                            <small class="text-muted">❌ Не найдена в файле</small></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Навигация -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <div class="btn-group" role="group">
+                        <a href="index.php" class="btn btn-outline-primary">
+                            <i class="fas fa-arrow-left me-2"></i>Назад к списку
+                        </a>
+                        <?php if (!empty($book['author'])): ?>
+                        <a href="index.php?field=author&q=<?php echo urlencode($book['author']); ?>" 
+                           class="btn btn-outline-secondary ms-2">
+                            <i class="fas fa-user me-2"></i>Все книги автора
+                        </a>
                         <?php endif; ?>
                     </div>
                 </div>
-                
-                <!-- Тестовые ссылки на обложку -->
-                <?php if ($hasCover): ?>
-                    <div class="mt-3 p-3 bg-light rounded">
-                        <h6>🔗 Ссылки на обложку:</h6>
-                        <div class="btn-group" role="group">
-                            <a href="./api/cover_direct.php?id=<?php echo $book['id']; ?>" 
-                               class="btn btn-outline-primary btn-sm" target="_blank">
-                                Полная обложка
-                            </a>
-                            <a href="./api/cover_direct.php?id=<?php echo $book['id']; ?>&thumb=1" 
-                               class="btn btn-outline-secondary btn-sm" target="_blank">
-                                Миниатюра
-                            </a>
-                            <button type="button" class="btn btn-outline-info btn-sm" onclick="reloadCover()">
-                                🔄 Обновить
-                            </button>
-                        </div>
-                        <small class="text-muted d-block mt-1">Обложка загружается напрямую из файла книги</small>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-        
-        <!-- Навигация между книгами -->
-        <div class="card mt-4">
-            <div class="card-body text-center">
-                <a href="index.php" class="btn btn-outline-primary">← Назад к списку книг</a>
-                <?php if (!empty($book['author'])): ?>
-                    <a href="index.php?field=author&q=<?php echo urlencode($book['author']); ?>" class="btn btn-outline-secondary ms-2">
-                        Все книги автора
-                    </a>
-                <?php endif; ?>
-                <?php if (!empty($book['series'])): ?>
-                    <a href="index.php?field=series&q=<?php echo urlencode($book['series']); ?>" class="btn btn-outline-info ms-2">
-                        Все книги серии
-                    </a>
-                <?php endif; ?>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Стили и скрипты остаются без изменений -->
+...
 <!-- Стили -->
 <style>
-.book-cover-main {
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    cursor: pointer;
+.card {
+    border-radius: 12px;
+    transition: all 0.3s ease;
 }
 
-.book-cover-main:hover {
-    transform: scale(1.02);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
 }
 
-.cover-thumb {
-    transition: transform 0.2s ease;
-}
-
-.cover-thumb:hover {
-    transform: scale(1.1);
+.cover-container {
+    border-radius: 12px 12px 0 0;
+    overflow: hidden;
 }
 
 .author-link, .series-link, .genre-badge {
     transition: all 0.3s ease;
 }
 
-.author-link:hover, .series-link:hover {
+.author-link:hover {
     color: #0d6efd !important;
     text-decoration: underline !important;
 }
 
+.series-link:hover {
+    color: #0dcaf0 !important;
+}
+
 .genre-badge:hover {
-    background-color: #0b5ed7 !important;
-    transform: translateY(-1px);
+    opacity: 0.9;
+    transform: scale(1.05);
 }
 
 .file-path {
     word-break: break-all;
+    font-family: 'Courier New', monospace;
 }
 
 .book-description {
-    line-height: 1.6;
+    line-height: 1.8;
     text-align: justify;
+    font-size: 1.05rem;
 }
 
-.action-buttons .btn {
-    transition: all 0.3s ease;
+.hover-shadow:hover {
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
 
-.action-buttons .btn:hover {
-    transform: translateY(-2px);
+.cursor-pointer {
+    cursor: pointer;
 }
 
 .year-badge {
-    font-size: 1.1em;
+    font-size: 2rem;
     font-weight: bold;
-    color: #495057;
+    color: #0d6efd;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+.breadcrumb {
+    border-radius: 10px;
+}
+
+.progress-bar {
+    transition: width 1s ease-in-out;
 }
 </style>
 
-<script>
-// Обработка ошибок загрузки обложки
-function handleCoverError(imgElement) {
-    console.error('Ошибка загрузки обложки:', imgElement.src);
-    imgElement.style.display = 'none';
-    const placeholder = imgElement.nextElementSibling;
-    if (placeholder && placeholder.classList.contains('cover-placeholder')) {
-        placeholder.classList.remove('d-none');
-        placeholder.classList.add('d-flex');
-    }
-}
 
-// Перезагрузка обложки
-function reloadCover() {
-    const coverImg = document.getElementById('mainCover');
-    if (coverImg) {
-        // Добавляем параметр для обхода кэша
-        const newSrc = coverImg.src + (coverImg.src.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
-        coverImg.src = newSrc;
-        
-        // Показываем сообщение
-        showToast('Обложка обновляется...', 'info');
-    }
-}
 
-// Поделиться книгой
-function shareBook() {
-    const title = '<?php echo addslashes($book['title'] ?: 'Книга'); ?>';
-    const author = '<?php echo addslashes($book['author'] ?? ''); ?>';
-    const url = window.location.href;
-    
-    let text = title;
-    if (author) {
-        text += ' - ' + author;
-    }
-    text += '\n\n' + url;
-    
-    if (navigator.share) {
-        navigator.share({
-            title: title,
-            text: text,
-            url: url
-        }).catch(console.error);
-    } else if (navigator.clipboard) {
-        navigator.clipboard.writeText(text).then(() => {
-            showToast('Ссылка скопирована в буфер обмена', 'success');
-        }).catch(console.error);
-    } else {
-        // Fallback
-        prompt('Скопируйте ссылку на книгу:', url);
-    }
-}
 
-// Показать уведомление
-function showToast(message, type = 'info') {
-    // Простая реализация toast
-    const toast = document.createElement('div');
-    toast.className = `alert alert-${type} position-fixed`;
-    toast.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 250px;';
-    toast.textContent = message;
-    
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
-}
-
-// Предзагрузка обложки при наведении на связанные книги
-document.addEventListener('DOMContentLoaded', function() {
-    const relatedLinks = document.querySelectorAll('a[href*="book_detail.php"]');
-    relatedLinks.forEach(link => {
-        link.addEventListener('mouseenter', function() {
-            const url = new URL(this.href);
-            const bookId = url.searchParams.get('id');
-            if (bookId) {
-                const img = new Image();
-                img.src = `./api/cover_direct.php?id=${bookId}&thumb=1`;
-            }
-        });
-    });
-    
-    // Клик по обложке для увеличения
-    const mainCover = document.getElementById('mainCover');
-    if (mainCover) {
-        mainCover.addEventListener('click', function() {
-            window.open(this.src, '_blank');
-        });
-    }
-});
-</script>
 
 <?php
 /**
@@ -525,46 +500,181 @@ document.addEventListener('DOMContentLoaded', function() {
  */
 
 /**
- * Проверить, есть ли обложка в книге
+ * Определить кодировку файла
  */
+function detectFileEncoding($book) {
+    $cacheKey = 'file_encoding_' . $book['id'];
+    $cached = Cache::get($cacheKey);
+    if ($cached !== null) {
+        return $cached;
+    }
+    
+    $encoding = 'UTF-8'; // По умолчанию
+    
+    $content = getBookContent($book, 5000); // Читаем первые 5000 байт для определения
+    if ($content) {
+        // Определяем кодировку
+        $detected = mb_detect_encoding($content, ['UTF-8', 'Windows-1251', 'KOI8-R', 'ISO-8859-5', 'CP1251'], true);
+        
+        if ($detected) {
+            $encoding = $detected;
+        } else {
+            // Если не удалось определить, пробуем другие методы
+            if (preg_match('/encoding=["\']windows-1251["\']/i', substr($content, 0, 500))) {
+                $encoding = 'Windows-1251';
+            } elseif (preg_match('/encoding=["\']koi8-r["\']/i', substr($content, 0, 500))) {
+                $encoding = 'KOI8-R';
+            } elseif (preg_match('/encoding=["\']cp1251["\']/i', substr($content, 0, 500))) {
+                $encoding = 'CP1251';
+            }
+        }
+    }
+    
+    Cache::set($cacheKey, $encoding, 86400);
+    return $encoding;
+}
+
+/**
+ * Извлечь описание из файла книги с учетом кодировки
+ */
+function extractBookDescription($book) {
+    // Проверяем кэш
+    $cacheKey = 'book_desc_' . $book['id'];
+    $cached = Cache::get($cacheKey);
+    if ($cached !== null) {
+        return $cached;
+    }
+    
+    $description = '';
+    $content = getBookContent($book);
+    
+    if ($content && strtolower($book['file_type']) === 'fb2') {
+        // Определяем кодировку
+        $encoding = detectFileEncoding($book);
+        
+        // Конвертируем в UTF-8 если нужно
+        if ($encoding && $encoding !== 'UTF-8') {
+            $content = iconv($encoding, 'UTF-8//IGNORE', $content);
+            if ($content === false) {
+                // Если iconv не сработал, пробуем mb_convert_encoding
+                $content = getBookContent($book); // Читаем заново
+                $content = mb_convert_encoding($content, 'UTF-8', $encoding);
+            }
+        }
+        
+        // Пробуем разные паттерны для извлечения описания из FB2
+        $patterns = [
+            // Стандартный паттерн для description
+            '/<description>.*?<title-info>.*?<annotation>(.*?)<\/annotation>.*?<\/title-info>.*?<\/description>/is',
+            // Альтернативный паттерн
+            '/<annotation>(.*?)<\/annotation>/is',
+            // Паттерн для текста внутри annotation
+            '/<annotation>.*?<p>(.*?)<\/p>.*?<\/annotation>/is',
+            // Паттерн для тега <p> внутри annotation
+            '/<annotation>(.*?)<\/annotation>/is',
+        ];
+        
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $content, $matches)) {
+                $description = trim(strip_tags($matches[1]));
+                $description = html_entity_decode($description, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $description = preg_replace('/\s+/', ' ', $description);
+                $description = cleanText($description);
+                
+                if (!empty($description)) {
+                    // Сохраняем в кэш
+                    Cache::set($cacheKey, $description, 86400);
+                    return $description;
+                }
+            }
+        }
+    }
+    
+    return '';
+}
+
+/**
+ * Очистка текста от мусора
+ */
+function cleanText($text) {
+    // Убираем лишние пробелы
+    $text = preg_replace('/\s+/', ' ', $text);
+    
+    // Убираем спецсимволы
+    $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
+    
+    // Убираем повторяющиеся точки
+    $text = preg_replace('/\.{3,}/', '...', $text);
+    
+    // Обрезаем слишком длинный текст
+    if (mb_strlen($text) > 5000) {
+        $text = mb_substr($text, 0, 5000) . '...';
+    }
+    
+    return trim($text);
+}
+
+/**
+ * Получить содержимое книги (с ограничением по размеру)
+ */
+function getBookContent($book, $maxSize = null) {
+    $cacheKey = 'book_content_' . $book['id'] . ($maxSize ? '_' . $maxSize : '');
+    $cached = Cache::get($cacheKey);
+    if ($cached !== null) {
+        return $cached;
+    }
+    
+    $content = false;
+    if ($book['archive_path'] && $book['archive_internal_path']) {
+        $zip = new ZipArchive();
+        if ($zip->open($book['archive_path']) === TRUE) {
+            $content = $zip->getFromName($book['archive_internal_path'], $maxSize ?: 0);
+            $zip->close();
+        }
+    } else {
+        if ($maxSize) {
+            $handle = fopen($book['file_path'], 'r');
+            $content = fread($handle, $maxSize);
+            fclose($handle);
+        } else {
+            $content = @file_get_contents($book['file_path']);
+        }
+    }
+    
+    if ($content) {
+        Cache::set($cacheKey, $content, 3600);
+    }
+    
+    return $content;
+}
+
 function hasBookCover($book) {
-    // Для FB2 файлов проверяем наличие обложки
+    // Кэшируем проверку на 5 минут
+    $cacheKey = 'has_cover_' . $book['id'];
+    $cached = Cache::get($cacheKey);
+    if ($cached !== null) {
+        return $cached;
+    }
+    
+    $hasCover = false;
     if (strtolower($book['file_type']) === 'fb2') {
         $content = getBookContent($book);
         if ($content) {
-            return Fb2CoverParser::findCover($content) !== false;
+            $hasCover = Fb2CoverParser::findCover($content) !== false;
         }
     }
-    return false;
+    
+    Cache::set($cacheKey, $hasCover, 300);
+    return $hasCover;
 }
 
-/**
- * Получить содержимое книги
- */
-function getBookContent($book) {
-    if (!empty($book['archive_path']) && !empty($book['archive_internal_path'])) {
-        $zip = new ZipArchive();
-        if ($zip->open($book['archive_path']) === TRUE) {
-            $content = $zip->getFromName($book['archive_internal_path']);
-            $zip->close();
-            return $content;
-        }
-    } else if (!empty($book['file_path'])) {
-        return @file_get_contents($book['file_path']);
-    }
-    return false;
-}
-
-/**
- * Получить связанные книги (с защитой от ошибок)
- */
 function getRelatedBooks($book, $db) {
     $related = [];
     
     try {
         // Книги того же автора
         if (!empty($book['author'])) {
-            $authorBooks = $db->getBooksByAuthor($book['author'], 1, 6);
+            $authorBooks = $db->getBooksByAuthor($book['author'], 1, 8);
             foreach ($authorBooks as $authorBook) {
                 if ($authorBook['id'] != $book['id']) {
                     $related[] = $authorBook;
@@ -572,9 +682,9 @@ function getRelatedBooks($book, $db) {
             }
         }
         
-        // Книги из той же серии (если метод существует)
-        if (!empty($book['series']) && method_exists($db, 'getBooksBySeries')) {
-            $seriesBooks = $db->getBooksBySeries($book['series'], 1, 6);
+        // Книги из той же серии
+        if (!empty($book['series'])) {
+            $seriesBooks = $db->getBooksBySeries($book['series'], 1, 8);
             foreach ($seriesBooks as $seriesBook) {
                 if ($seriesBook['id'] != $book['id']) {
                     $related[] = $seriesBook;
@@ -582,7 +692,6 @@ function getRelatedBooks($book, $db) {
             }
         }
     } catch (Exception $e) {
-        // Логируем ошибку, но не прерываем выполнение
         error_log("Error getting related books: " . $e->getMessage());
     }
     
@@ -597,18 +706,37 @@ function getRelatedBooks($book, $db) {
         }
     }
     
-    return array_slice($uniqueRelated, 0, 8);
+    return array_slice($uniqueRelated, 0, 6);
 }
 
-/**
- * Форматировать описание
- */
+
 function formatDescription($description) {
+    if (empty($description)) {
+        return '<p class="text-muted">Описание отсутствует</p>';
+    }
+    
+    // Очищаем текст
     $description = htmlspecialchars($description);
+    
+    // Заменяем переносы строк на <br> но сохраняем структуру
     $description = nl2br($description);
     
     // Убираем лишние переносы
     $description = preg_replace('/(<br\s*\/?>\s*){3,}/i', '<br><br>', $description);
+    
+    // Разбиваем на абзацы для длинного текста
+    $lines = explode('<br>', $description);
+    if (count($lines) > 3) {
+        $description = '';
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (!empty($line)) {
+                $description .= '<p>' . $line . '</p>';
+            }
+        }
+    } else {
+        $description = '<p>' . $description . '</p>';
+    }
     
     return $description;
 }
@@ -618,14 +746,14 @@ function formatDescription($description) {
  */
 function getLanguageName($code) {
     $languages = [
-        'ru' => '🇷🇺 Русский',
-        'en' => '🇺🇸 Английский',
-        'de' => '🇩🇪 Немецкий',
-        'fr' => '🇫🇷 Французский',
-        'es' => '🇪🇸 Испанский',
-        'pl' => '🇵🇱 Польский',
-        'uk' => '🇺🇦 Украинский',
-        'be' => '🇧🇾 Белорусский'
+        'ru' => 'Русский',
+        'en' => 'Английский',
+        'de' => 'Немецкий',
+        'fr' => 'Французский',
+        'es' => 'Испанский',
+        'pl' => 'Польский',
+        'uk' => 'Украинский',
+        'be' => 'Белорусский'
     ];
     
     return $languages[strtolower($code)] ?? strtoupper($code);
@@ -656,5 +784,7 @@ function checkFileExists($book) {
     return false;
 }
 
+// Сохраняем страницу в кэш
+PageCache::save();
 require 'templates/footer.php';
 ?>

@@ -3,6 +3,10 @@
 require_once 'config/config.php';
 require_once 'lib/Database.php';
 require_once 'lib/Fb2CoverParser.php';
+require_once 'lib/PageCache.php';
+
+// Начинаем кэширование страницы
+PageCache::start();
 
 $db = Database::getInstance();
 $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
@@ -277,7 +281,9 @@ function getBookContent($book) {
     }
     return false;
 }
+
+// Сохраняем страницу в кэш
+PageCache::save();
+
+require 'templates/footer.php';
 ?>
-
-
-<?php require 'templates/footer.php'; ?>

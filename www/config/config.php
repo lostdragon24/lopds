@@ -6,37 +6,35 @@ class Config {
     const DB_PATH = '/path/to/db/library.db';
     const DB_HOST = 'localhost';
     const DB_USER = 'userDB';
-    const DB_PASS = 'passwordUserDB';
+    const DB_PASS = 'passwordDB';
     const DB_NAME = 'mybook';
     
     // Настройки сканера
-    const BOOKS_DIR = '/path/to.collection/books/';
+    const BOOKS_DIR = '/path/to/book/';
     const SCANNER_PATH = __DIR__ . '/scanner/path/';
     const SCANNER_CONFIG = __DIR__ . '/config.ini';
     
     // Настройки веб-интерфейса
     const SITE_TITLE = 'Моя домашняя библиотека';
     const ITEMS_PER_PAGE = 10;
-    const CACHE_DIR = '/path/to/dir/cache';
-    const COVER_CACHE_DIR = '/path/to/cache/dir/covers';
+    const CACHE_DIR = './cache';
+    const COVER_CACHE_DIR = './covers';
     
     // Настройки OPDS
     const OPDS_TITLE = 'Моя библиотека';
-    const OPDS_AUTHOR = 'Book Scanner';
+    const OPDS_AUTHOR = 'Book Lib';
     const OPDS_ID = 'urn:uuid:your-uuid-here';
     
-    // === ОПТИМИЗАЦИИ ДЛЯ RASPBERRY PI ===
-    
-    // Настройки кэширования - ВРЕМЕННО ОТКЛЮЧЕНО из-за проблем с обложками
-    const ENABLE_CACHE = true; // Временно отключено
-    const CACHE_TTL = 3600;
+    // === ВКЛЮЧАЕМ КЭШИРОВАНИЕ ===
+    const ENABLE_CACHE = true; // ВКЛЮЧАЕМ КЭШИРОВАНИЕ
+    const CACHE_TTL = 36000;
     
     // Использование APCu для опкода и данных
-    const USE_APCU = true; // Временно отключено
+    const USE_APCU = true; // ВКЛЮЧАЕМ APCu
     const APCU_TTL = 1800;
     
     // Использование Memcached для распределенного кэша
-    const USE_MEMCACHED = true; // Временно отключено
+    const USE_MEMCACHED = false; // Отключаем для Raspberry Pi
     const MEMCACHED_HOST = 'localhost';
     const MEMCACHED_PORT = 11211;
     const MEMCACHED_TTL = 7200;
@@ -45,13 +43,26 @@ class Config {
     const CACHE_LEVEL_APCU = 'apcu';
     const CACHE_LEVEL_MEMCACHED = 'memcached';
     const CACHE_LEVEL_FILE = 'file';
+
+const SEARCH_OPTIMIZATION = [
+    'enable_fulltext' => true,
+    'min_word_length' => 3, // Минимальная длина слова для FULLTEXT
+    'use_boolean_mode' => true, // Использовать BOOLEAN MODE для поиска
+    'cache_search_results' => true,
+    'search_cache_ttl' => 300, // 5 минут
+    'partial_search_fallback' => true // Если FULLTEXT не нашел, использовать LIKE
+];
     
-    // Настройки для разных типов данных (когда кэширование будет включено)
+    // Настройки для разных типов данных
     const CACHE_CONFIG = [
-        'search_results' => ['level' => self::CACHE_LEVEL_MEMCACHED, 'ttl' => 1800],
+        'search_results' => ['level' => self::CACHE_LEVEL_APCU, 'ttl' => 900],
         'book_data' => ['level' => self::CACHE_LEVEL_APCU, 'ttl' => 3600],
-        'statistics' => ['level' => self::CACHE_LEVEL_APCU, 'ttl' => 3600],
-        'opds_feeds' => ['level' => self::CACHE_LEVEL_MEMCACHED, 'ttl' => 900],
+        'statistics' => ['level' => self::CACHE_LEVEL_APCU, 'ttl' => 1800],
+        'opds_feeds' => ['level' => self::CACHE_LEVEL_APCU, 'ttl' => 300],
+        'author_list' => ['level' => self::CACHE_LEVEL_APCU, 'ttl' => 7200],
+        'genre_list' => ['level' => self::CACHE_LEVEL_APCU, 'ttl' => 7200],
+        'series_list' => ['level' => self::CACHE_LEVEL_APCU, 'ttl' => 7200],
+        'page_cache' => ['level' => self::CACHE_LEVEL_APCU, 'ttl' => 300],
     ];
     
     // Ограничения для обработки обложек
@@ -63,23 +74,29 @@ class Config {
         'skip_large_archives' => true,
         'max_archive_size' => 50 * 1024 * 1024, // 50MB
         'enable_file_cache' => true, // Файловый кэш для обложек
-        'cache_ttl' => 86400 // 24 часа
+        'cache_ttl' => 86400, // 24 часа
+        'enable_apcu_cache' => true, // Кэширование в памяти
+        'apcu_ttl' => 3600
     ];
     
     // Оптимизации производительности для Raspberry Pi
     const PERFORMANCE = [
-        'max_search_results' => 1000, // Ограничить результаты поиска
+        'max_search_results' => 500, // Уменьшаем для Raspberry Pi
         'enable_query_logging' => false, // Логирование запросов (только для отладки)
         'batch_processing' => true, // Пакетная обработка
         'optimize_images' => true, // Оптимизация изображений
-        'memory_limit' => '128M', // Лимит памяти для PHP
+        'memory_limit' => '512M', // Лимит памяти для PHP
+        'enable_page_cache' => true, // Кэширование страниц
+        'page_cache_ttl' => 300, // 5 минут
+        'enable_db_cache' => true, // Кэширование запросов к БД
+        'db_cache_ttl' => 900, // 15 минут
     ];
     
     // Настройки пагинации
     const PAGINATION = [
         'max_pages' => 100, // Максимальное количество страниц
         'default_per_page' => 20,
-        'large_results_threshold' => 1000, // Порог для больших результатов
+        'large_results_threshold' => 500, // Уменьшаем порог
     ];
 
     public static function init() {
@@ -101,9 +118,21 @@ class Config {
             ini_set('gd.jpeg_ignore_warning', 1);
         }
         
+        // Включаем буферизацию вывода
+        if (self::PERFORMANCE['enable_page_cache']) {
+            ob_start();
+        }
+        
         // Создаем конфиг для сканера если его нет
         if (!file_exists(self::SCANNER_CONFIG)) {
             self::createScannerConfig();
+        }
+        
+        // Инициализируем APCu если включено
+        if (self::ENABLE_CACHE && self::USE_APCU && extension_loaded('apcu')) {
+            if (!apcu_enabled()) {
+                error_log("APCu is installed but not enabled. Check php.ini settings.");
+            }
         }
     }
     

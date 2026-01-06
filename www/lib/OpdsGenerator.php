@@ -70,6 +70,212 @@ class OpdsGenerator {
     }
     
     /**
+     * Генерация результатов поиска
+     */
+    public function generateSearchResults($query, $page = 1) {
+        error_log("OPDS Search called with query: " . $query . ", page: " . $page);
+        
+        header('Content-Type: application/atom+xml; charset=utf-8');
+        
+        $perPage = 25;
+        $booksCount = 0;
+        
+        try {
+            // Получаем количество книг
+            $booksCount = $this->db->getSearchCount($query, 'all');
+            error_log("OPDS Search count for '$query': " . $booksCount);
+            
+            $totalPages = $booksCount > 0 ? ceil($booksCount / $perPage) : 0;
+            
+            $xml = new XMLWriter();
+            $xml->openMemory();
+            $xml->setIndent(true);
+            $xml->setIndentString('  ');
+            
+            $xml->startDocument('1.0', 'UTF-8');
+            
+            $xml->startElement('feed');
+            $xml->writeAttribute('xmlns', 'http://www.w3.org/2005/Atom');
+            $xml->writeAttribute('xmlns:dc', 'http://purl.org/dc/terms/');
+            $xml->writeAttribute('xmlns:opds', 'http://opds-spec.org/2010/catalog');
+            
+            $xml->writeElement('id', Config::OPDS_ID . ':search:' . urlencode($query) . ($page > 1 ? ':page:' . $page : ''));
+            $xml->writeElement('title', 'Search results for: ' . htmlspecialchars($query) . ' - ' . Config::OPDS_TITLE . ($page > 1 ? ' - Page ' . $page : ''));
+            $xml->writeElement('updated', date('c'));
+            $xml->writeElement('icon', $this->baseUrl . '/favicon.ico');
+            
+            $xml->startElement('author');
+            $xml->writeElement('name', Config::OPDS_AUTHOR);
+            $xml->endElement();
+            
+            // Ссылка на сам каталог
+            $xml->startElement('link');
+            $xml->writeAttribute('rel', 'self');
+            $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php?search=' . urlencode($query) . ($page > 1 ? '&page=' . $page : ''));
+            $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=acquisition');
+            $xml->endElement();
+            
+            // Ссылка на стартовую страницу
+            $xml->startElement('link');
+            $xml->writeAttribute('rel', 'start');
+            $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php');
+            $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=acquisition');
+            $xml->endElement();
+            
+            // Ссылка на поиск
+            $xml->startElement('link');
+            $xml->writeAttribute('rel', 'search');
+            $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php?search={searchTerms}');
+            $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=acquisition');
+            $xml->writeAttribute('opds:searchType', 'application/atom+xml;profile=opds-catalog;kind=acquisition');
+            $xml->endElement();
+            
+            // Навигационные ссылки
+            $this->addNavigationLinks($xml);
+            
+            // Пагинация
+            $this->addPaginationLinks($xml, $page, $perPage, 'search', $totalPages, ['search' => $query]);
+            
+            // Получаем книги
+            error_log("OPDS: Getting books for search '$query', page $page, perPage $perPage");
+            $books = $this->db->searchBooks($query, 'all', $page, $perPage);
+            error_log("OPDS: Found " . count($books) . " books");
+            
+            if (count($books) > 0) {
+                foreach ($books as $book) {
+                    $this->addBookEntry($xml, $book);
+                }
+            } else {
+                // Добавляем сообщение если ничего не найдено
+                $xml->startElement('entry');
+                $xml->writeElement('title', 'No books found for: ' . htmlspecialchars($query));
+                $xml->writeElement('updated', date('c'));
+                $xml->writeElement('content', 'Try different search terms', 'text');
+                
+                $xml->startElement('link');
+                $xml->writeAttribute('rel', 'alternate');
+                $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php');
+                $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=acquisition');
+                $xml->endElement();
+                
+                $xml->endElement();
+            }
+            
+            $xml->endElement();
+            
+            return $xml->outputMemory();
+            
+        } catch (Exception $e) {
+            error_log("OPDS Search error: " . $e->getMessage());
+            
+            // Возвращаем ошибку в XML формате
+            $xml = new XMLWriter();
+            $xml->openMemory();
+            $xml->setIndent(true);
+            
+            $xml->startDocument('1.0', 'UTF-8');
+            
+            $xml->startElement('feed');
+            $xml->writeAttribute('xmlns', 'http://www.w3.org/2005/Atom');
+            $xml->writeAttribute('xmlns:dc', 'http://purl.org/dc/terms/');
+            $xml->writeAttribute('xmlns:opds', 'http://opds-spec.org/2010/catalog');
+            
+            $xml->writeElement('id', Config::OPDS_ID . ':search:error');
+            $xml->writeElement('title', 'Search Error - ' . Config::OPDS_TITLE);
+            $xml->writeElement('updated', date('c'));
+            $xml->writeElement('icon', $this->baseUrl . '/favicon.ico');
+            
+            $xml->startElement('author');
+            $xml->writeElement('name', Config::OPDS_AUTHOR);
+            $xml->endElement();
+            
+            $xml->startElement('entry');
+            $xml->writeElement('title', 'Search Error');
+            $xml->writeElement('updated', date('c'));
+            $xml->writeElement('content', 'Error searching for: ' . htmlspecialchars($query) . '. Please try again.', 'text');
+            
+            $xml->startElement('link');
+            $xml->writeAttribute('rel', 'alternate');
+            $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php');
+            $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=acquisition');
+            $xml->endElement();
+            
+            $xml->endElement();
+            
+            $xml->endElement();
+            
+            return $xml->outputMemory();
+        }
+    }
+    
+    /**
+     * Навигация по авторам
+     */
+    public function generateByAuthors($page = 1) {
+        header('Content-Type: application/atom+xml; charset=utf-8');
+        
+        $perPage = 50;
+        $xml = new XMLWriter();
+        $xml->openMemory();
+        $xml->setIndent(true);
+        $xml->setIndentString('  ');
+        
+        $xml->startDocument('1.0', 'UTF-8');
+        
+        $xml->startElement('feed');
+        $xml->writeAttribute('xmlns', 'http://www.w3.org/2005/Atom');
+        $xml->writeAttribute('xmlns:dc', 'http://purl.org/dc/terms/');
+        $xml->writeAttribute('xmlns:opds', 'http://opds-spec.org/2010/catalog');
+        
+        $xml->writeElement('id', Config::OPDS_ID . ':authors:navigation' . ($page > 1 ? ':page:' . $page : ''));
+        $xml->writeElement('title', 'Browse by Authors - ' . Config::OPDS_TITLE . ($page > 1 ? ' - Page ' . $page : ''));
+        $xml->writeElement('updated', date('c'));
+        
+        $xml->startElement('author');
+        $xml->writeElement('name', Config::OPDS_AUTHOR);
+        $xml->endElement();
+        
+        $xml->startElement('link');
+        $xml->writeAttribute('rel', 'self');
+        $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php?by=authors' . ($page > 1 ? '&page=' . $page : ''));
+        $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=navigation');
+        $xml->endElement();
+        
+        $xml->startElement('link');
+        $xml->writeAttribute('rel', 'start');
+        $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php');
+        $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=acquisition');
+        $xml->endElement();
+        
+        // Навигация между разделами
+        $this->addBrowseLinks($xml);
+        
+        // Получаем топ авторов
+        $authors = $this->db->getTopAuthors($perPage);
+        
+        foreach ($authors as $author) {
+            $xml->startElement('entry');
+            
+            $xml->writeElement('title', htmlspecialchars($author['author']) . ' (' . $author['count'] . ')');
+            $xml->writeElement('updated', date('c'));
+            $xml->writeElement('content', $author['count'] . ' books by ' . htmlspecialchars($author['author']));
+            $xml->writeAttribute('type', 'text');
+            
+            $xml->startElement('link');
+            $xml->writeAttribute('rel', 'subsection');
+            $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php?author=' . urlencode($author['author']));
+            $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=acquisition');
+            $xml->endElement();
+            
+            $xml->endElement();
+        }
+        
+        $xml->endElement();
+        
+        return $xml->outputMemory();
+    }
+    
+    /**
      * Навигация по жанрам
      */
     public function generateGenresNavigation() {
@@ -301,10 +507,9 @@ class OpdsGenerator {
         return $xml->outputMemory();
     }
     
-    public function generateByAuthors($page = 1) {
-        // ... существующий код без изменений ...
-    }
-    
+    /**
+     * Каталог по авторам (старый метод для совместимости)
+     */
     public function generateByGenres($page = 1) {
         // Заменяем старый метод на новый с навигацией
         $view = $_GET['view'] ?? '';
@@ -319,10 +524,75 @@ class OpdsGenerator {
         }
     }
     
+    /**
+     * Книги конкретного автора
+     */
     public function generateByAuthor($author, $page = 1) {
-        // ... существующий код без изменений ...
+        header('Content-Type: application/atom+xml; charset=utf-8');
+        
+        $perPage = 25;
+        $booksCount = $this->db->getBooksCountByAuthor($author);
+        $totalPages = ceil($booksCount / $perPage);
+        
+        $xml = new XMLWriter();
+        $xml->openMemory();
+        $xml->setIndent(true);
+        $xml->setIndentString('  ');
+        
+        $xml->startDocument('1.0', 'UTF-8');
+        
+        $xml->startElement('feed');
+        $xml->writeAttribute('xmlns', 'http://www.w3.org/2005/Atom');
+        $xml->writeAttribute('xmlns:dc', 'http://purl.org/dc/terms/');
+        $xml->writeAttribute('xmlns:opds', 'http://opds-spec.org/2010/catalog');
+        
+        $xml->writeElement('id', Config::OPDS_ID . ':author:' . urlencode($author) . ($page > 1 ? ':page:' . $page : ''));
+        $xml->writeElement('title', 'Books by ' . htmlspecialchars($author) . ($page > 1 ? ' - Page ' . $page : ''));
+        $xml->writeElement('updated', date('c'));
+        
+        $xml->startElement('author');
+        $xml->writeElement('name', Config::OPDS_AUTHOR);
+        $xml->endElement();
+        
+        $xml->startElement('link');
+        $xml->writeAttribute('rel', 'self');
+        $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php?author=' . urlencode($author) . ($page > 1 ? '&page=' . $page : ''));
+        $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=acquisition');
+        $xml->endElement();
+        
+        $xml->startElement('link');
+        $xml->writeAttribute('rel', 'start');
+        $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php');
+        $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=acquisition');
+        $xml->endElement();
+        
+        // Навигация назад к авторам
+        $xml->startElement('link');
+        $xml->writeAttribute('rel', 'related');
+        $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php?by=authors');
+        $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=navigation');
+        $xml->writeAttribute('title', 'Browse All Authors');
+        $xml->endElement();
+        
+        // Навигация между разделами
+        $this->addBrowseLinks($xml);
+        
+        // Пагинация
+        $this->addPaginationLinks($xml, $page, $perPage, 'author', $totalPages, ['author' => $author]);
+        
+        $books = $this->db->getBooksByAuthor($author, $page, $perPage);
+        foreach ($books as $book) {
+            $this->addBookEntry($xml, $book);
+        }
+        
+        $xml->endElement();
+        
+        return $xml->outputMemory();
     }
     
+    /**
+     * Книги конкретного жанра
+     */
     public function generateByGenre($genre, $page = 1) {
         header('Content-Type: application/atom+xml; charset=utf-8');
         
@@ -389,12 +659,62 @@ class OpdsGenerator {
         return $xml->outputMemory();
     }
     
+    /**
+     * Книги конкретной серии
+     */
     public function generateBySeries($series, $page = 1) {
-        // ... аналогично generateByGenre ...
-    }
-    
-    public function generateSearchResults($query, $page = 1) {
-        // ... существующий код без изменений ...
+        header('Content-Type: application/atom+xml; charset=utf-8');
+        
+        $perPage = 25;
+        $booksCount = $this->db->getBooksCountBySeries($series);
+        $totalPages = ceil($booksCount / $perPage);
+        
+        $xml = new XMLWriter();
+        $xml->openMemory();
+        $xml->setIndent(true);
+        $xml->setIndentString('  ');
+        
+        $xml->startDocument('1.0', 'UTF-8');
+        
+        $xml->startElement('feed');
+        $xml->writeAttribute('xmlns', 'http://www.w3.org/2005/Atom');
+        $xml->writeAttribute('xmlns:dc', 'http://purl.org/dc/terms/');
+        $xml->writeAttribute('xmlns:opds', 'http://opds-spec.org/2010/catalog');
+        
+        $xml->writeElement('id', Config::OPDS_ID . ':series:' . urlencode($series) . ($page > 1 ? ':page:' . $page : ''));
+        $xml->writeElement('title', 'Books in series: ' . htmlspecialchars($series) . ($page > 1 ? ' - Page ' . $page : ''));
+        $xml->writeElement('updated', date('c'));
+        
+        $xml->startElement('author');
+        $xml->writeElement('name', Config::OPDS_AUTHOR);
+        $xml->endElement();
+        
+        $xml->startElement('link');
+        $xml->writeAttribute('rel', 'self');
+        $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php?series=' . urlencode($series) . ($page > 1 ? '&page=' . $page : ''));
+        $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=acquisition');
+        $xml->endElement();
+        
+        $xml->startElement('link');
+        $xml->writeAttribute('rel', 'start');
+        $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php');
+        $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=acquisition');
+        $xml->endElement();
+        
+        // Навигация
+        $this->addBrowseLinks($xml);
+        
+        // Пагинация
+        $this->addPaginationLinks($xml, $page, $perPage, 'series', $totalPages, ['series' => $series]);
+        
+        $books = $this->db->getBooksBySeries($series, $page, $perPage);
+        foreach ($books as $book) {
+            $this->addBookEntry($xml, $book);
+        }
+        
+        $xml->endElement();
+        
+        return $xml->outputMemory();
     }
     
     /**
@@ -402,30 +722,33 @@ class OpdsGenerator {
      */
     private function categorizeGenres($genres) {
         $categories = [
-            'Фантастика' => ['sf', 'sf_', 'fantasy'],
-            'Детективы' => ['det', 'thriller'],
-            'Проза' => ['prose', 'novel'],
-            'Романы' => ['love', 'romance'],
-            'Приключения' => ['adv', 'adventure'],
-            'Детские' => ['child', 'children'],
-            'Поэзия' => ['poetry', 'dramaturgy'],
-            'Наука' => ['sci', 'science'],
-            'Компьютеры' => ['comp', 'computers'],
-            'Религия' => ['religion'],
-            'Юмор' => ['humor'],
-            'Домоводство' => ['home'],
+            'Фантастика' => ['sf', 'sf_', 'fantasy', 'фантастика'],
+            'Детективы' => ['det', 'thriller', 'детектив'],
+            'Проза' => ['prose', 'novel', 'проза'],
+            'Романы' => ['love', 'romance', 'роман'],
+            'Приключения' => ['adv', 'adventure', 'приключения'],
+            'Детские' => ['child', 'children', 'детск'],
+            'Поэзия' => ['poetry', 'dramaturgy', 'поэзия'],
+            'Наука' => ['sci', 'science', 'науч'],
+            'Компьютеры' => ['comp', 'computers', 'компьютер'],
+            'Религия' => ['religion', 'религия'],
+            'Юмор' => ['humor', 'юмор'],
+            'Домоводство' => ['home', 'домоводство'],
             'Другое' => [] // Для остальных жанров
         ];
         
         $categorized = [];
         
         foreach ($genres as $genre) {
-            $genreCode = $genre['genre'];
+            $genreCode = strtolower($genre['genre']);
             $assigned = false;
             
             foreach ($categories as $category => $patterns) {
                 foreach ($patterns as $pattern) {
-                    if (strpos($genreCode, $pattern) === 0) {
+                    if (strpos($genreCode, $pattern) === 0 || stripos($genre['readable_name'] ?? '', $pattern) !== false) {
+                        if (!isset($categorized[$category])) {
+                            $categorized[$category] = [];
+                        }
                         $categorized[$category][] = $genre;
                         $assigned = true;
                         break 2;
@@ -434,9 +757,17 @@ class OpdsGenerator {
             }
             
             if (!$assigned) {
+                if (!isset($categorized['Другое'])) {
+                    $categorized['Другое'] = [];
+                }
                 $categorized['Другое'][] = $genre;
             }
         }
+        
+        // Сортируем категории по количеству жанров
+        uasort($categorized, function($a, $b) {
+            return count($b) - count($a);
+        });
         
         // Убираем пустые категории
         foreach ($categorized as $category => $categoryGenres) {
@@ -462,7 +793,6 @@ class OpdsGenerator {
         $xml->writeAttribute('rel', 'http://opds-spec.org/sort/new');
         $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php');
         $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=acquisition');
-        $xml->writeElement('title', 'Newest Books');
         $xml->endElement();
         
         // По авторам
@@ -470,7 +800,6 @@ class OpdsGenerator {
         $xml->writeAttribute('rel', 'subsection');
         $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php?by=authors');
         $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=navigation');
-        $xml->writeElement('title', 'Browse by Authors');
         $xml->endElement();
         
         // По жанрам
@@ -478,7 +807,6 @@ class OpdsGenerator {
         $xml->writeAttribute('rel', 'subsection');
         $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php?by=genres');
         $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=navigation');
-        $xml->writeElement('title', 'Browse by Genres');
         $xml->endElement();
         
         // Поиск
@@ -495,21 +823,18 @@ class OpdsGenerator {
         $xml->writeAttribute('rel', 'subsection');
         $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php?by=authors');
         $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=navigation');
-        $xml->writeElement('title', 'Authors');
         $xml->endElement();
         
         $xml->startElement('link');
         $xml->writeAttribute('rel', 'subsection');
         $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php?by=genres');
         $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=navigation');
-        $xml->writeElement('title', 'Genres');
         $xml->endElement();
         
         $xml->startElement('link');
         $xml->writeAttribute('rel', 'start');
         $xml->writeAttribute('href', $this->baseUrl . '/api/opds.php');
         $xml->writeAttribute('type', 'application/atom+xml;profile=opds-catalog;kind=acquisition');
-        $xml->writeElement('title', 'New Books');
         $xml->endElement();
     }
 

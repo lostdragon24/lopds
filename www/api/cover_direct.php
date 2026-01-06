@@ -2,9 +2,11 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../lib/Database.php';
 require_once __DIR__ . '/../lib/Fb2CoverParser.php';
+require_once __DIR__ . '/../lib/Cache.php';
 
 $id = $_GET['id'] ?? '';
 $thumb = isset($_GET['thumb']);
+$refresh = isset($_GET['refresh']);
 
 if (!$id || !is_numeric($id)) {
     serveDefaultCover($thumb);
@@ -19,37 +21,66 @@ if (!$book) {
     exit;
 }
 
-// ПРОСТОЙ ВАРИАНТ БЕЗ КЭШИРОВАНИЯ В ПАМЯТИ
-$coverPath = Config::COVER_CACHE_DIR . '/' . $id . ($thumb ? '_thumb.jpg' : '.jpg');
+// ПРОВЕРЯЕМ КЭШ В ПАМЯТИ (APCu)
+$cacheKey = 'cover_' . $id . ($thumb ? '_thumb' : '');
+if (Config::COVER_PROCESSING['enable_apcu_cache'] && !$refresh) {
+    $cachedData = Cache::get($cacheKey);
+    if ($cachedData !== null) {
+        header('Content-Type: image/jpeg');
+        header('Cache-Control: public, max-age=86400');
+        header('X-Cache: APCu HIT');
+        echo $cachedData;
+        exit;
+    }
+}
 
-// Если есть файловый кэш - используем его
-if (file_exists($coverPath)) {
+// ПРОВЕРЯЕМ ФАЙЛОВЫЙ КЭШ
+$coverPath = Config::COVER_CACHE_DIR . '/' . $id . ($thumb ? '_thumb.jpg' : '.jpg');
+if (Config::COVER_PROCESSING['enable_file_cache'] && !$refresh && file_exists($coverPath)) {
+    // Сохраняем в APCu для будущих запросов
+    if (Config::COVER_PROCESSING['enable_apcu_cache']) {
+        $imageData = file_get_contents($coverPath);
+        Cache::set($cacheKey, $imageData, Config::COVER_PROCESSING['apcu_ttl']);
+    }
+    
     header('Content-Type: image/jpeg');
     header('Cache-Control: public, max-age=86400');
+    header('X-Cache: File HIT');
     readfile($coverPath);
     exit;
 }
 
-// Иначе извлекаем обложку
+// ЕСЛИ НЕТ В КЭШЕ - ИЗВЛЕКАЕМ ОБЛОЖКУ
 $imageData = extractBookCover($book);
 if ($imageData === false) {
     serveDefaultCover($thumb);
     exit;
 }
 
-// Сохраняем в файловый кэш и отдаем
-if (saveCoverToCache($imageData, $id, $thumb)) {
-    header('Content-Type: image/jpeg');
-    header('Cache-Control: public, max-age=86400');
-    
-    if ($thumb) {
-        echo createThumbnailFromData($imageData, 200, 300);
-    } else {
-        echo $imageData;
-    }
-} else {
-    serveDefaultCover($thumb);
+// СОХРАНЯЕМ В ФАЙЛОВЫЙ КЭШ
+if (Config::COVER_PROCESSING['enable_file_cache']) {
+    saveCoverToCache($imageData, $id, $thumb);
 }
+
+// СОХРАНЯЕМ В ПАМЯТЬ (APCu)
+if (Config::COVER_PROCESSING['enable_apcu_cache']) {
+    $outputData = $thumb ? createThumbnailFromData($imageData, 200, 300) : $imageData;
+    if ($outputData) {
+        Cache::set($cacheKey, $outputData, Config::COVER_PROCESSING['apcu_ttl']);
+    }
+}
+
+// ОТДАЕМ РЕЗУЛЬТАТ
+header('Content-Type: image/jpeg');
+header('Cache-Control: public, max-age=86400');
+header('X-Cache: MISS');
+
+if ($thumb) {
+    echo createThumbnailFromData($imageData, 200, 300);
+} else {
+    echo $imageData;
+}
+exit;
 
 /**
  * Извлечь обложку из книги
@@ -178,6 +209,7 @@ function serveDefaultCover($thumb) {
     
     header('Content-Type: image/jpeg');
     header('Cache-Control: public, max-age=3600');
+    header('X-Cache: DEFAULT');
     imagejpeg($image);
     imagedestroy($image);
     exit;
