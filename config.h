@@ -3,7 +3,9 @@
 
 #include <stdio.h>
 
-#define MAX_PATH 4096
+// УБИРАЕМ определение MAX_PATH здесь, так как оно уже в common.h
+// #define MAX_PATH 4096
+
 #define MAX_LINE 1024
 
 // Уровни логирования
@@ -33,7 +35,7 @@ typedef struct {
     int enable_inpx;
     int clear_database_inpx;
     char *hash_algorithm;
-    LogLevel log_level;  // ИСПОЛЬЗУЕМ LogLevel вместо int
+    LogLevel log_level;
 } ScannerConfig;
 
 typedef struct {

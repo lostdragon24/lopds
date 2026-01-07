@@ -1,6 +1,3 @@
-// #define _POSIX_C_SOURCE 200809L
-// #define _GNU_SOURCE
-
 #include "metadata.h"
 #include "utils.h"
 #include <stdlib.h>
@@ -8,15 +5,11 @@
 #include <ctype.h>
 
 BookMeta* parse_metadata(const char *filepath, const char *file_type) {
-    printf("DEBUG: [PARSE_METADATA] Parsing: %s, type: %s\n", filepath, file_type);
-
     BookMeta *meta = calloc(1, sizeof(BookMeta));
     if (!meta) {
-        printf("ERROR: [PARSE_METADATA] Failed to allocate BookMeta\n");
         return NULL;
     }
 
-    // Инициализируем все поля
     meta->title = NULL;
     meta->author = NULL;
     meta->genre = NULL;
@@ -31,7 +24,6 @@ BookMeta* parse_metadata(const char *filepath, const char *file_type) {
     if (strcasecmp(file_type, "fb2") == 0) {
         BookMeta *fb2_meta = parse_fb2(filepath);
         if (fb2_meta) {
-            // Копируем данные из fb2_meta в meta
             if (fb2_meta->title) meta->title = strdup(fb2_meta->title);
             if (fb2_meta->author) meta->author = strdup(fb2_meta->author);
             if (fb2_meta->genre) meta->genre = strdup(fb2_meta->genre);
@@ -42,14 +34,9 @@ BookMeta* parse_metadata(const char *filepath, const char *file_type) {
             meta->year = fb2_meta->year;
 
             free_book_meta(fb2_meta);
-            printf("DEBUG: [PARSE_METADATA] Successfully parsed FB2: %s\n", filepath);
-        } else {
-            printf("DEBUG: [PARSE_METADATA] Failed to parse FB2, using fallback: %s\n", filepath);
-            // Используем fallback логику
         }
     }
 
-    // Fallback: если не удалось распарсить или не FB2
     if (!meta->title) {
         const char *filename = strrchr(filepath, '/');
         filename = filename ? filename + 1 : filepath;
@@ -74,11 +61,8 @@ BookMeta* parse_metadata(const char *filepath, const char *file_type) {
         }
     }
 
-    // Гарантируем, что title и author не NULL
     if (!meta->title) meta->title = strdup("Unknown Title");
     if (!meta->author) meta->author = strdup("Unknown Author");
-
-    printf("DEBUG: [PARSE_METADATA] Final - Title: %s, Author: %s\n", meta->title, meta->author);
 
     return meta;
 }
@@ -93,26 +77,21 @@ BookMeta* parse_fb2(const char *filepath) {
         return NULL;
     }
 
-    // ОПРЕДЕЛЯЕМ кодировку
     int content_encoding = detect_encoding(content);
 
-    // КОНВЕРТИРУЕМ ВЕСЬ КОНТЕНТ если нужно
     char *converted_content = NULL;
-    if (content_encoding == 2) { // Windows-1251
+    if (content_encoding == 2) {
         converted_content = convert_encoding(content, "WINDOWS-1251", "UTF-8");
     }
 
-    // Используем конвертированный контент если он есть, иначе оригинальный
     char *content_to_parse = converted_content ? converted_content : content;
 
-    // ИЗВЛЕКАЕМ метаданные из уже конвертированного контента
     meta->title = extract_xml_tag_content(content_to_parse, "book-title");
     meta->author = extract_fb2_author(content_to_parse);
     meta->genre = extract_xml_tag_content(content_to_parse, "genre");
     meta->series = extract_fb2_sequence(content_to_parse);
     meta->series_number = extract_fb2_sequence_number(content_to_parse);
 
-    // Извлечение года публикации
     char *date = extract_xml_tag_content(content_to_parse, "date");
     if (date) {
         char *year_ptr = date;
@@ -132,7 +111,6 @@ BookMeta* parse_fb2(const char *filepath) {
     meta->language = extract_xml_tag_content(content_to_parse, "lang");
     meta->publisher = extract_xml_tag_content(content_to_parse, "publisher");
 
-    // Аннотация
     char *annotation = extract_xml_tag_content(content_to_parse, "annotation");
     if (annotation) {
         if (strlen(annotation) > 1000) {
@@ -142,7 +120,6 @@ BookMeta* parse_fb2(const char *filepath) {
         }
     }
 
-    // Если название не найдено, используем имя файла
     if (!meta->title) {
         const char *filename = strrchr(filepath, '/');
         filename = filename ? filename + 1 : filepath;
@@ -154,7 +131,6 @@ BookMeta* parse_fb2(const char *filepath) {
         }
     }
 
-    // Очищаем память
     free(content);
     if (converted_content) {
         free(converted_content);
@@ -175,19 +151,15 @@ BookMeta* parse_fb2_from_memory(const char *content, size_t content_size) {
     memcpy(content_copy, content, content_size);
     content_copy[content_size] = '\0';
 
-    // ОПРЕДЕЛЯЕМ кодировку
     int content_encoding = detect_encoding(content_copy);
 
-    // КОНВЕРТИРУЕМ ВЕСЬ КОНТЕНТ если нужно
     char *converted_content = NULL;
-    if (content_encoding == 2) { // Windows-1251
+    if (content_encoding == 2) {
         converted_content = convert_encoding(content_copy, "WINDOWS-1251", "UTF-8");
     }
 
-    // Используем конвертированный контент если он есть, иначе оригинальный
     char *content_to_parse = converted_content ? converted_content : content_copy;
 
-    // ИЗВЛЕКАЕМ метаданные из уже конвертированного контента
     meta->title = extract_xml_tag_content(content_to_parse, "book-title");
     meta->author = extract_fb2_author(content_to_parse);
     meta->genre = extract_xml_tag_content(content_to_parse, "genre");
@@ -222,7 +194,6 @@ BookMeta* parse_fb2_from_memory(const char *content, size_t content_size) {
         }
     }
 
-    // Очищаем память
     free(content_copy);
     if (converted_content) {
         free(converted_content);
@@ -231,10 +202,7 @@ BookMeta* parse_fb2_from_memory(const char *content, size_t content_size) {
     return meta;
 }
 
-// Остальные функции БЕЗ ИЗМЕНЕНИЙ:
-
 char* extract_fb2_sequence(const char *xml) {
-    // Ищем тег sequence разными способами
     char *sequence_start = strstr(xml, "<sequence");
     if (!sequence_start) {
         sequence_start = strstr(xml, "<sequence>");
@@ -244,7 +212,6 @@ char* extract_fb2_sequence(const char *xml) {
     char *name_start = NULL;
     char *name_end = NULL;
 
-    // Вариант 1: <sequence name="Серия">
     name_start = strstr(sequence_start, "name=\"");
     if (name_start) {
         name_start += 6;
@@ -260,7 +227,6 @@ char* extract_fb2_sequence(const char *xml) {
         }
     }
 
-    // Вариант 2: <sequence>Название серии</sequence>
     char *tag_end = strstr(sequence_start, ">");
     if (tag_end) {
         tag_end++;
@@ -289,7 +255,6 @@ int extract_fb2_sequence_number(const char *xml) {
     char *sequence_start = strstr(xml, "<sequence");
     if (!sequence_start) return 0;
 
-    // Ищем number="N"
     char *number_start = strstr(sequence_start, "number=\"");
     if (number_start) {
         number_start += 8;
@@ -301,7 +266,6 @@ int extract_fb2_sequence_number(const char *xml) {
                 strncpy(number_str, number_start, num_len);
                 number_str[num_len] = '\0';
 
-                // Проверяем, что это действительно число
                 for (size_t i = 0; i < num_len; i++) {
                     if (!isdigit((unsigned char)number_str[i])) {
                         return 0;
@@ -346,7 +310,7 @@ char* extract_xml_tag_content(const char *xml, const char *tag_name) {
         }
     }
 
-    return content; // УБРАНА конвертация - контент уже в UTF-8
+    return content;
 }
 
 char* extract_fb2_author(const char *xml) {
@@ -382,7 +346,6 @@ char* extract_fb2_author(const char *xml) {
 void free_book_meta(BookMeta *meta) {
     if (!meta) return;
 
-    // Проверяем каждый указатель перед освобождением
     if (meta->title) {
         free(meta->title);
         meta->title = NULL;

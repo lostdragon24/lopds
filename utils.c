@@ -95,7 +95,6 @@ char* convert_encoding(const char *text, const char *from_encoding, const char *
     return out_buf;
 }
 
-// Упрощенная функция определения кодировки
 int detect_encoding(const char *text) {
     if (!text) return 0;
 
@@ -189,27 +188,20 @@ int is_already_running(const char *lockfile_path) {
 char* calculate_file_hash(const char *filepath, const char *algorithm) {
     FILE *file = fopen(filepath, "rb");
     if (!file) {
-        printf("ERROR: [CALCULATE_HASH] Cannot open file: %s\n", filepath);
         return NULL;
     }
 
     const EVP_MD *md_algorithm = NULL;
 
-    // Выбор алгоритма хеширования
     if (strcasecmp(algorithm, "md5") == 0) {
         md_algorithm = EVP_md5();
-        printf("DEBUG: [CALCULATE_HASH] Using MD5 for: %s\n", filepath);
     } else if (strcasecmp(algorithm, "sha1") == 0) {
         md_algorithm = EVP_sha1();
-        printf("DEBUG: [CALCULATE_HASH] Using SHA1 for: %s\n", filepath);
     } else if (strcasecmp(algorithm, "sha256") == 0) {
         md_algorithm = EVP_sha256();
-        printf("DEBUG: [CALCULATE_HASH] Using SHA256 for: %s\n", filepath);
     } else if (strcasecmp(algorithm, "sha512") == 0) {
         md_algorithm = EVP_sha512();
-        printf("DEBUG: [CALCULATE_HASH] Using SHA512 for: %s\n", filepath);
     } else {
-        printf("ERROR: [CALCULATE_HASH] Unknown algorithm: %s, using SHA256\n", algorithm);
         md_algorithm = EVP_sha256();
     }
 
@@ -254,7 +246,5 @@ char* calculate_file_hash(const char *filepath, const char *algorithm) {
     }
     hash_str[hash_len * 2] = '\0';
 
-    printf("DEBUG: [CALCULATE_HASH] %s hash for %s: %s\n", algorithm, filepath, hash_str);
     return hash_str;
 }
-

@@ -1,17 +1,21 @@
 #include "common.h"
 #include "database.h"
-#include "database_mysql.h"  // Добавляем заголовок MySQL
+#include "database_mysql.h"
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
 
 DatabaseHandle* db_connect(Config *config) {
-    printf("DEBUG: Attempting to connect to database type: %s\n", config->database.type);
+    if (!config) {
+        return NULL;
+    }
+
+    log_message(config, "DEBUG", "Attempting to connect to database type: %s", config->database.type);
 
     DatabaseHandle *db_handle = malloc(sizeof(DatabaseHandle));
     if (!db_handle) {
-        printf("ERROR: Failed to allocate memory for database handle\n");
+        log_message(config, "ERROR", "Failed to allocate memory for database handle");
         return NULL;
     }
 
@@ -19,39 +23,35 @@ DatabaseHandle* db_connect(Config *config) {
     db_handle->db_type = -1;
 
     if (strcmp(config->database.type, "sqlite") == 0) {
-        printf("DEBUG: Connecting to SQLite database...\n");
+        log_message(config, "DEBUG", "Connecting to SQLite database...");
         db_handle->db_type = DB_SQLITE;
         sqlite3 *db;
         if (sqlite3_open(config->database.path, &db) == SQLITE_OK) {
             db_handle->connection = db;
-            printf("SUCCESS: Connected to SQLite database: %s\n", config->database.path);
             log_message(config, "INFO", "Connected to SQLite database: %s", config->database.path);
             return db_handle;
         } else {
-            printf("ERROR: Cannot open SQLite database: %s\n", sqlite3_errmsg(db));
             log_message(config, "ERROR", "Cannot open SQLite database: %s", sqlite3_errmsg(db));
             sqlite3_close(db);
         }
     }
     else if (strcmp(config->database.type, "mysql") == 0) {
-        printf("DEBUG: Connecting to MySQL database...\n");
+        log_message(config, "DEBUG", "Connecting to MySQL database...");
         db_handle->db_type = DB_MYSQL;
         MySQLConnection *mysql_conn = mysql_conn_connect(config);
         if (mysql_conn) {
             db_handle->connection = mysql_conn;
-            printf("SUCCESS: Connected to MySQL database\n");
+            log_message(config, "INFO", "Connected to MySQL database");
             return db_handle;
         } else {
-            printf("ERROR: Failed to connect to MySQL database\n");
             log_message(config, "ERROR", "Failed to connect to MySQL database");
         }
     }
     else {
-        printf("ERROR: Unknown database type: %s\n", config->database.type);
         log_message(config, "ERROR", "Unknown database type: %s", config->database.type);
     }
 
-    printf("ERROR: Database connection failed completely\n");
+    log_message(config, "ERROR", "Database connection failed completely");
     free(db_handle);
     return NULL;
 }
@@ -176,19 +176,18 @@ int create_archive_table(DatabaseHandle *db_handle, Config *config) {
 
 int archive_needs_rescan(DatabaseHandle *db_handle, const char *archive_path, const char *current_hash, Config *config) {
     if (!db_handle || !db_handle->connection) {
-        printf("DEBUG: [ARCHIVE_NEEDS_RESCAN] No database connection\n");
-        return 1; // Нет соединения - нужно сканировать
+        log_message(config, "DEBUG", "[ARCHIVE_NEEDS_RESCAN] No database connection");
+        return 1;
     }
 
     struct stat st;
     if (stat(archive_path, &st) == -1) {
-        printf("DEBUG: [ARCHIVE_NEEDS_RESCAN] Cannot stat archive: %s\n", archive_path);
-        return 1; // Файл не существует - пропускаем
+        log_message(config, "DEBUG", "[ARCHIVE_NEEDS_RESCAN] Cannot stat archive: %s", archive_path);
+        return 1;
     }
 
-    // Если включено принудительное пересканирование
     if (config->scanner.rescan_unchanged) {
-        printf("DEBUG: [ARCHIVE_NEEDS_RESCAN] Forced rescan enabled for: %s\n", archive_path);
+        log_message(config, "DEBUG", "[ARCHIVE_NEEDS_RESCAN] Forced rescan enabled for: %s", archive_path);
         return 1;
     }
 
@@ -207,23 +206,20 @@ int archive_needs_rescan(DatabaseHandle *db_handle, const char *archive_path, co
                     time_t stored_mtime = sqlite3_column_int64(stmt, 1);
                     int needs_rescan = sqlite3_column_int(stmt, 2);
 
-                    printf("DEBUG: [ARCHIVE_NEEDS_RESCAN] Found in DB: hash=%s, mtime=%ld, needs_rescan=%d\n",
-                           stored_hash ? stored_hash : "NULL", stored_mtime, needs_rescan);
+                    log_message(config, "DEBUG", "[ARCHIVE_NEEDS_RESCAN] Found in DB: hash=%s, mtime=%ld, needs_rescan=%d",
+                               stored_hash ? stored_hash : "NULL", stored_mtime, needs_rescan);
 
-                    // Если явно установлен флаг needs_rescan
                     if (needs_rescan) {
-                        printf("DEBUG: [ARCHIVE_NEEDS_RESCAN] Flag needs_rescan=TRUE for: %s\n", archive_path);
+                        log_message(config, "DEBUG", "[ARCHIVE_NEEDS_RESCAN] Flag needs_rescan=TRUE for: %s", archive_path);
                         sqlite3_finalize(stmt);
                         return 1;
                     }
 
-                    // Проверяем хеш и время модификации
                     if (stored_hash && current_hash && strcmp(stored_hash, current_hash) == 0 &&
                         stored_mtime == st.st_mtime) {
 
-                        printf("DEBUG: [ARCHIVE_NEEDS_RESCAN] Archive unchanged, skipping: %s\n", archive_path);
+                        log_message(config, "DEBUG", "[ARCHIVE_NEEDS_RESCAN] Archive unchanged, skipping: %s", archive_path);
 
-                        // Обновляем время последнего сканирования
                         const char *update_sql = "UPDATE archives SET last_scanned = CURRENT_TIMESTAMP WHERE archive_path = ?";
                         sqlite3_stmt *update_stmt;
                         if (sqlite3_prepare_v2(db, update_sql, -1, &update_stmt, NULL) == SQLITE_OK) {
@@ -233,19 +229,16 @@ int archive_needs_rescan(DatabaseHandle *db_handle, const char *archive_path, co
                         }
 
                         sqlite3_finalize(stmt);
-                        return 0; // Не нужно сканировать
+                        return 0;
                     } else {
-                        printf("DEBUG: [ARCHIVE_NEEDS_RESCAN] Archive changed: %s\n", archive_path);
-                        printf("DEBUG: [ARCHIVE_NEEDS_RESCAN] Hash match: %d, Mtime match: %d\n",
-                               (stored_hash && current_hash && strcmp(stored_hash, current_hash) == 0),
-                               (stored_mtime == st.st_mtime));
+                        log_message(config, "DEBUG", "[ARCHIVE_NEEDS_RESCAN] Archive changed: %s", archive_path);
                     }
                 } else {
-                    printf("DEBUG: [ARCHIVE_NEEDS_RESCAN] Archive not in database: %s\n", archive_path);
+                    log_message(config, "DEBUG", "[ARCHIVE_NEEDS_RESCAN] Archive not in database: %s", archive_path);
                 }
                 sqlite3_finalize(stmt);
             } else {
-                printf("ERROR: [ARCHIVE_NEEDS_RESCAN] SQLite prepare failed: %s\n", sqlite3_errmsg(db));
+                log_message(config, "ERROR", "[ARCHIVE_NEEDS_RESCAN] SQLite prepare failed: %s", sqlite3_errmsg(db));
             }
             break;
         }
@@ -254,11 +247,11 @@ int archive_needs_rescan(DatabaseHandle *db_handle, const char *archive_path, co
             return mysql_archive_needs_rescan((MySQLConnection*)db_handle->connection, archive_path, current_hash, config);
 
         default:
-            printf("ERROR: [ARCHIVE_NEEDS_RESCAN] Unknown database type: %d\n", db_handle->db_type);
+            log_message(config, "ERROR", "[ARCHIVE_NEEDS_RESCAN] Unknown database type: %d", db_handle->db_type);
             return 1;
     }
 
-    return 1; // По умолчанию нужно сканировать
+    return 1;
 }
 
 void update_archive_info(DatabaseHandle *db_handle, const char *archive_path, const char *hash,
@@ -358,29 +351,26 @@ int book_exists(DatabaseHandle *db_handle, const char *filepath, const char *arc
 void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath, BookMeta *meta,
                       const char *archive_path, const char *internal_path, Config *config) {
     if (!db_handle || !db_handle->connection) {
-        printf("ERROR: [INSERT_BOOK_TO_DB] Database handle or connection is NULL\n");
+        log_message(config, "ERROR", "[INSERT_BOOK_TO_DB] Database handle or connection is NULL");
         return;
     }
 
-    // Проверяем обязательные поля
     if (!filepath) {
-        printf("ERROR: [INSERT_BOOK_TO_DB] filepath is NULL\n");
+        log_message(config, "ERROR", "[INSERT_BOOK_TO_DB] filepath is NULL");
         return;
     }
 
     if (!meta) {
-        printf("ERROR: [INSERT_BOOK_TO_DB] meta is NULL\n");
+        log_message(config, "ERROR", "[INSERT_BOOK_TO_DB] meta is NULL");
         return;
     }
 
-    printf("DEBUG: [INSERT_BOOK_TO_DB] Inserting book: %s\n", filepath);
+    log_message(config, "DEBUG", "[INSERT_BOOK_TO_DB] Inserting book: %s", filepath);
 
     switch (db_handle->db_type) {
         case DB_SQLITE: {
-            printf("DEBUG: [INSERT_BOOK_TO_DB] Using SQLite\n");
             sqlite3 *db = (sqlite3*)db_handle->connection;
 
-            // ПРОВЕРЯЕМ СУЩЕСТВОВАНИЕ КНИГИ ПО АВТОРУ И НАЗВАНИЮ
             if (meta->title && meta->author) {
                 const char *check_sql = "SELECT COUNT(*) FROM books WHERE title = ? AND author = ?";
                 sqlite3_stmt *check_stmt;
@@ -391,11 +381,9 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath, BookMeta
 
                     if (sqlite3_step(check_stmt) == SQLITE_ROW) {
                         int count = sqlite3_column_int(check_stmt, 0);
-                        printf("DEBUG: [INSERT_BOOK_TO_DB] Book exists count: %d\n", count);
-
                         if (count > 0) {
-                            printf("DEBUG: [INSERT_BOOK_TO_DB] Book already exists, skipping: '%s' by '%s'\n",
-                                   meta->title, meta->author);
+                            log_message(config, "DEBUG", "[INSERT_BOOK_TO_DB] Book already exists, skipping: '%s' by '%s'",
+                                       meta->title, meta->author);
                             sqlite3_finalize(check_stmt);
                             return;
                         }
@@ -404,7 +392,6 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath, BookMeta
                 }
             }
 
-            // Если книги нет - вставляем
             const char *sql = "INSERT INTO books (file_path, file_name, file_size, file_type, "
                               "archive_path, archive_internal_path, title, author, genre, series, "
                               "series_number, year, language, publisher, description, last_modified) "
@@ -454,18 +441,17 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath, BookMeta
             if (rc != SQLITE_DONE) {
                 log_message(config, "ERROR", "Failed to insert book: %s", sqlite3_errmsg(db));
             } else {
-                printf("DEBUG: [INSERT_BOOK_TO_DB] Book inserted successfully\n");
+                log_message(config, "DEBUG", "[INSERT_BOOK_TO_DB] Book inserted successfully");
             }
 
             sqlite3_finalize(stmt);
             break;
         }
         case DB_MYSQL: {
-            printf("DEBUG: [INSERT_BOOK_TO_DB] Using MySQL\n");
             MySQLConnection *mysql_conn = (MySQLConnection*)db_handle->connection;
 
             if (!mysql_conn || !mysql_conn->mysql) {
-                printf("ERROR: [INSERT_BOOK_TO_DB] MySQL connection is invalid\n");
+                log_message(config, "ERROR", "[INSERT_BOOK_TO_DB] MySQL connection is invalid");
                 return;
             }
 
@@ -473,7 +459,7 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath, BookMeta
             break;
         }
         default:
-            printf("ERROR: [INSERT_BOOK_TO_DB] Unknown database type: %d\n", db_handle->db_type);
+            log_message(config, "ERROR", "[INSERT_BOOK_TO_DB] Unknown database type: %d", db_handle->db_type);
             break;
     }
 }

@@ -1,0 +1,97 @@
+[2026-01-07 19:50:26] INFO: Connected to SQLite database: mybooks.db
+[2026-01-07 19:50:26] INFO: Connected to database
+[2026-01-07 19:50:26] INFO: Database tables created successfully
+[2026-01-07 19:50:26] INFO: Database tables created
+[2026-01-07 19:50:26] INFO: INPX scanner enabled, looking for INPX files...
+[2026-01-07 19:50:26] INFO: No INPX file found in books directory, proceeding with regular scan
+[2026-01-07 19:50:26] INFO: Processing file: /home/alex/Загрузки/book//Поправки.fb2
+[2026-01-07 19:50:26] INFO: Processing file: /home/alex/Загрузки/book//Поправки.fb2
+[2026-01-07 19:50:26] INFO: Processing file: /home/alex/Загрузки/book//Шебуршарик Вася и волшебный портал.fb2
+[2026-01-07 19:50:26] INFO: Processing file: /home/alex/Загрузки/book//Шебуршарик Вася и волшебный портал.fb2
+[2026-01-07 19:50:26] INFO: Processing file: /home/alex/Загрузки/book//Держи марку!.fb2
+[2026-01-07 19:50:26] INFO: Processing file: /home/alex/Загрузки/book//Держи марку!.fb2
+[2026-01-07 19:50:26] INFO: Processing file: /home/alex/Загрузки/book//Китаб ал-Маснави.fb2
+[2026-01-07 19:50:26] INFO: Processing file: /home/alex/Загрузки/book//Китаб ал-Маснави.fb2
+[2026-01-07 19:50:26] INFO: Processing file: /home/alex/Загрузки/book//Станция Одиннадцать.fb2
+[2026-01-07 19:50:26] INFO: Processing file: /home/alex/Загрузки/book//Станция Одиннадцать.fb2
+[2026-01-07 19:50:26] INFO: Processing file: /home/alex/Загрузки/book//fb2-802848-804283.zip
+[2026-01-07 19:50:26] INFO: Processing file: /home/alex/Загрузки/book//fb2-802848-804283.zip
+[2026-01-07 19:50:26] INFO: Processing archive: /home/alex/Загрузки/book//fb2-802848-804283.zip
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//ageenko_fl_01.pdf
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//ageenko_fl_01.pdf
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//Суровая расплата. Книга 1: Тень среди лета. Предательство среди зимы.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//Суровая расплата. Книга 1: Тень среди лета. Предательство среди зимы.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//Охота на гусара.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//Охота на гусара.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//Джентльмен в Москве.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//Джентльмен в Москве.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//Скотный двор.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//Скотный двор.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//Жизнь Пи.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//Жизнь Пи.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//Песнь Ахилла.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//Песнь Ахилла.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//4321.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//4321.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//1984.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//1984.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//Веди свой плуг по костям мертвецов.fb2
+[2026-01-07 19:50:31] INFO: Processing file: /home/alex/Загрузки/book//Веди свой плуг по костям мертвецов.fb2
+[2026-01-07 19:50:31] INFO: Book scanning completed
+[2026-01-07 19:51:05] INFO: Connected to MySQL server
+[2026-01-07 19:51:06] INFO: Using database 'mybook3'
+[2026-01-07 19:51:06] INFO: Connected to MySQL database
+[2026-01-07 19:51:06] INFO: Connected to database
+[2026-01-07 19:51:06] INFO: MySQL tables created successfully
+[2026-01-07 19:51:06] INFO: Database tables created
+[2026-01-07 19:51:06] INFO: INPX scanner enabled, looking for INPX files...
+[2026-01-07 19:51:06] INFO: No INPX file found in books directory, proceeding with regular scan
+[2026-01-07 19:51:06] INFO: Processing file: /home/alex/Загрузки/book//Поправки.fb2
+[2026-01-07 19:51:06] INFO: Processing file: /home/alex/Загрузки/book//Поправки.fb2
+[2026-01-07 19:51:06] INFO: Inserting book: /home/alex/Загрузки/book//Поправки.fb2
+[2026-01-07 19:51:06] INFO: Processing file: /home/alex/Загрузки/book//Шебуршарик Вася и волшебный портал.fb2
+[2026-01-07 19:51:06] INFO: Processing file: /home/alex/Загрузки/book//Шебуршарик Вася и волшебный портал.fb2
+[2026-01-07 19:51:06] INFO: Inserting book: /home/alex/Загрузки/book//Шебуршарик Вася и волшебный портал.fb2
+[2026-01-07 19:51:06] INFO: Processing file: /home/alex/Загрузки/book//Держи марку!.fb2
+[2026-01-07 19:51:06] INFO: Processing file: /home/alex/Загрузки/book//Держи марку!.fb2
+[2026-01-07 19:51:06] INFO: Inserting book: /home/alex/Загрузки/book//Держи марку!.fb2
+[2026-01-07 19:51:06] INFO: Processing file: /home/alex/Загрузки/book//Китаб ал-Маснави.fb2
+[2026-01-07 19:51:06] INFO: Processing file: /home/alex/Загрузки/book//Китаб ал-Маснави.fb2
+[2026-01-07 19:51:06] INFO: Inserting book: /home/alex/Загрузки/book//Китаб ал-Маснави.fb2
+[2026-01-07 19:51:06] INFO: Processing file: /home/alex/Загрузки/book//Станция Одиннадцать.fb2
+[2026-01-07 19:51:06] INFO: Processing file: /home/alex/Загрузки/book//Станция Одиннадцать.fb2
+[2026-01-07 19:51:06] INFO: Inserting book: /home/alex/Загрузки/book//Станция Одиннадцать.fb2
+[2026-01-07 19:51:06] INFO: Processing file: /home/alex/Загрузки/book//fb2-802848-804283.zip
+[2026-01-07 19:51:06] INFO: Processing file: /home/alex/Загрузки/book//fb2-802848-804283.zip
+[2026-01-07 19:51:06] INFO: Processing archive: /home/alex/Загрузки/book//fb2-802848-804283.zip
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//ageenko_fl_01.pdf
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//ageenko_fl_01.pdf
+[2026-01-07 19:51:10] INFO: Inserting book: /home/alex/Загрузки/book//ageenko_fl_01.pdf
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//Суровая расплата. Книга 1: Тень среди лета. Предательство среди зимы.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//Суровая расплата. Книга 1: Тень среди лета. Предательство среди зимы.fb2
+[2026-01-07 19:51:10] INFO: Inserting book: /home/alex/Загрузки/book//Суровая расплата. Книга 1: Тень среди лета. Предательство среди зимы.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//Охота на гусара.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//Охота на гусара.fb2
+[2026-01-07 19:51:10] INFO: Inserting book: /home/alex/Загрузки/book//Охота на гусара.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//Джентльмен в Москве.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//Джентльмен в Москве.fb2
+[2026-01-07 19:51:10] INFO: Inserting book: /home/alex/Загрузки/book//Джентльмен в Москве.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//Скотный двор.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//Скотный двор.fb2
+[2026-01-07 19:51:10] INFO: Inserting book: /home/alex/Загрузки/book//Скотный двор.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//Жизнь Пи.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//Жизнь Пи.fb2
+[2026-01-07 19:51:10] INFO: Inserting book: /home/alex/Загрузки/book//Жизнь Пи.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//Песнь Ахилла.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//Песнь Ахилла.fb2
+[2026-01-07 19:51:10] INFO: Inserting book: /home/alex/Загрузки/book//Песнь Ахилла.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//4321.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//4321.fb2
+[2026-01-07 19:51:10] INFO: Inserting book: /home/alex/Загрузки/book//4321.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//1984.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//1984.fb2
+[2026-01-07 19:51:10] INFO: Inserting book: /home/alex/Загрузки/book//1984.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//Веди свой плуг по костям мертвецов.fb2
+[2026-01-07 19:51:10] INFO: Processing file: /home/alex/Загрузки/book//Веди свой плуг по костям мертвецов.fb2
+[2026-01-07 19:51:10] INFO: Inserting book: /home/alex/Загрузки/book//Веди свой плуг по костям мертвецов.fb2
+[2026-01-07 19:51:10] INFO: Book scanning completed

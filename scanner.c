@@ -1,4 +1,3 @@
-// scanner.c
 #include "common.h"
 #include "scanner.h"
 #include "metadata.h"
@@ -56,55 +55,53 @@ void process_file(const char *filepath, DatabaseHandle *db_handle, Config *confi
 
     struct stat file_stat;
     if (stat(filepath, &file_stat) == -1) {
-        LOG_WARNING(config, "Cannot stat file: %s", filepath);
+        log_message(config, "WARNING", "Cannot stat file: %s", filepath);
         return;
     }
 
-    DBG("[PROCESS_FILE] File: %s, Size: %ld\n", filepath, file_stat.st_size);
+    log_message(config, "DEBUG", "[PROCESS_FILE] File: %s, Size: %ld", filepath, file_stat.st_size);
 
-    LOG_INFO(config, "Processing file: %s", filepath);
+    log_message(config, "INFO", "Processing file: %s", filepath);
 
     if (is_archive_format(filepath)) {
-        LOG_INFO(config, "Processing archive: %s", filepath);
+        log_message(config, "INFO", "Processing archive: %s", filepath);
         process_archive(filepath, db_handle, config);
     } else {
-        DBG("[PROCESS_FILE] Parsing metadata for: %s\n", filepath);
+        log_message(config, "DEBUG", "[PROCESS_FILE] Parsing metadata for: %s", filepath);
         BookMeta *meta = parse_metadata(filepath, ext + 1);
         if (meta) {
             meta->file_size = file_stat.st_size;
-            DBG("[FILE] File size set to: %ld for %s\n", meta->file_size, filepath);
+            log_message(config, "DEBUG", "[FILE] File size set to: %ld for %s", meta->file_size, filepath);
 
-            DBG("[PROCESS_FILE] Inserting book to database: %s\n", filepath);
+            log_message(config, "DEBUG", "[PROCESS_FILE] Inserting book to database: %s", filepath);
             insert_book_to_db(db_handle, filepath, meta, NULL, NULL, config);
-            DBG("[PROCESS_FILE] Freeing book metadata for: %s\n", filepath);
+            log_message(config, "DEBUG", "[PROCESS_FILE] Freeing book metadata for: %s", filepath);
             free_book_meta(meta);
-            DBG("[PROCESS_FILE] Successfully processed: %s\n", filepath);
+            log_message(config, "DEBUG", "[PROCESS_FILE] Successfully processed: %s", filepath);
         } else {
-            LOG_WARNING(config, "Failed to parse metadata for: %s", filepath);
+            log_message(config, "WARNING", "Failed to parse metadata for: %s", filepath);
         }
     }
 }
 
 void process_archive(const char *archive_path, DatabaseHandle *db_handle, Config *config) {
-    printf("DEBUG: [PROCESS_ARCHIVE] Starting: %s\n", archive_path);
+    log_message(config, "DEBUG", "[PROCESS_ARCHIVE] Starting: %s", archive_path);
 
-    // Используем алгоритм из конфигурации
     char *archive_hash = calculate_file_hash(archive_path, config->scanner.hash_algorithm);
     if (!archive_hash) {
         log_message(config, "ERROR", "Cannot calculate hash for archive: %s", archive_path);
         return;
     }
 
-    printf("DEBUG: [PROCESS_ARCHIVE] Using %s hash: %s\n", config->scanner.hash_algorithm, archive_hash);
+    log_message(config, "DEBUG", "[PROCESS_ARCHIVE] Using %s hash: %s", config->scanner.hash_algorithm, archive_hash);
 
     if (!archive_needs_rescan(db_handle, archive_path, archive_hash, config)) {
-        printf("DEBUG: [PROCESS_ARCHIVE] Archive doesn't need rescan: %s\n", archive_path);
+        log_message(config, "DEBUG", "[PROCESS_ARCHIVE] Archive doesn't need rescan: %s", archive_path);
         free(archive_hash);
         return;
     }
 
-    printf("DEBUG: [PROCESS_ARCHIVE] Processing archive: %s\n", archive_path);
-;
+    log_message(config, "INFO", "Processing archive: %s", archive_path);
 
     struct archive *a;
     struct archive_entry *entry;
@@ -185,7 +182,7 @@ void process_archive(const char *archive_path, DatabaseHandle *db_handle, Config
 
         if (meta) {
             meta->file_size = size;
-            printf("DEBUG: [ARCHIVE] File size set to: %ld for %s\n", meta->file_size, filename);
+            log_message(config, "DEBUG", "[ARCHIVE] File size set to: %ld for %s", meta->file_size, filename);
 
             insert_book_to_db(db_handle, archive_path, meta, archive_path, filename, config);
             free_book_meta(meta);
