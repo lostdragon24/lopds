@@ -7,6 +7,8 @@
 #include <archive.h>
 #include <archive_entry.h>
 #include <string.h>
+#include <locale.h>
+#include <iconv.h>
 
 const char *supported_formats[SUPPORTED_FORMATS] = {
     ".epub", ".fb2", ".pdf", ".mobi", ".txt", ".zip", ".rar", ".7z"
@@ -60,7 +62,6 @@ void process_file(const char *filepath, DatabaseHandle *db_handle, Config *confi
     }
 
     log_message(config, "DEBUG", "[PROCESS_FILE] File: %s, Size: %ld", filepath, file_stat.st_size);
-
     log_message(config, "INFO", "Processing file: %s", filepath);
 
     if (is_archive_format(filepath)) {
@@ -111,9 +112,13 @@ void process_archive(const char *archive_path, DatabaseHandle *db_handle, Config
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
 
+    // Устанавливаем опции для обработки кодировок
+    archive_read_set_options(a, "hdrcharset=UTF-8");
+
     r = archive_read_open_filename(a, archive_path, 10240);
     if (r != ARCHIVE_OK) {
-        log_message(config, "ERROR", "Failed to open archive: %s", archive_path);
+        log_message(config, "ERROR", "Failed to open archive: %s - %s",
+                   archive_path, archive_error_string(a));
         archive_read_free(a);
         free(archive_hash);
         return;
@@ -126,26 +131,43 @@ void process_archive(const char *archive_path, DatabaseHandle *db_handle, Config
         const char *filename = archive_entry_pathname(entry);
         la_int64_t size = archive_entry_size(entry);
 
-        if (archive_entry_filetype(entry) != AE_IFREG || size > 10485760) {
+        if (!filename) {
+            archive_read_data_skip(a);
+            continue;
+        }
+
+        log_message(config, "DEBUG", "[PROCESS_ARCHIVE] Found file in archive: %s (size: %lld)", filename, size);
+
+        if (archive_entry_filetype(entry) != AE_IFREG) {
+            log_message(config, "DEBUG", "[PROCESS_ARCHIVE] Skipping non-regular file: %s", filename);
+            archive_read_data_skip(a);
+            continue;
+        }
+
+        if (size > 10485760) { // 10MB limit
+            log_message(config, "WARNING", "File too large, skipping: %s (%lld bytes)", filename, size);
             archive_read_data_skip(a);
             continue;
         }
 
         const char *ext = strrchr(filename, '.');
         if (!ext || !is_supported_format(filename)) {
+            log_message(config, "DEBUG", "[PROCESS_ARCHIVE] Skipping unsupported format: %s", filename);
             archive_read_data_skip(a);
             continue;
         }
 
-        log_message(config, "INFO", "Found book in archive: %s/%s (size: %lld)", archive_path, filename, size);
+        log_message(config, "INFO", "Found book in archive: %s/%s (size: %lld)",
+                   archive_path, filename, size);
 
         file_count++;
         total_size += size;
 
+        // Читаем содержимое файла
         size_t content_size = (size_t)size;
         char *content = malloc(content_size + 1);
         if (!content) {
-            log_message(config, "WARNING", "Failed to allocate memory for: %s", filename);
+            log_message(config, "ERROR", "Failed to allocate memory for: %s", filename);
             archive_read_data_skip(a);
             continue;
         }
@@ -158,13 +180,16 @@ void process_archive(const char *archive_path, DatabaseHandle *db_handle, Config
             archive_read_data_skip(a);
             continue;
         }
-
         content[content_size] = '\0';
 
         BookMeta *meta = NULL;
+
         if (strcasecmp(ext + 1, "fb2") == 0) {
             meta = parse_fb2_from_memory(content, content_size);
+        } else if (strcasecmp(ext + 1, "epub") == 0) {
+            meta = parse_epub_from_memory(content, content_size);
         } else {
+            // Для других форматов создаем базовую метаинформацию
             meta = calloc(1, sizeof(BookMeta));
             if (meta) {
                 const char *base_name = strrchr(filename, '/');
@@ -175,6 +200,7 @@ void process_archive(const char *archive_path, DatabaseHandle *db_handle, Config
                 } else {
                     meta->title = strdup(base_name);
                 }
+                meta->author = strdup("Unknown Author");
             }
         }
 
@@ -182,7 +208,7 @@ void process_archive(const char *archive_path, DatabaseHandle *db_handle, Config
 
         if (meta) {
             meta->file_size = size;
-            log_message(config, "DEBUG", "[ARCHIVE] File size set to: %ld for %s", meta->file_size, filename);
+            log_message(config, "DEBUG", "[ARCHIVE] Inserting book from archive: %s", filename);
 
             insert_book_to_db(db_handle, archive_path, meta, archive_path, filename, config);
             free_book_meta(meta);
@@ -195,8 +221,12 @@ void process_archive(const char *archive_path, DatabaseHandle *db_handle, Config
     archive_read_close(a);
     archive_read_free(a);
 
+    // Обновляем информацию об архиве
     update_archive_info(db_handle, archive_path, archive_hash, file_count, total_size, config);
     free(archive_hash);
+
+    log_message(config, "INFO", "Archive processed: %s (%d files, %ld bytes)",
+               archive_path, file_count, total_size);
 }
 
 int is_archive_format(const char *filename) {

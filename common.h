@@ -339,6 +339,22 @@ char* get_architecture_name(void);
 #define APPLE_ONLY(code)
 #endif
 
+#define LOG_EARLY(level, ...) \
+    do { \
+        time_t now = time(NULL); \
+        struct tm *tm_info = localtime(&now); \
+        char timestamp[20]; \
+        strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info); \
+        fprintf(stderr, "[%s] %s: ", timestamp, level); \
+        fprintf(stderr, __VA_ARGS__); \
+        fprintf(stderr, "\n"); \
+    } while(0)
+
+#define LOG_EARLY_DEBUG(...) LOG_EARLY("DEBUG", __VA_ARGS__)
+#define LOG_EARLY_INFO(...) LOG_EARLY("INFO", __VA_ARGS__)
+#define LOG_EARLY_WARNING(...) LOG_EARLY("WARNING", __VA_ARGS__)
+#define LOG_EARLY_ERROR(...) LOG_EARLY("ERROR", __VA_ARGS__)
+
 // ============================================================================
 // ВЕРСИЯ И СБОРОЧНАЯ ИНФОРМАЦИЯ
 // ============================================================================
@@ -358,3 +374,33 @@ char* get_architecture_name(void);
     } while(0)
 
 #endif // COMMON_H
+
+
+// Добавляем отладочные макросы
+
+#ifdef DEBUG
+#define DBG_PRINT(...) printf("[DEBUG] " __VA_ARGS__)
+#define DBG_LOG(config, ...) log_message(config, "DEBUG", __VA_ARGS__)
+#else
+#define DBG_PRINT(...) ((void)0)
+#define DBG_LOG(config, ...) ((void)0)
+#endif
+
+// Макрос для проверки NULL с логом
+#define CHECK_NULL(ptr, config, msg) \
+    do { \
+        if (!(ptr)) { \
+            log_message(config, "ERROR", "NULL pointer: %s", msg); \
+            return; \
+        } \
+    } while(0)
+
+#define CHECK_NULL_RET(ptr, config, msg, retval) \
+    do { \
+        if (!(ptr)) { \
+            log_message(config, "ERROR", "NULL pointer: %s", msg); \
+            return retval; \
+        } \
+    } while(0)
+
+

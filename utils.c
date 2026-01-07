@@ -11,6 +11,82 @@
 #include <openssl/sha.h>
 #include <iconv.h>
 #include <stdio.h>
+#include <locale.h>
+
+
+// Функция для проверки, является ли строка валидной UTF-8
+int is_valid_utf8(const char *str) {
+    if (!str) return 0;
+
+    const unsigned char *bytes = (const unsigned char *)str;
+    while (*bytes) {
+        if ((bytes[0] & 0x80) == 0x00) {
+            // 0xxxxxxx
+            bytes += 1;
+        } else if ((bytes[0] & 0xE0) == 0xC0) {
+            // 110xxxxx 10xxxxxx
+            if ((bytes[1] & 0xC0) != 0x80) return 0;
+            bytes += 2;
+        } else if ((bytes[0] & 0xF0) == 0xE0) {
+            // 1110xxxx 10xxxxxx 10xxxxxx
+            if ((bytes[1] & 0xC0) != 0x80 || (bytes[2] & 0xC0) != 0x80) return 0;
+            bytes += 3;
+        } else if ((bytes[0] & 0xF8) == 0xF0) {
+            // 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+            if ((bytes[1] & 0xC0) != 0x80 ||
+                (bytes[2] & 0xC0) != 0x80 ||
+                (bytes[3] & 0xC0) != 0x80) return 0;
+            bytes += 4;
+        } else {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+// Функция для определения кодировки строки
+const char* detect_string_encoding(const char *str) {
+    if (!str) return "ASCII";
+
+    // Проверяем UTF-8
+    if (is_valid_utf8(str)) {
+        return "UTF-8";
+    }
+
+    // Проверяем возможные однобайтовые кодировки с кириллицей
+    const unsigned char *p = (const unsigned char *)str;
+    int has_cp866 = 0;
+    int has_windows1251 = 0;
+    int has_koi8r = 0;
+
+    while (*p) {
+        // CP866 (DOS Russian): 0x80-0xAF, 0xE0-0xEF
+        if ((*p >= 0x80 && *p <= 0xAF) || (*p >= 0xE0 && *p <= 0xEF)) {
+            has_cp866 = 1;
+        }
+        // Windows-1251: 0xC0-0xFF
+        if (*p >= 0xC0 && *p <= 0xFF) {
+            has_windows1251 = 1;
+        }
+        // KOI8-R: 0xC0-0xFF (другое распределение)
+        if (*p >= 0xC0 && *p <= 0xFF) {
+            has_koi8r = 1;
+        }
+        p++;
+    }
+
+    // Эвристики для определения кодировки
+    if (has_cp866 && !has_windows1251) {
+        return "CP866";
+    } else if (has_windows1251 && !has_cp866) {
+        return "WINDOWS-1251";
+    } else if (has_koi8r) {
+        return "KOI8-R";
+    }
+
+    // По умолчанию предполагаем Windows-1251 для кириллицы
+    return "WINDOWS-1251";
+}
 
 char* read_file_content(const char *filepath) {
     FILE *file = fopen(filepath, "rb");
@@ -65,17 +141,31 @@ void trim_string(char *str) {
 char* convert_encoding(const char *text, const char *from_encoding, const char *to_encoding) {
     if (!text || strlen(text) == 0) return NULL;
 
+    // Если кодировки совпадают, возвращаем копию
+    if (strcasecmp(from_encoding, to_encoding) == 0) {
+        return strdup(text);
+    }
+
     iconv_t cd = iconv_open(to_encoding, from_encoding);
     if (cd == (iconv_t)-1) {
-        return NULL;
+        // Пробуем альтернативные имена кодировок
+        if (strcasecmp(from_encoding, "WINDOWS-1251") == 0) {
+            cd = iconv_open(to_encoding, "CP1251");
+        } else if (strcasecmp(from_encoding, "CP866") == 0) {
+            cd = iconv_open(to_encoding, "IBM866");
+        }
+
+        if (cd == (iconv_t)-1) {
+            return strdup(text); // Возвращаем оригинал если не можем конвертировать
+        }
     }
 
     size_t in_len = strlen(text);
-    size_t out_len = in_len * 4;
+    size_t out_len = in_len * 4; // UTF-8 может быть больше
     char *out_buf = malloc(out_len + 1);
     if (!out_buf) {
         iconv_close(cd);
-        return NULL;
+        return strdup(text);
     }
 
     char *in_ptr = (char*)text;
@@ -83,10 +173,13 @@ char* convert_encoding(const char *text, const char *from_encoding, const char *
 
     memset(out_buf, 0, out_len + 1);
 
-    if (iconv(cd, &in_ptr, &in_len, &out_ptr, &out_len) == (size_t)-1) {
+    size_t in_remaining = in_len;
+    size_t out_remaining = out_len;
+
+    if (iconv(cd, &in_ptr, &in_remaining, &out_ptr, &out_remaining) == (size_t)-1) {
         free(out_buf);
         iconv_close(cd);
-        return NULL;
+        return strdup(text);
     }
 
     *out_ptr = '\0';
@@ -98,36 +191,30 @@ char* convert_encoding(const char *text, const char *from_encoding, const char *
 int detect_encoding(const char *text) {
     if (!text) return 0;
 
-    int is_utf8 = 1;
-    const unsigned char *p = (const unsigned char *)text;
-    while (*p) {
-        if (*p < 0x80) {
-            p++;
-        } else if (*p < 0xC0) {
-            is_utf8 = 0;
-            break;
-        } else if (*p < 0xE0) {
-            if (p[1] == 0 || (p[1] & 0xC0) != 0x80) {
-                is_utf8 = 0;
-                break;
-            }
-            p += 2;
-        } else if (*p < 0xF0) {
-            if (p[1] == 0 || p[2] == 0 ||
-                (p[1] & 0xC0) != 0x80 || (p[2] & 0xC0) != 0x80) {
-                is_utf8 = 0;
-                break;
-            }
-            p += 3;
-        } else {
-            is_utf8 = 0;
-            break;
-        }
+    // Проверяем UTF-8
+    if (is_valid_utf8(text)) {
+        return 1; // UTF-8
     }
 
-    if (is_utf8) return 1;
+    // Проверяем Windows-1251 по характерным символам
+    const unsigned char *p = (const unsigned char *)text;
+    int has_cyrillic = 0;
 
-    return 2;
+    while (*p) {
+        // Диапазон русских букв в Windows-1251: А-Я а-я
+        if ((*p >= 0xC0 && *p <= 0xFF) ||
+            (*p == 0xA8) || (*p == 0xB8)) { // Ё ё
+            has_cyrillic = 1;
+            break;
+        }
+        p++;
+    }
+
+    if (has_cyrillic) {
+        return 2; // Windows-1251 или другая однобайтовая кириллица
+    }
+
+    return 0; // ASCII или неизвестно
 }
 
 char* clean_html_tags(const char *html) {

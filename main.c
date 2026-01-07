@@ -7,9 +7,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <locale.h>
 
 int main(int argc, char *argv[]) {
+    // ВАЖНО: Устанавливаем локаль для корректной работы с UTF-8
+    setlocale(LC_ALL, "en_US.UTF-8");
+    setlocale(LC_CTYPE, "UTF-8");
+
     log_message(NULL, "INFO", "=== SCANNER STARTING ===");
+    log_message(NULL, "DEBUG", "Locale set to UTF-8");
 
     char *config_path;
 

@@ -8,6 +8,7 @@
 
 DatabaseHandle* db_connect(Config *config) {
     if (!config) {
+        log_message(NULL, "ERROR", "Config is NULL");
         return NULL;
     }
 
@@ -19,20 +20,30 @@ DatabaseHandle* db_connect(Config *config) {
         return NULL;
     }
 
+    // Инициализируем структуру
     db_handle->connection = NULL;
-    db_handle->db_type = -1;
+    db_handle->db_type = -1;  // Устанавливаем недопустимое значение по умолчанию
 
     if (strcmp(config->database.type, "sqlite") == 0) {
         log_message(config, "DEBUG", "Connecting to SQLite database...");
         db_handle->db_type = DB_SQLITE;
         sqlite3 *db;
-        if (sqlite3_open(config->database.path, &db) == SQLITE_OK) {
+
+        // Открываем базу данных
+        int rc = sqlite3_open(config->database.path, &db);
+        if (rc == SQLITE_OK) {
             db_handle->connection = db;
             log_message(config, "INFO", "Connected to SQLite database: %s", config->database.path);
+
+            // Включаем поддержку внешних ключей
+            sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
+
             return db_handle;
         } else {
             log_message(config, "ERROR", "Cannot open SQLite database: %s", sqlite3_errmsg(db));
             sqlite3_close(db);
+            free(db_handle);
+            return NULL;
         }
     }
     else if (strcmp(config->database.type, "mysql") == 0) {
@@ -45,15 +56,15 @@ DatabaseHandle* db_connect(Config *config) {
             return db_handle;
         } else {
             log_message(config, "ERROR", "Failed to connect to MySQL database");
+            free(db_handle);
+            return NULL;
         }
     }
     else {
         log_message(config, "ERROR", "Unknown database type: %s", config->database.type);
+        free(db_handle);
+        return NULL;
     }
-
-    log_message(config, "ERROR", "Database connection failed completely");
-    free(db_handle);
-    return NULL;
 }
 
 void db_close(DatabaseHandle *db_handle) {
@@ -61,19 +72,27 @@ void db_close(DatabaseHandle *db_handle) {
 
     switch (db_handle->db_type) {
         case DB_SQLITE:
-            sqlite3_close((sqlite3*)db_handle->connection);
+            if (db_handle->connection) {
+                sqlite3_close((sqlite3*)db_handle->connection);
+            }
             break;
         case DB_MYSQL:
-            mysql_conn_close((MySQLConnection*)db_handle->connection);
+            if (db_handle->connection) {
+                mysql_conn_close((MySQLConnection*)db_handle->connection);
+            }
             break;
-        case DB_POSTGRESQL:
+        default:
+            // Ничего не делаем для неизвестного типа
             break;
     }
     free(db_handle);
 }
 
 int db_execute(DatabaseHandle *db_handle, const char *sql, Config *config) {
-    if (!db_handle || !db_handle->connection) return 0;
+    if (!db_handle || !db_handle->connection) {
+        log_message(config, "ERROR", "No database connection for execute");
+        return 0;
+    }
 
     switch (db_handle->db_type) {
         case DB_SQLITE: {
@@ -89,27 +108,31 @@ int db_execute(DatabaseHandle *db_handle, const char *sql, Config *config) {
         case DB_MYSQL:
             return mysql_execute_query((MySQLConnection*)db_handle->connection, sql, config);
         default:
+            log_message(config, "ERROR", "Unknown database type in execute: %d", db_handle->db_type);
             return 0;
     }
 }
 
 int create_database_tables(DatabaseHandle *db_handle, Config *config) {
-    if (!db_handle || !db_handle->connection) return 0;
+    if (!db_handle || !db_handle->connection) {
+        log_message(config, "ERROR", "No database connection for creating tables");
+        return 0;
+    }
 
     switch (db_handle->db_type) {
         case DB_SQLITE: {
             const char *create_books_table =
                 "CREATE TABLE IF NOT EXISTS books ("
                 "    id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                "    file_path TEXT,"
-                "    file_name TEXT,"
+                "    file_path TEXT NOT NULL,"
+                "    file_name TEXT NOT NULL,"
                 "    file_size INTEGER,"
                 "    file_type TEXT,"
                 "    archive_path TEXT,"
                 "    archive_internal_path TEXT,"
                 "    file_hash TEXT,"
-                "    title TEXT,"
-                "    author TEXT,"
+                "    title TEXT NOT NULL,"
+                "    author TEXT NOT NULL,"
                 "    genre TEXT,"
                 "    series TEXT,"
                 "    series_number INTEGER,"
@@ -118,20 +141,24 @@ int create_database_tables(DatabaseHandle *db_handle, Config *config) {
                 "    publisher TEXT,"
                 "    description TEXT,"
                 "    added_date DATETIME DEFAULT CURRENT_TIMESTAMP,"
-                "    last_modified DATETIME,"
-                "    last_scanned DATETIME,"
+                "    last_modified DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                "    last_scanned DATETIME DEFAULT CURRENT_TIMESTAMP,"
                 "    file_mtime INTEGER,"
                 "    UNIQUE(file_path, archive_path, archive_internal_path)"
                 ");";
 
             if (!db_execute(db_handle, create_books_table, config)) {
+                log_message(config, "ERROR", "Failed to create books table");
                 return 0;
             }
+
+            log_message(config, "DEBUG", "Books table created successfully");
             break;
         }
         case DB_MYSQL:
             return mysql_create_tables((MySQLConnection*)db_handle->connection, config);
         default:
+            log_message(config, "ERROR", "Unknown database type in create tables: %d", db_handle->db_type);
             return 0;
     }
 
@@ -144,35 +171,41 @@ int create_database_tables(DatabaseHandle *db_handle, Config *config) {
 }
 
 int create_archive_table(DatabaseHandle *db_handle, Config *config) {
-    if (!db_handle || !db_handle->connection) return 0;
+    if (!db_handle || !db_handle->connection) {
+        log_message(config, "ERROR", "No database connection for creating archive table");
+        return 0;
+    }
 
     switch (db_handle->db_type) {
         case DB_SQLITE: {
             const char *create_archives_table =
                 "CREATE TABLE IF NOT EXISTS archives ("
                 "    id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                "    archive_path TEXT UNIQUE,"
+                "    archive_path TEXT UNIQUE NOT NULL,"
                 "    archive_hash TEXT,"
-                "    file_count INTEGER,"
-                "    total_size INTEGER,"
+                "    file_count INTEGER DEFAULT 0,"
+                "    total_size INTEGER DEFAULT 0,"
                 "    last_modified INTEGER,"
                 "    last_scanned DATETIME DEFAULT CURRENT_TIMESTAMP,"
                 "    needs_rescan BOOLEAN DEFAULT 1"
                 ");";
 
             if (!db_execute(db_handle, create_archives_table, config)) {
+                log_message(config, "ERROR", "Failed to create archives table");
                 return 0;
             }
+
+            log_message(config, "DEBUG", "Archives table created successfully");
             break;
         }
         case DB_MYSQL:
             return mysql_create_archive_table((MySQLConnection*)db_handle->connection, config);
         default:
+            log_message(config, "ERROR", "Unknown database type in create archive table: %d", db_handle->db_type);
             return 0;
     }
     return 1;
 }
-
 
 int archive_needs_rescan(DatabaseHandle *db_handle, const char *archive_path, const char *current_hash, Config *config) {
     if (!db_handle || !db_handle->connection) {
@@ -256,12 +289,18 @@ int archive_needs_rescan(DatabaseHandle *db_handle, const char *archive_path, co
 
 void update_archive_info(DatabaseHandle *db_handle, const char *archive_path, const char *hash,
                         int file_count, long total_size, Config *config) {
-    if (!db_handle || !db_handle->connection) return;
+    if (!db_handle || !db_handle->connection) {
+        log_message(config, "ERROR", "No database connection for update archive info");
+        return;
+    }
 
     switch (db_handle->db_type) {
         case DB_SQLITE: {
             struct stat st;
-            if (stat(archive_path, &st) != 0) return;
+            if (stat(archive_path, &st) != 0) {
+                log_message(config, "ERROR", "Cannot stat archive for update: %s", archive_path);
+                return;
+            }
 
             sqlite3 *db = (sqlite3*)db_handle->connection;
             const char *sql = "INSERT OR REPLACE INTO archives (archive_path, archive_hash, file_count, total_size, last_modified, last_scanned, needs_rescan) "
@@ -282,6 +321,8 @@ void update_archive_info(DatabaseHandle *db_handle, const char *archive_path, co
                                archive_path, file_count, total_size);
                 }
                 sqlite3_finalize(stmt);
+            } else {
+                log_message(config, "ERROR", "Failed to prepare statement for update archive info: %s", sqlite3_errmsg(db));
             }
             break;
         }
@@ -289,13 +330,17 @@ void update_archive_info(DatabaseHandle *db_handle, const char *archive_path, co
             mysql_update_archive_info((MySQLConnection*)db_handle->connection, archive_path, hash, file_count, total_size, config);
             break;
         default:
+            log_message(config, "ERROR", "Unknown database type in update archive info: %d", db_handle->db_type);
             break;
     }
 }
 
 int book_exists(DatabaseHandle *db_handle, const char *filepath, const char *archive_path,
                 const char *internal_path, const char *file_hash, Config *config) {
-    if (!db_handle || !db_handle->connection) return 0;
+    if (!db_handle || !db_handle->connection) {
+        log_message(config, "ERROR", "No database connection for book_exists");
+        return 0;
+    }
 
     switch (db_handle->db_type) {
         case DB_SQLITE: {
@@ -342,6 +387,7 @@ int book_exists(DatabaseHandle *db_handle, const char *filepath, const char *arc
         case DB_MYSQL:
             return mysql_book_exists((MySQLConnection*)db_handle->connection, filepath, archive_path, internal_path, file_hash, config);
         default:
+            log_message(config, "ERROR", "Unknown database type in book_exists: %d", db_handle->db_type);
             return 0;
     }
 
@@ -350,8 +396,13 @@ int book_exists(DatabaseHandle *db_handle, const char *filepath, const char *arc
 
 void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath, BookMeta *meta,
                       const char *archive_path, const char *internal_path, Config *config) {
-    if (!db_handle || !db_handle->connection) {
-        log_message(config, "ERROR", "[INSERT_BOOK_TO_DB] Database handle or connection is NULL");
+    if (!db_handle) {
+        log_message(config, "ERROR", "[INSERT_BOOK_TO_DB] Database handle is NULL");
+        return;
+    }
+
+    if (!db_handle->connection) {
+        log_message(config, "ERROR", "[INSERT_BOOK_TO_DB] Database connection is NULL");
         return;
     }
 
@@ -366,30 +417,16 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath, BookMeta
     }
 
     log_message(config, "DEBUG", "[INSERT_BOOK_TO_DB] Inserting book: %s", filepath);
+    log_message(config, "DEBUG", "[INSERT_BOOK_TO_DB] Database type: %d", db_handle->db_type);
 
     switch (db_handle->db_type) {
         case DB_SQLITE: {
             sqlite3 *db = (sqlite3*)db_handle->connection;
 
-            if (meta->title && meta->author) {
-                const char *check_sql = "SELECT COUNT(*) FROM books WHERE title = ? AND author = ?";
-                sqlite3_stmt *check_stmt;
-
-                if (sqlite3_prepare_v2(db, check_sql, -1, &check_stmt, NULL) == SQLITE_OK) {
-                    sqlite3_bind_text(check_stmt, 1, meta->title, -1, SQLITE_STATIC);
-                    sqlite3_bind_text(check_stmt, 2, meta->author, -1, SQLITE_STATIC);
-
-                    if (sqlite3_step(check_stmt) == SQLITE_ROW) {
-                        int count = sqlite3_column_int(check_stmt, 0);
-                        if (count > 0) {
-                            log_message(config, "DEBUG", "[INSERT_BOOK_TO_DB] Book already exists, skipping: '%s' by '%s'",
-                                       meta->title, meta->author);
-                            sqlite3_finalize(check_stmt);
-                            return;
-                        }
-                    }
-                    sqlite3_finalize(check_stmt);
-                }
+            // Проверяем существование книги
+            if (book_exists(db_handle, filepath, archive_path, internal_path, NULL, config)) {
+                log_message(config, "DEBUG", "[INSERT_BOOK_TO_DB] Book already exists, skipping: %s", filepath);
+                return;
             }
 
             const char *sql = "INSERT INTO books (file_path, file_name, file_size, file_type, "
@@ -404,44 +441,72 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath, BookMeta
                 return;
             }
 
-            const char *filename = internal_path ? internal_path : strrchr(filepath, '/');
-            filename = filename ? (internal_path ? filename : filename + 1) : filepath;
-            const char *ext = strrchr(filename, '.');
+            // Извлекаем имя файла
+            const char *filename = "unknown";
+            if (internal_path) {
+                filename = internal_path;
+            } else {
+                const char *slash = strrchr(filepath, '/');
+                filename = slash ? slash + 1 : filepath;
+            }
 
-            sqlite3_bind_text(stmt, 1, filepath, -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 2, filename, -1, SQLITE_STATIC);
+            // Извлекаем расширение
+            const char *ext = strrchr(filename, '.');
+            const char *file_type = ext ? ext + 1 : "unknown";
+
+            // Подготавливаем данные
+            sqlite3_bind_text(stmt, 1, filepath, -1, SQLITE_STATIC);  // file_path
+            sqlite3_bind_text(stmt, 2, filename, -1, SQLITE_STATIC);  // file_name
 
             if (meta->file_size > 0) {
-                sqlite3_bind_int64(stmt, 3, meta->file_size);
+                sqlite3_bind_int64(stmt, 3, meta->file_size);  // file_size
             } else {
                 sqlite3_bind_null(stmt, 3);
             }
 
-            sqlite3_bind_text(stmt, 4, ext ? ext + 1 : "unknown", -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 5, archive_path, -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 6, internal_path, -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 7, meta->title, -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 8, meta->author, -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 9, meta->genre, -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 10, meta->series, -1, SQLITE_STATIC);
-            sqlite3_bind_int(stmt, 11, meta->series_number);
-            sqlite3_bind_int(stmt, 12, meta->year);
-            sqlite3_bind_text(stmt, 13, meta->language, -1, SQLITE_STATIC);
-            sqlite3_bind_text(stmt, 14, meta->publisher, -1, SQLITE_STATIC);
+            sqlite3_bind_text(stmt, 4, file_type, -1, SQLITE_STATIC);  // file_type
+            sqlite3_bind_text(stmt, 5, archive_path, -1, SQLITE_STATIC);  // archive_path
+            sqlite3_bind_text(stmt, 6, internal_path, -1, SQLITE_STATIC);  // archive_internal_path
 
-            if (meta->description && strlen(meta->description) > 1000) {
-                char *short_desc = strndup(meta->description, 1000);
-                sqlite3_bind_text(stmt, 15, short_desc, -1, SQLITE_TRANSIENT);
-                free(short_desc);
+            // Метаданные
+            sqlite3_bind_text(stmt, 7, meta->title ? meta->title : "Unknown Title", -1, SQLITE_STATIC);  // title
+            sqlite3_bind_text(stmt, 8, meta->author ? meta->author : "Unknown Author", -1, SQLITE_STATIC);  // author
+            sqlite3_bind_text(stmt, 9, meta->genre ? meta->genre : "", -1, SQLITE_STATIC);  // genre
+            sqlite3_bind_text(stmt, 10, meta->series ? meta->series : "", -1, SQLITE_STATIC);  // series
+
+            if (meta->series_number > 0) {
+                sqlite3_bind_int(stmt, 11, meta->series_number);  // series_number
             } else {
-                sqlite3_bind_text(stmt, 15, meta->description, -1, SQLITE_STATIC);
+                sqlite3_bind_null(stmt, 11);
+            }
+
+            if (meta->year > 0) {
+                sqlite3_bind_int(stmt, 12, meta->year);  // year
+            } else {
+                sqlite3_bind_null(stmt, 12);
+            }
+
+            sqlite3_bind_text(stmt, 13, meta->language ? meta->language : "", -1, SQLITE_STATIC);  // language
+            sqlite3_bind_text(stmt, 14, meta->publisher ? meta->publisher : "", -1, SQLITE_STATIC);  // publisher
+
+            // Описание (обрезаем если слишком длинное)
+            if (meta->description && strlen(meta->description) > 0) {
+                if (strlen(meta->description) > 1000) {
+                    char *short_desc = strndup(meta->description, 1000);
+                    sqlite3_bind_text(stmt, 15, short_desc, -1, SQLITE_TRANSIENT);
+                    free(short_desc);
+                } else {
+                    sqlite3_bind_text(stmt, 15, meta->description, -1, SQLITE_STATIC);
+                }
+            } else {
+                sqlite3_bind_null(stmt, 15);
             }
 
             rc = sqlite3_step(stmt);
             if (rc != SQLITE_DONE) {
                 log_message(config, "ERROR", "Failed to insert book: %s", sqlite3_errmsg(db));
             } else {
-                log_message(config, "DEBUG", "[INSERT_BOOK_TO_DB] Book inserted successfully");
+                log_message(config, "INFO", "Book inserted successfully: %s", meta->title ? meta->title : filename);
             }
 
             sqlite3_finalize(stmt);

@@ -51,3 +51,10 @@ Module.symvers
 Mkfile.old
 dkms.conf
 collected_sources.txt
+test_epub_detailed
+test_epub_detailed.c
+scanner.log
+*.log
+*.db
+*.db
+*.db
