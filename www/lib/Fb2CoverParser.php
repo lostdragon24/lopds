@@ -139,5 +139,108 @@ class Fb2CoverParser {
         
         return false;
     }
+
+
+public static function findCoverUniversal($book) {
+        $fileType = strtolower($book['file_type']);
+        
+        switch ($fileType) {
+            case 'fb2':
+                $content = self::getBookContent($book);
+                return $content ? self::findCover($content) : false;
+                
+            case 'epub':
+                // Подключаем парсер EPUB если нужно
+                if (class_exists('EpubParser')) {
+                    return EpubParser::findCover($book['file_path']);
+                }
+                break;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Универсальный метод извлечения метаданных
+     */
+    public static function extractMetadataUniversal($book) {
+        $fileType = strtolower($book['file_type']);
+        
+        switch ($fileType) {
+            case 'fb2':
+                // Существующий код для FB2
+                $content = self::getBookContent($book);
+                if ($content) {
+                    return self::extractFb2Metadata($content);
+                }
+                break;
+                
+            case 'epub':
+                if (class_exists('EpubParser')) {
+                    return EpubParser::extractMetadata($book['file_path']);
+                }
+                break;
+        }
+        
+        return [];
+    }
+    
+    /**
+     * Извлечь метаданные из FB2
+     */
+    private static function extractFb2Metadata($content) {
+        $metadata = [
+            'title' => '',
+            'author' => '',
+            'description' => '',
+            'language' => '',
+            'publisher' => '',
+            'year' => ''
+        ];
+        
+        // Извлечение метаданных из FB2
+        if (preg_match('/<title-info>.*?<book-title>(.*?)<\/book-title>.*?<\/title-info>/is', $content, $matches)) {
+            $metadata['title'] = trim($matches[1]);
+        }
+        
+        if (preg_match('/<title-info>.*?<author>.*?<first-name>(.*?)<\/first-name>.*?<last-name>(.*?)<\/last-name>.*?<\/author>.*?<\/title-info>/is', $content, $matches)) {
+            $firstName = trim($matches[1]);
+            $lastName = trim($matches[2]);
+            $metadata['author'] = $lastName . ($firstName ? ' ' . $firstName : '');
+        }
+        
+        if (preg_match('/<annotation>(.*?)<\/annotation>/is', $content, $matches)) {
+            $description = strip_tags($matches[1]);
+            $description = html_entity_decode($description, ENT_QUOTES, 'UTF-8');
+            $metadata['description'] = trim($description);
+        }
+        
+        return $metadata;
+    }
+    
+    /**
+     * Получить содержимое книги
+     */
+    private static function getBookContent($book) {
+        if ($book['archive_path'] && $book['archive_internal_path']) {
+            $zip = new ZipArchive();
+            if ($zip->open($book['archive_path']) === TRUE) {
+                $content = $zip->getFromName($book['archive_internal_path']);
+                $zip->close();
+                return $content;
+            }
+        } else {
+            return @file_get_contents($book['file_path']);
+        }
+        return false;
+    }
+
+
 }
+
+
+
+
+
+
 ?>

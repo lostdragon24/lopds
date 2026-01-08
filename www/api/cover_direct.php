@@ -4,6 +4,11 @@ require_once __DIR__ . '/../lib/Database.php';
 require_once __DIR__ . '/../lib/Fb2CoverParser.php';
 require_once __DIR__ . '/../lib/Cache.php';
 
+
+// Включаем отладку для этого файла
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 $id = $_GET['id'] ?? '';
 $thumb = isset($_GET['thumb']);
 $refresh = isset($_GET['refresh']);
@@ -86,14 +91,18 @@ exit;
  * Извлечь обложку из книги
  */
 function extractBookCover($book) {
-    $content = getBookContent($book);
-    if ($content === false) {
-        return false;
+    $fileType = strtolower($book['file_type']);
+    
+    if ($fileType === 'fb2') {
+        $content = getBookContent($book);
+        return $content ? Fb2CoverParser::findCover($content) : false;
     }
     
-    // Для FB2 файлов используем улучшенный парсер
-    if (strtolower($book['file_type']) === 'fb2') {
-        return Fb2CoverParser::findCover($content);
+    if ($fileType === 'epub') {
+        // Используем обновленный EpubParser с поддержкой архивов
+        if (class_exists('EpubParser')) {
+            return EpubParser::findCover($book);
+        }
     }
     
     return false;

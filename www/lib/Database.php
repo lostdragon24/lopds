@@ -234,30 +234,8 @@ public function searchBooks($query, $field = 'all', $page = 1, $perPage = null) 
     
     $result = [];
     
-    // Проверяем тип БД и доступность FULLTEXT
-    if (Config::DB_TYPE === 'mysql' && !empty($query)) {
-        try {
-            // Проверяем наличие FULLTEXT индекса
-            $stmt = $this->executeQuery(
-                "SHOW INDEXES FROM books WHERE Index_type = 'FULLTEXT' LIMIT 1"
-            );
-            $hasFulltext = $stmt->fetch() !== false;
-            
-            if ($hasFulltext) {
-                $result = $this->searchBooksMySQL($query, $field, $page, $perPage);
-            } else {
-                // Нет FULLTEXT индекса, используем LIKE
-                $result = $this->searchBooksGeneric($query, $field, $page, $perPage);
-            }
-        } catch (Exception $e) {
-            // В случае ошибки используем LIKE
-            error_log("FULLTEXT check failed: " . $e->getMessage() . ". Using LIKE.");
-            $result = $this->searchBooksGeneric($query, $field, $page, $perPage);
-        }
-    } else {
-        // Для SQLite или пустых запросов используем generic
-        $result = $this->searchBooksGeneric($query, $field, $page, $perPage);
-    }
+    // Упрощенная логика: всегда используем LIKE для совместимости
+    $result = $this->searchBooksGeneric($query, $field, $page, $perPage);
     
     // Сохраняем в кэш
     if (Config::PERFORMANCE['enable_db_cache']) {
@@ -266,7 +244,6 @@ public function searchBooks($query, $field = 'all', $page = 1, $perPage = null) 
     
     return $result;
 }
-
 
 
 /**
@@ -322,7 +299,6 @@ private function searchBooksMySQL($query, $field = 'all', $page = 1, $perPage = 
         return $this->searchBooksGeneric($query, $field, $page, $perPage);
     }
 }
-
 
 /**
  * Поиск для других БД (SQLite и др.)

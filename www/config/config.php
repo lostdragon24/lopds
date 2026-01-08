@@ -5,8 +5,8 @@ class Config {
     const DB_TYPE =  'mysql'; // или 'mysql', 'sqlite'
     const DB_PATH = '/path/to/db/library.db';
     const DB_HOST = 'localhost';
-    const DB_USER = 'userDB';
-    const DB_PASS = 'passwordDB';
+    const DB_USER = 'USER_DB';
+    const DB_PASS = 'PASSWORD_DB';
     const DB_NAME = 'mybook';
     
     // Настройки сканера
@@ -17,8 +17,8 @@ class Config {
     // Настройки веб-интерфейса
     const SITE_TITLE = 'Моя домашняя библиотека';
     const ITEMS_PER_PAGE = 10;
-    const CACHE_DIR = './cache';
-    const COVER_CACHE_DIR = './covers';
+    const CACHE_DIR = '/path/to/www/dir/cache';
+    const COVER_CACHE_DIR = '/path/to/www/dir/cache/covers';
     
     // Настройки OPDS
     const OPDS_TITLE = 'Моя библиотека';
@@ -34,7 +34,7 @@ class Config {
     const APCU_TTL = 1800;
     
     // Использование Memcached для распределенного кэша
-    const USE_MEMCACHED = false; // Отключаем для Raspberry Pi
+    const USE_MEMCACHED = true; // Отключаем для Raspberry Pi
     const MEMCACHED_HOST = 'localhost';
     const MEMCACHED_PORT = 11211;
     const MEMCACHED_TTL = 7200;
@@ -53,6 +53,11 @@ const SEARCH_OPTIMIZATION = [
     'partial_search_fallback' => true // Если FULLTEXT не нашел, использовать LIKE
 ];
     
+
+
+
+
+
     // Настройки для разных типов данных
     const CACHE_CONFIG = [
         'search_results' => ['level' => self::CACHE_LEVEL_APCU, 'ttl' => 900],
@@ -98,6 +103,24 @@ const SEARCH_OPTIMIZATION = [
         'default_per_page' => 20,
         'large_results_threshold' => 500, // Уменьшаем порог
     ];
+
+
+public static function getMimeType($fileType) {
+    $mimeTypes = [
+        'fb2' => 'application/x-fictionbook+xml',
+        'epub' => 'application/epub+zip',
+        'pdf' => 'application/pdf',
+        'mobi' => 'application/x-mobipocket-ebook',
+        'txt' => 'text/plain',
+        'zip' => 'application/zip',
+        'rar' => 'application/x-rar-compressed',
+        '7z' => 'application/x-7z-compressed'
+    ];
+    
+    return $mimeTypes[strtolower($fileType)] ?? 'application/octet-stream';
+}
+
+
 
     public static function init() {
         // Создаем необходимые директории

@@ -2,7 +2,7 @@
 
 require_once 'config/config.php';
 require_once 'lib/Database.php';
-require_once 'lib/Fb2CoverParser.php';
+require_once 'lib/BookHelper.php'; // Добавляем
 require_once 'lib/PageCache.php';
 
 // Начинаем кэширование страницы
@@ -112,9 +112,9 @@ require 'templates/header.php';
                                 <div class="row">
                                     <div class="col-3">
                                         <?php
-                                        // Извлекаем обложку напрямую из книги
+                                        // Используем новый BookHelper для проверки обложки
+                                        $hasCover = BookHelper::hasCover($book);
                                         $coverUrl = "./api/cover_direct.php?id=" . $book['id'] . "&thumb=1";
-                                        $hasCover = hasBookCover($book);
                                         ?>
                                         
                                         <?php if ($hasCover): ?>
@@ -124,8 +124,13 @@ require 'templates/header.php';
                                                  style="max-width: 100px; height: auto;"
                                                  onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';"
                                                  loading="lazy">
+                                            <div class="book-cover-placeholder bg-light d-flex align-items-center justify-content-center" 
+                                                 style="display:none; width:100px; height:150px;">
+                                                <small class="text-muted">Ошибка загрузки</small>
+                                            </div>
                                         <?php else: ?>
-                                            <div class="book-cover-placeholder bg-light d-flex align-items-center justify-content-center" style="width:100px; height:150px;">
+                                            <div class="book-cover-placeholder bg-light d-flex align-items-center justify-content-center" 
+                                                 style="width:100px; height:150px;">
                                                 <small class="text-muted">Нет обложки</small>
                                             </div>
                                         <?php endif; ?>
@@ -187,6 +192,10 @@ require 'templates/header.php';
                                             <?php if ($hasCover): ?>
                                                 <small class="text-muted ms-2">✓ Есть обложка</small>
                                             <?php endif; ?>
+                                            
+                                            <small class="text-muted ms-2">
+                                                <?php echo strtoupper($book['file_type']); ?>
+                                            </small>
                                         </div>
                                     </div>
                                 </div>
@@ -194,9 +203,6 @@ require 'templates/header.php';
                             <div class="card-footer bg-transparent">
                                 <small class="text-muted">
                                     Добавлено: <?php echo date('d.m.Y', strtotime($book['added_date'])); ?>
-                                    <?php if ($book['file_type']): ?>
-                                        • <?php echo strtoupper($book['file_type']); ?>
-                                    <?php endif; ?>
                                     <?php if ($book['archive_path']): ?>
                                         • В архиве
                                     <?php endif; ?>
@@ -251,37 +257,6 @@ require 'templates/header.php';
 </div>
 
 <?php
-/**
- * Проверить, есть ли обложка в книге
- */
-function hasBookCover($book) {
-    // Для FB2 файлов проверяем наличие обложки
-    if (strtolower($book['file_type']) === 'fb2') {
-        $content = getBookContent($book);
-        if ($content) {
-            return Fb2CoverParser::findCover($content) !== false;
-        }
-    }
-    return false;
-}
-
-/**
- * Получить содержимое книги
- */
-function getBookContent($book) {
-    if ($book['archive_path'] && $book['archive_internal_path']) {
-        $zip = new ZipArchive();
-        if ($zip->open($book['archive_path']) === TRUE) {
-            $content = $zip->getFromName($book['archive_internal_path']);
-            $zip->close();
-            return $content;
-        }
-    } else {
-        return @file_get_contents($book['file_path']);
-    }
-    return false;
-}
-
 // Сохраняем страницу в кэш
 PageCache::save();
 

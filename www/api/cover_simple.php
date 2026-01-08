@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../lib/Database.php';
-require_once __DIR__ . '/../lib/Fb2CoverParser.php';
+require_once __DIR__ . '/../lib/CoverParser.php'; // Используем новый универсальный парсер
 
 $id = $_GET['id'] ?? '';
 $thumb = isset($_GET['thumb']);
@@ -28,8 +28,10 @@ if (file_exists($coverPath)) {
     exit;
 }
 
-// Извлекаем обложку
-$imageData = extractBookCover($book);
+// Извлекаем обложку с помощью универсального парсера
+$coverParser = new CoverParser();
+$imageData = $coverParser->findCover($book);
+
 if ($imageData === false) {
     serveDefaultCover($thumb);
     exit;

@@ -36,3 +36,36 @@
     </nav>
     
     <div class="container mt-4">
+
+<style>
+/* Исправления для обложек */
+.book-cover {
+    max-width: 100px;
+    height: auto;
+    border-radius: 5px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+}
+
+.book-cover:hover {
+    transform: scale(1.05);
+}
+
+.book-cover-placeholder {
+    width: 100px;
+    height: 150px;
+    border-radius: 5px;
+    border: 1px dashed #ccc;
+    color: #666;
+}
+
+/* Убираем сообщения об ошибках */
+.book-cover + .book-cover-placeholder {
+    display: none !important;
+}
+
+/* Показываем placeholder только если обложка скрыта */
+.book-cover[style*="display: none"] + .book-cover-placeholder {
+    display: flex !important;
+}
+</style>

@@ -56,5 +56,4 @@ test_epub_detailed.c
 scanner.log
 *.log
 *.db
-*.db
-*.db
+book_scanner

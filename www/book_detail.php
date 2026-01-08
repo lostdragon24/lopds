@@ -2,7 +2,7 @@
 
 require_once 'config/config.php';
 require_once 'lib/Database.php';
-require_once 'lib/Fb2CoverParser.php';
+require_once 'lib/BookHelper.php'; // Добавляем
 require_once 'lib/Cache.php';
 require_once 'lib/PageCache.php';
 
@@ -28,27 +28,13 @@ if (!$book) {
 // Получаем читаемое название жанра
 $readableGenre = $db->getReadableGenre($book['genre']);
 
-// Проверяем наличие обложки
-$hasCover = hasBookCover($book);
-$coverCachePath = Config::COVER_CACHE_DIR . '/' . $bookId . '.jpg';
-$coverExistsInCache = file_exists($coverCachePath);
+// Проверяем наличие обложки с помощью BookHelper
+$hasCover = BookHelper::hasCover($book);
 
-// Извлекаем описание из файла, если его нет в базе
+// Извлекаем описание с помощью BookHelper
 $description = $book['description'] ?? '';
-if (empty($description) && strtolower($book['file_type']) === 'fb2') {
-    $description = extractBookDescription($book);
-    // Кэшируем описание
-    if (!empty($description)) {
-        Cache::set('book_desc_' . $bookId, $description, 86400);
-    }
-}
-
-// Проверяем кэшированное описание
 if (empty($description)) {
-    $cachedDesc = Cache::get('book_desc_' . $bookId);
-    if ($cachedDesc) {
-        $description = $cachedDesc;
-    }
+    $description = BookHelper::extractDescription($book);
 }
 
 // Получаем связанные книги
@@ -90,14 +76,17 @@ require 'templates/header.php';
                                  style="max-height: 400px; width: auto;"
                                  loading="eager">
                             
-                            <!-- Индикатор кэша -->
-                            <?php if ($coverExistsInCache): ?>
+                            <!-- Индикатор формата -->
                             <div class="mt-2">
-                                <span class="badge bg-success bg-opacity-25 text-success">
-                                    <i class="fas fa-bolt me-1"></i>Из кэша
+                                <span class="badge bg-primary">
+                                    <?php echo strtoupper($book['file_type']); ?>
                                 </span>
+                                <?php if ($book['archive_path']): ?>
+                                <span class="badge bg-secondary ms-1">
+                                    📦 В архиве
+                                </span>
+                                <?php endif; ?>
                             </div>
-                            <?php endif; ?>
                             
                         <?php else: ?>
                             <!-- Заглушка если обложки нет -->
@@ -106,6 +95,9 @@ require 'templates/header.php';
                                 <div class="text-center">
                                     <i class="fas fa-book text-muted mb-3" style="font-size: 4rem;"></i>
                                     <p class="text-muted mb-0">Нет обложки</p>
+                                    <p class="text-muted mb-0">
+                                        <small><?php echo strtoupper($book['file_type']); ?></small>
+                                    </p>
                                 </div>
                             </div>
                         <?php endif; ?>
@@ -150,13 +142,6 @@ require 'templates/header.php';
                         </div>
                         <?php endif; ?>
                         
-                        <?php if ($fileEncoding): ?>
-                        <div class="col-6 mb-3">
-                            <small class="text-muted d-block">Кодировка</small>
-                            <span class="badge bg-info"><?php echo $fileEncoding; ?></span>
-                        </div>
-                        <?php endif; ?>
-                        
                         <div class="col-6 mb-3">
                             <small class="text-muted d-block">Статус файла</small>
                             <?php if ($fileExists): ?>
@@ -166,6 +151,19 @@ require 'templates/header.php';
                             <?php else: ?>
                                 <span class="badge bg-danger">
                                     <i class="fas fa-times me-1"></i>Не найден
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                        
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">Обложка</small>
+                            <?php if ($hasCover): ?>
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check me-1"></i>Есть
+                                </span>
+                            <?php else: ?>
+                                <span class="badge bg-secondary">
+                                    <i class="fas fa-times me-1"></i>Нет
                                 </span>
                             <?php endif; ?>
                         </div>
@@ -275,8 +273,8 @@ require 'templates/header.php';
                         <?php if (!empty($description)): ?>
                             <?php echo formatDescription($description); ?>
                             
-                            <!-- Информация о кодировке -->
-                            <?php if ($fileEncoding && $fileEncoding !== 'UTF-8'): ?>
+                            <!-- Информация о кодировке для FB2 -->
+                            <?php if (strtolower($book['file_type']) === 'fb2' && $fileEncoding && $fileEncoding !== 'UTF-8'): ?>
                             <div class="alert alert-info mt-3 mb-0 small">
                                 <i class="fas fa-info-circle me-2"></i>
                                 Описание конвертировано из <?php echo $fileEncoding; ?> в UTF-8
@@ -289,20 +287,20 @@ require 'templates/header.php';
                                 Описание книги отсутствует. 
                                 <?php if (strtolower($book['file_type']) === 'fb2'): ?>
                                 Для FB2 файлов описание можно извлечь из файла книги.
+                                <?php elseif (strtolower($book['file_type']) === 'epub'): ?>
+                                Для EPUB файлов описание можно извлечь из метаданных.
                                 <?php endif; ?>
                             </div>
                             
                             <!-- Кнопка для извлечения описания -->
-                            <?php if (strtolower($book['file_type']) === 'fb2'): ?>
                             <div class="mt-3 text-center">
                                 <button type="button" class="btn btn-outline-primary" onclick="extractDescription(<?php echo $bookId; ?>)">
                                     <i class="fas fa-sync me-2"></i>Извлечь описание из файла
                                 </button>
                                 <small class="text-muted d-block mt-2">
-                                    Будет выполнена попытка извлечения и конвертации описания
+                                    Будет выполнена попытка извлечения описания
                                 </small>
                             </div>
-                            <?php endif; ?>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -321,7 +319,7 @@ require 'templates/header.php';
                             <div class="card border h-100">
                                 <div class="row g-0 h-100">
                                     <div class="col-4">
-                                        <?php if (hasBookCover($relatedBook)): ?>
+                                        <?php if (BookHelper::hasCover($relatedBook)): ?>
                                         <img src="./api/cover_direct.php?id=<?php echo $relatedBook['id']; ?>&thumb=1" 
                                              class="img-fluid rounded-start h-100" 
                                              style="object-fit: cover;"
@@ -369,23 +367,29 @@ require 'templates/header.php';
                                 <small class="text-muted d-block mb-1">Путь к файлу:</small>
                                 <div class="bg-light p-2 rounded">
                                     <small class="text-muted file-path">
-                                        <?php echo htmlspecialchars($book['file_path']); ?>
+                                        <?php 
+                                        if ($book['archive_path']) {
+                                            echo htmlspecialchars($book['archive_path']) . 
+                                                 ' → ' . htmlspecialchars($book['archive_internal_path']);
+                                        } else {
+                                            echo htmlspecialchars($book['file_path']);
+                                        }
+                                        ?>
                                     </small>
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <small class="text-muted d-block mb-1">Обложка:</small>
+                                <small class="text-muted d-block mb-1">Формат:</small>
                                 <div class="bg-light p-2 rounded">
-                                    <?php if ($hasCover): ?>
-                                        <span class="text-success">
-                                            <i class="fas fa-check me-1"></i>Есть в файле
-                                        </span>
-                                    <?php else: ?>
-                                        <span class="text-muted">
-                                            <i class="fas fa-times me-1"></i>Отсутствует
-                                        </span>
+                                    <span class="badge bg-primary">
+                                        <?php echo strtoupper($book['file_type']); ?>
+                                    </span>
+                                    <?php if ($book['archive_path']): ?>
+                                    <span class="badge bg-secondary ms-1">
+                                        В архиве <?php echo strtoupper(pathinfo($book['archive_path'], PATHINFO_EXTENSION)); ?>
+                                    </span>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -418,10 +422,89 @@ require 'templates/header.php';
     </div>
 </div>
 
-<!-- Стили и скрипты остаются без изменений -->
-...
+<script>
+// Функция для извлечения описания через AJAX
+function extractDescription(bookId) {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Извлечение...';
+    btn.disabled = true;
+    
+    fetch(`./api/extract_description.php?id=${bookId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Обновляем описание на странице
+                document.querySelector('.book-description').innerHTML = 
+                    `<p>${data.description}</p>` +
+                    `<div class="alert alert-success mt-3">✅ Описание успешно извлечено</div>`;
+            } else {
+                alert('Ошибка: ' + data.message);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        })
+        .catch(error => {
+            alert('Ошибка сети: ' + error.message);
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+}
+
+// Функция для обработки ошибок загрузки обложки
+function handleCoverError(img) {
+    img.style.display = 'none';
+    const placeholder = img.nextElementSibling;
+    if (placeholder && placeholder.classList.contains('book-cover-placeholder')) {
+        placeholder.style.display = 'flex';
+    }
+}
+
+// Поделиться книгой
+function shareBook() {
+    const url = window.location.href;
+    const title = document.querySelector('h1').textContent;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: title,
+            text: 'Посмотрите эту книгу в библиотеке:',
+            url: url
+        });
+    } else {
+        // Копируем ссылку в буфер обмена
+        navigator.clipboard.writeText(url).then(() => {
+            alert('Ссылка скопирована в буфер обмена!');
+        });
+    }
+}
+</script>
+
 <!-- Стили -->
 <style>
+.book-description p {
+    line-height: 1.8;
+    text-align: justify;
+    font-size: 1.05rem;
+    margin-bottom: 1rem;
+}
+
+.book-description ul, .book-description ol {
+    padding-left: 2rem;
+    margin-bottom: 1rem;
+}
+
+.book-description li {
+    margin-bottom: 0.5rem;
+}
+
+.file-path {
+    word-break: break-all;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+}
+
 .card {
     border-radius: 12px;
     transition: all 0.3s ease;
@@ -432,13 +515,14 @@ require 'templates/header.php';
     box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
 }
 
-.cover-container {
-    border-radius: 12px 12px 0 0;
-    overflow: hidden;
+.breadcrumb {
+    border-radius: 10px;
+    background: #f8f9fa;
 }
 
-.author-link, .series-link, .genre-badge {
-    transition: all 0.3s ease;
+.badge {
+    font-size: 0.85em;
+    font-weight: 500;
 }
 
 .author-link:hover {
@@ -446,300 +530,18 @@ require 'templates/header.php';
     text-decoration: underline !important;
 }
 
-.series-link:hover {
-    color: #0dcaf0 !important;
-}
-
-.genre-badge:hover {
-    opacity: 0.9;
-    transform: scale(1.05);
-}
-
-.file-path {
-    word-break: break-all;
-    font-family: 'Courier New', monospace;
-}
-
-.book-description {
-    line-height: 1.8;
-    text-align: justify;
-    font-size: 1.05rem;
-}
-
-.hover-shadow:hover {
-    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-}
-
-.cursor-pointer {
-    cursor: pointer;
-}
-
-.year-badge {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #0d6efd;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-}
-
-.breadcrumb {
-    border-radius: 10px;
-}
-
-.progress-bar {
-    transition: width 1s ease-in-out;
+.cover-container img {
+    max-height: 400px;
+    width: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 </style>
-
-
-
-
 
 <?php
 /**
  * Вспомогательные функции
  */
-
-/**
- * Определить кодировку файла
- */
-function detectFileEncoding($book) {
-    $cacheKey = 'file_encoding_' . $book['id'];
-    $cached = Cache::get($cacheKey);
-    if ($cached !== null) {
-        return $cached;
-    }
-    
-    $encoding = 'UTF-8'; // По умолчанию
-    
-    $content = getBookContent($book, 5000); // Читаем первые 5000 байт для определения
-    if ($content) {
-        // Определяем кодировку
-        $detected = mb_detect_encoding($content, ['UTF-8', 'Windows-1251', 'KOI8-R', 'ISO-8859-5', 'CP1251'], true);
-        
-        if ($detected) {
-            $encoding = $detected;
-        } else {
-            // Если не удалось определить, пробуем другие методы
-            if (preg_match('/encoding=["\']windows-1251["\']/i', substr($content, 0, 500))) {
-                $encoding = 'Windows-1251';
-            } elseif (preg_match('/encoding=["\']koi8-r["\']/i', substr($content, 0, 500))) {
-                $encoding = 'KOI8-R';
-            } elseif (preg_match('/encoding=["\']cp1251["\']/i', substr($content, 0, 500))) {
-                $encoding = 'CP1251';
-            }
-        }
-    }
-    
-    Cache::set($cacheKey, $encoding, 86400);
-    return $encoding;
-}
-
-/**
- * Извлечь описание из файла книги с учетом кодировки
- */
-function extractBookDescription($book) {
-    // Проверяем кэш
-    $cacheKey = 'book_desc_' . $book['id'];
-    $cached = Cache::get($cacheKey);
-    if ($cached !== null) {
-        return $cached;
-    }
-    
-    $description = '';
-    $content = getBookContent($book);
-    
-    if ($content && strtolower($book['file_type']) === 'fb2') {
-        // Определяем кодировку
-        $encoding = detectFileEncoding($book);
-        
-        // Конвертируем в UTF-8 если нужно
-        if ($encoding && $encoding !== 'UTF-8') {
-            $content = iconv($encoding, 'UTF-8//IGNORE', $content);
-            if ($content === false) {
-                // Если iconv не сработал, пробуем mb_convert_encoding
-                $content = getBookContent($book); // Читаем заново
-                $content = mb_convert_encoding($content, 'UTF-8', $encoding);
-            }
-        }
-        
-        // Пробуем разные паттерны для извлечения описания из FB2
-        $patterns = [
-            // Стандартный паттерн для description
-            '/<description>.*?<title-info>.*?<annotation>(.*?)<\/annotation>.*?<\/title-info>.*?<\/description>/is',
-            // Альтернативный паттерн
-            '/<annotation>(.*?)<\/annotation>/is',
-            // Паттерн для текста внутри annotation
-            '/<annotation>.*?<p>(.*?)<\/p>.*?<\/annotation>/is',
-            // Паттерн для тега <p> внутри annotation
-            '/<annotation>(.*?)<\/annotation>/is',
-        ];
-        
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $content, $matches)) {
-                $description = trim(strip_tags($matches[1]));
-                $description = html_entity_decode($description, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-                $description = preg_replace('/\s+/', ' ', $description);
-                $description = cleanText($description);
-                
-                if (!empty($description)) {
-                    // Сохраняем в кэш
-                    Cache::set($cacheKey, $description, 86400);
-                    return $description;
-                }
-            }
-        }
-    }
-    
-    return '';
-}
-
-/**
- * Очистка текста от мусора
- */
-function cleanText($text) {
-    // Убираем лишние пробелы
-    $text = preg_replace('/\s+/', ' ', $text);
-    
-    // Убираем спецсимволы
-    $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
-    
-    // Убираем повторяющиеся точки
-    $text = preg_replace('/\.{3,}/', '...', $text);
-    
-    // Обрезаем слишком длинный текст
-    if (mb_strlen($text) > 5000) {
-        $text = mb_substr($text, 0, 5000) . '...';
-    }
-    
-    return trim($text);
-}
-
-/**
- * Получить содержимое книги (с ограничением по размеру)
- */
-function getBookContent($book, $maxSize = null) {
-    $cacheKey = 'book_content_' . $book['id'] . ($maxSize ? '_' . $maxSize : '');
-    $cached = Cache::get($cacheKey);
-    if ($cached !== null) {
-        return $cached;
-    }
-    
-    $content = false;
-    if ($book['archive_path'] && $book['archive_internal_path']) {
-        $zip = new ZipArchive();
-        if ($zip->open($book['archive_path']) === TRUE) {
-            $content = $zip->getFromName($book['archive_internal_path'], $maxSize ?: 0);
-            $zip->close();
-        }
-    } else {
-        if ($maxSize) {
-            $handle = fopen($book['file_path'], 'r');
-            $content = fread($handle, $maxSize);
-            fclose($handle);
-        } else {
-            $content = @file_get_contents($book['file_path']);
-        }
-    }
-    
-    if ($content) {
-        Cache::set($cacheKey, $content, 3600);
-    }
-    
-    return $content;
-}
-
-function hasBookCover($book) {
-    // Кэшируем проверку на 5 минут
-    $cacheKey = 'has_cover_' . $book['id'];
-    $cached = Cache::get($cacheKey);
-    if ($cached !== null) {
-        return $cached;
-    }
-    
-    $hasCover = false;
-    if (strtolower($book['file_type']) === 'fb2') {
-        $content = getBookContent($book);
-        if ($content) {
-            $hasCover = Fb2CoverParser::findCover($content) !== false;
-        }
-    }
-    
-    Cache::set($cacheKey, $hasCover, 300);
-    return $hasCover;
-}
-
-function getRelatedBooks($book, $db) {
-    $related = [];
-    
-    try {
-        // Книги того же автора
-        if (!empty($book['author'])) {
-            $authorBooks = $db->getBooksByAuthor($book['author'], 1, 8);
-            foreach ($authorBooks as $authorBook) {
-                if ($authorBook['id'] != $book['id']) {
-                    $related[] = $authorBook;
-                }
-            }
-        }
-        
-        // Книги из той же серии
-        if (!empty($book['series'])) {
-            $seriesBooks = $db->getBooksBySeries($book['series'], 1, 8);
-            foreach ($seriesBooks as $seriesBook) {
-                if ($seriesBook['id'] != $book['id']) {
-                    $related[] = $seriesBook;
-                }
-            }
-        }
-    } catch (Exception $e) {
-        error_log("Error getting related books: " . $e->getMessage());
-    }
-    
-    // Убираем дубликаты
-    $uniqueRelated = [];
-    $seenIds = [$book['id']];
-    
-    foreach ($related as $relatedBook) {
-        if (!in_array($relatedBook['id'], $seenIds)) {
-            $uniqueRelated[] = $relatedBook;
-            $seenIds[] = $relatedBook['id'];
-        }
-    }
-    
-    return array_slice($uniqueRelated, 0, 6);
-}
-
-
-function formatDescription($description) {
-    if (empty($description)) {
-        return '<p class="text-muted">Описание отсутствует</p>';
-    }
-    
-    // Очищаем текст
-    $description = htmlspecialchars($description);
-    
-    // Заменяем переносы строк на <br> но сохраняем структуру
-    $description = nl2br($description);
-    
-    // Убираем лишние переносы
-    $description = preg_replace('/(<br\s*\/?>\s*){3,}/i', '<br><br>', $description);
-    
-    // Разбиваем на абзацы для длинного текста
-    $lines = explode('<br>', $description);
-    if (count($lines) > 3) {
-        $description = '';
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if (!empty($line)) {
-                $description .= '<p>' . $line . '</p>';
-            }
-        }
-    } else {
-        $description = '<p>' . $description . '</p>';
-    }
-    
-    return $description;
-}
 
 /**
  * Получить название языка
@@ -782,6 +584,126 @@ function checkFileExists($book) {
         return file_exists($book['file_path']);
     }
     return false;
+}
+
+/**
+ * Определить кодировку файла
+ */
+function detectFileEncoding($book) {
+    if (strtolower($book['file_type']) !== 'fb2') {
+        return 'UTF-8';
+    }
+    
+    $cacheKey = 'file_encoding_' . $book['id'];
+    $cached = Cache::get($cacheKey);
+    if ($cached !== null) {
+        return $cached;
+    }
+    
+    $encoding = 'UTF-8';
+    $content = getBookContent($book, 5000);
+    
+    if ($content) {
+        $detected = mb_detect_encoding($content, ['UTF-8', 'Windows-1251', 'KOI8-R', 'ISO-8859-5', 'CP1251'], true);
+        
+        if ($detected) {
+            $encoding = $detected;
+        } elseif (preg_match('/encoding=["\']windows-1251["\']/i', substr($content, 0, 500))) {
+            $encoding = 'Windows-1251';
+        } elseif (preg_match('/encoding=["\']koi8-r["\']/i', substr($content, 0, 500))) {
+            $encoding = 'KOI8-R';
+        }
+    }
+    
+    Cache::set($cacheKey, $encoding, 86400);
+    return $encoding;
+}
+
+/**
+ * Получить содержимое книги
+ */
+function getBookContent($book, $maxSize = null) {
+    if ($book['archive_path'] && $book['archive_internal_path']) {
+        $zip = new ZipArchive();
+        if ($zip->open($book['archive_path']) === TRUE) {
+            $content = $zip->getFromName($book['archive_internal_path'], $maxSize ?: 0);
+            $zip->close();
+            return $content;
+        }
+    } else {
+        if ($maxSize) {
+            $handle = fopen($book['file_path'], 'r');
+            $content = fread($handle, $maxSize);
+            fclose($handle);
+        } else {
+            $content = @file_get_contents($book['file_path']);
+        }
+    }
+    return $content;
+}
+
+/**
+ * Получить связанные книги
+ */
+function getRelatedBooks($book, $db) {
+    $related = [];
+    
+    try {
+        // Книги того же автора
+        if (!empty($book['author'])) {
+            $authorBooks = $db->getBooksByAuthor($book['author'], 1, 8);
+            foreach ($authorBooks as $authorBook) {
+                if ($authorBook['id'] != $book['id']) {
+                    $related[] = $authorBook;
+                }
+            }
+        }
+        
+        // Книги из той же серии
+        if (!empty($book['series'])) {
+            $seriesBooks = $db->getBooksBySeries($book['series'], 1, 8);
+            foreach ($seriesBooks as $seriesBook) {
+                if ($seriesBook['id'] != $book['id']) {
+                    $related[] = $seriesBook;
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Error getting related books: " . $e->getMessage());
+    }
+    
+    // Убираем дубликаты
+    $uniqueRelated = [];
+    $seenIds = [$book['id']];
+    
+    foreach ($related as $relatedBook) {
+        if (!in_array($relatedBook['id'], $seenIds)) {
+            $uniqueRelated[] = $relatedBook;
+            $seenIds[] = $relatedBook['id'];
+        }
+    }
+    
+    return array_slice($uniqueRelated, 0, 6);
+}
+
+/**
+ * Форматировать описание
+ */
+function formatDescription($description) {
+    if (empty($description)) {
+        return '<p class="text-muted">Описание отсутствует</p>';
+    }
+    
+    // Очищаем текст
+    $description = htmlspecialchars($description);
+    
+    // Заменяем переносы строк на <br> но сохраняем структуру
+    $description = nl2br($description);
+    
+    // Убираем лишние переносы
+    $description = preg_replace('/(<br\s*\/?>\s*){3,}/i', '<br><br>', $description);
+    
+    return '<p>' . $description . '</p>';
 }
 
 // Сохраняем страницу в кэш
