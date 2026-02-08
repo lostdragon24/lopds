@@ -399,7 +399,7 @@ require 'templates/header.php';
                 <div class="card-header py-3">
                     <h6 class="m-0 font-weight-bold text-primary">
                         <i class="fas fa-tags me-2"></i>
-                        Распределение по жанрам (Топ-20)
+                        👑 Топ-20 авторов
                     </h6>
                 </div>
 
@@ -436,7 +436,7 @@ require 'templates/header.php';
         <div class="col-12">
             <div class="card shadow">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">👑 Топ-20 авторов</h6>
+                    <h6 class="m-0 font-weight-bold text-primary">Распределение по жанрам (Топ-20)</h6>
                 </div>
                 <div class="card-body">
                     <div class="row">
