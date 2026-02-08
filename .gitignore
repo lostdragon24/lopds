@@ -57,3 +57,4 @@ scanner.log
 *.log
 *.db
 book_scanner
+www/quick_check.php

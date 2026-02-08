@@ -198,6 +198,291 @@ private function getSearchStrategy($query, $field) {
 
 
 
+/**
+ * Оценить книгу
+ */
+public function rateBook($bookId, $rating, $userIp) {
+    $rating = max(1, min(5, (int)$rating));
+    $userIp = substr($userIp, 0, 45);
+
+    try {
+        // Проверяем, не оценивал ли уже пользователь эту книгу
+        $stmt = $this->executeQuery(
+            "SELECT id FROM book_ratings WHERE book_id = ? AND user_ip = ?",
+            [$bookId, $userIp]
+        );
+
+        if ($stmt->fetch()) {
+            // Обновляем существующий рейтинг
+            $this->executeQuery(
+                "UPDATE book_ratings SET rating = ?, created_at = CURRENT_TIMESTAMP WHERE book_id = ? AND user_ip = ?",
+                [$rating, $bookId, $userIp]
+            );
+            return 'updated';
+        } else {
+            // Добавляем новый рейтинг
+            $this->executeQuery(
+                "INSERT INTO book_ratings (book_id, user_ip, rating) VALUES (?, ?, ?)",
+                [$bookId, $userIp, $rating]
+            );
+            return 'added';
+        }
+    } catch (Exception $e) {
+        error_log("Error rating book: " . $e->getMessage());
+        throw $e;
+    }
+}
+
+/**
+ * Добавить/удалить книгу в избранное
+ */
+public function toggleFavorite($bookId, $userIp) {
+    $userIp = substr($userIp, 0, 45);
+
+    try {
+        // Проверяем, есть ли уже в избранном
+        $stmt = $this->executeQuery(
+            "SELECT id FROM book_favorites WHERE book_id = ? AND user_ip = ?",
+            [$bookId, $userIp]
+        );
+
+        if ($stmt->fetch()) {
+            // Удаляем из избранного
+            $this->executeQuery(
+                "DELETE FROM book_favorites WHERE book_id = ? AND user_ip = ?",
+                [$bookId, $userIp]
+            );
+            return 'removed';
+        } else {
+            // Добавляем в избранное
+            $this->executeQuery(
+                "INSERT INTO book_favorites (book_id, user_ip) VALUES (?, ?)",
+                [$bookId, $userIp]
+            );
+            return 'added';
+        }
+    } catch (Exception $e) {
+        error_log("Error toggling favorite: " . $e->getMessage());
+        throw $e;
+    }
+}
+
+/**
+ * Получить рейтинг книги
+ */
+public function getBookRating($bookId) {
+    try {
+        $stmt = $this->executeQuery(
+            "SELECT
+                COUNT(*) as votes,
+                AVG(rating) as average_rating,
+                SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) as stars_5,
+                SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) as stars_4,
+                SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as stars_3,
+                SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as stars_2,
+                SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as stars_1
+             FROM book_ratings
+             WHERE book_id = ?",
+            [$bookId]
+        );
+
+        $result = $stmt->fetch();
+        if (!$result || $result['votes'] == 0) {
+            return [
+                'votes' => 0,
+                'average' => 0,
+                'average_rounded' => 0,
+                'distribution' => [0, 0, 0, 0, 0]
+            ];
+        }
+
+        $average = (float)$result['average_rating'];
+
+        return [
+            'votes' => (int)$result['votes'],
+            'average' => $average,
+            'average_rounded' => round($average * 2) / 2, // Округляем до 0.5
+            'distribution' => [
+                (int)$result['stars_5'],
+                (int)$result['stars_4'],
+                (int)$result['stars_3'],
+                (int)$result['stars_2'],
+                (int)$result['stars_1']
+            ]
+        ];
+    } catch (Exception $e) {
+        error_log("Error getting book rating: " . $e->getMessage());
+        return ['votes' => 0, 'average' => 0, 'average_rounded' => 0, 'distribution' => [0,0,0,0,0]];
+    }
+}
+
+/**
+ * Получить рейтинг пользователя для книги
+ */
+public function getUserRating($bookId, $userIp) {
+    try {
+        $stmt = $this->executeQuery(
+            "SELECT rating FROM book_ratings WHERE book_id = ? AND user_ip = ?",
+            [$bookId, $userIp]
+        );
+        $result = $stmt->fetch();
+        return $result ? (int)$result['rating'] : 0;
+    } catch (Exception $e) {
+        return 0;
+    }
+}
+
+/**
+ * Проверить, в избранном ли книга у пользователя
+ */
+public function isBookInFavorites($bookId, $userIp) {
+    try {
+        $stmt = $this->executeQuery(
+            "SELECT id FROM book_favorites WHERE book_id = ? AND user_ip = ?",
+            [$bookId, $userIp]
+        );
+        return $stmt->fetch() !== false;
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
+/**
+ * Получить избранные книги пользователя
+ */
+public function getUserFavorites($userIp, $page = 1, $perPage = 20) {
+    $offset = (int)(($page - 1) * $perPage);
+
+    $stmt = $this->executeQuery(
+        "SELECT b.*, f.created_at as favorited_at
+         FROM books b
+         JOIN book_favorites f ON b.id = f.book_id
+         WHERE f.user_ip = ?
+         ORDER BY f.created_at DESC
+         LIMIT ? OFFSET ?",
+        [$userIp, $perPage, $offset]
+    );
+
+    return $stmt->fetchAll();
+}
+
+/**
+ * Получить количество избранных книг пользователя
+ */
+public function getUserFavoritesCount($userIp) {
+    $stmt = $this->executeQuery(
+        "SELECT COUNT(*) as count FROM book_favorites WHERE user_ip = ?",
+        [$userIp]
+    );
+    $result = $stmt->fetch();
+    return $result ? (int)$result['count'] : 0;
+}
+
+/**
+ * Получить топ книг по рейтингу
+ */
+public function getTopRatedBooks($limit = 10, $minVotes = 1) { // Изменили с 3 на 1
+    $cacheKey = $this->getCacheKey('top_rated_books', ['limit' => $limit, 'minVotes' => $minVotes]);
+
+    if (Config::PERFORMANCE['enable_db_cache']) {
+        $cached = Cache::get($cacheKey, 'statistics');
+        if ($cached !== null) {
+            return $cached;
+        }
+    }
+
+    try {
+        if (Config::DB_TYPE === 'mysql') {
+            $sql = "SELECT b.*,
+                    COALESCE(AVG(r.rating), 0) as avg_rating,
+                    COUNT(r.id) as votes_count
+             FROM books b
+             LEFT JOIN book_ratings r ON b.id = r.book_id
+             GROUP BY b.id
+             HAVING votes_count >= ?
+             ORDER BY avg_rating DESC, votes_count DESC, b.title
+             LIMIT ?";
+        } else {
+            // Для SQLite
+            $sql = "SELECT b.*,
+                    COALESCE(AVG(r.rating), 0) as avg_rating,
+                    COUNT(r.id) as votes_count
+             FROM books b
+             LEFT JOIN book_ratings r ON b.id = r.book_id
+             GROUP BY b.id
+             HAVING COUNT(r.id) >= ?
+             ORDER BY avg_rating DESC, votes_count DESC, b.title
+             LIMIT ?";
+        }
+
+        $stmt = $this->executeQuery($sql, [$minVotes, $limit]);
+        $result = $stmt->fetchAll();
+
+        if (Config::PERFORMANCE['enable_db_cache']) {
+            Cache::set($cacheKey, $result, 'statistics');
+        }
+
+        return $result;
+
+    } catch (Exception $e) {
+        error_log("Error getting top rated books: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Получить рекомендуемые книги (похожие на избранные)
+ */
+public function getRecommendedBooks($userIp, $limit = 10) {
+    try {
+        // Получаем жанры из избранных книг пользователя
+        $stmt = $this->executeQuery(
+            "SELECT DISTINCT b.genre
+             FROM books b
+             JOIN book_favorites f ON b.id = f.book_id
+             WHERE f.user_ip = ? AND b.genre IS NOT NULL
+             LIMIT 5",
+            [$userIp]
+        );
+
+        $genres = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        if (empty($genres)) {
+            return $this->getRandomBooks($limit);
+        }
+
+        // Ищем книги в тех же жанрах, но не избранные
+        $placeholders = implode(',', array_fill(0, count($genres), '?'));
+        $params = array_merge($genres, [$userIp, $limit]);
+
+        $stmt = $this->executeQuery(
+            "SELECT b.*
+             FROM books b
+             LEFT JOIN book_favorites f ON b.id = f.book_id AND f.user_ip = ?
+             WHERE b.genre IN ($placeholders)
+               AND f.id IS NULL
+             ORDER BY RAND()
+             LIMIT ?",
+            $params
+        );
+
+        $result = $stmt->fetchAll();
+
+        // Если не нашли достаточно, добавляем случайные
+        if (count($result) < $limit) {
+            $additional = $this->getRandomBooks($limit - count($result));
+            $result = array_merge($result, $additional);
+        }
+
+        return $result;
+    } catch (Exception $e) {
+        return $this->getRandomBooks($limit);
+    }
+}
+
+
+
+
 
 /**
  * Оптимизированный поиск книг с учетом типа БД

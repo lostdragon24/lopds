@@ -2,7 +2,7 @@
 
 require_once 'config/config.php';
 require_once 'lib/Database.php';
-require_once 'lib/BookHelper.php'; // Добавляем
+require_once 'lib/BookHelper.php'; // Добаваляем
 require_once 'lib/PageCache.php';
 
 // Начинаем кэширование страницы
@@ -197,6 +197,21 @@ require 'templates/header.php';
                                                 <?php echo strtoupper($book['file_type']); ?>
                                             </small>
                                         </div>
+
+<div class="d-flex justify-content-between align-items-center mt-2">
+    <div class="book-rating-mini" data-book-id="<?php echo $book['id']; ?>">
+        <!-- Рейтинг загрузится через JavaScript -->
+        <small class="text-muted">Загрузка...</small>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary favorite-btn-mini"
+            data-book-id="<?php echo $book['id']; ?>"
+            title="Добавить в избранное">
+        <i class="far fa-heart"></i>
+    </button>
+</div>
+
+
+
                                     </div>
                                 </div>
                             </div>

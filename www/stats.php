@@ -1,141 +1,83 @@
 <?php
-
 require_once 'config/config.php';
 require_once 'lib/Database.php';
 require_once 'lib/Cache.php';
 require_once 'lib/PageCache.php';
 
-// Начинаем кэширование страницы на 5 минут
 PageCache::start('stats_page');
 
 $db = Database::getInstance();
 
-// Получаем все данные с кэшированием
+// Получаем статистику
 $stats = $db->getCollectionStats();
 $genres = $db->getGenresWithCount();
 $topAuthors = $db->getTopAuthors(20);
-$topSeries = $db->getTopSeries(20);
 $randomBooks = $db->getRandomBooks(5);
 
-// Получаем статистику кэширования
-$cacheStats = Cache::getStats();
-$dbCacheStats = $db->getCacheStats();
+// Получаем статистику рейтингов и избранного
+try {
+    // Статистика рейтингов
+    $ratingStats = $db->getConnection()->query("
+        SELECT
+            COUNT(DISTINCT book_id) as rated_books,
+            COUNT(*) as total_ratings,
+            AVG(rating) as avg_rating,
+            COUNT(DISTINCT user_ip) as unique_voters
+        FROM book_ratings
+    ")->fetch();
+
+    // Статистика избранного
+    $favoritesStats = $db->getConnection()->query("
+        SELECT
+            COUNT(DISTINCT book_id) as favorited_books,
+            COUNT(*) as total_favorites,
+            COUNT(DISTINCT user_ip) as users_with_favorites
+        FROM book_favorites
+    ")->fetch();
+
+    // Топ книг по рейтингу
+    $topRatedBooks = $db->getConnection()->query("
+        SELECT b.id, b.title, b.author,
+               AVG(r.rating) as avg_rating,
+               COUNT(r.id) as votes
+        FROM books b
+        JOIN book_ratings r ON b.id = r.book_id
+        GROUP BY b.id
+        HAVING votes >= 3
+        ORDER BY avg_rating DESC, votes DESC
+        LIMIT 10
+    ")->fetchAll();
+
+} catch (Exception $e) {
+    $ratingStats = ['rated_books' => 0, 'total_ratings' => 0, 'avg_rating' => 0, 'unique_voters' => 0];
+    $favoritesStats = ['favorited_books' => 0, 'total_favorites' => 0, 'users_with_favorites' => 0];
+    $topRatedBooks = [];
+}
 
 // Системная информация
 $systemInfo = [
-    'load' => sys_getloadavg(),
     'memory_usage' => memory_get_peak_usage(true),
     'memory_limit' => ini_get('memory_limit'),
     'php_version' => PHP_VERSION,
     'db_type' => Config::DB_TYPE,
     'apcu_enabled' => extension_loaded('apcu') && apcu_enabled(),
-    'server_software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
     'execution_time' => microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'],
     'query_count' => $db->getQueryCount()
 ];
 
-// Обработка действий
-$action = $_GET['action'] ?? '';
-$message = '';
-
-if ($action === 'clear_cache' && Config::ENABLE_CACHE) {
-    try {
-        Cache::clear();
-        if (method_exists($db, 'clearCache')) {
-            $db->clearCache();
-        }
-        
-        // Создаем новый ключ для страницы, чтобы избежать показа кэшированной версии
-        $message = 'success:Кэш успешно очищен! Страница будет перезагружена...';
-        
-        // Перенаправляем с задержкой
-        echo '<script>
-            setTimeout(function() {
-                window.location.href = "stats.php?message=' . urlencode($message) . '";
-            }, 1000);
-        </script>';
-        exit;
-        
-    } catch (Exception $e) {
-        $message = 'danger:Ошибка при очистке кэша: ' . $e->getMessage();
-    }
-}
-
-if ($action === 'optimize_db') {
-    try {
-        // Здесь можно добавить оптимизацию БД если нужно
-        $message = 'success:Операция выполнена!';
-    } catch (Exception $e) {
-        $message = 'danger:Ошибка: ' . $e->getMessage();
-    }
-}
-
-// Проверяем сообщение из GET параметра
-if (isset($_GET['message'])) {
-    $message = $_GET['message'];
-}
+// Получаем статистику кэширования
+$cacheStats = Cache::getStats();
+$dbCacheStats = $db->getCacheStats();
 
 require 'templates/header.php';
 ?>
 
 <div class="container-fluid">
     <h1 class="mb-4">📊 Детальная статистика системы</h1>
-    
-    <!-- Уведомления -->
-    <?php if ($message): ?>
-    <div class="row mb-4">
-        <div class="col-12">
-            <?php 
-            list($type, $text) = explode(':', $message, 2);
-            $alertClass = [
-                'success' => 'alert-success',
-                'danger' => 'alert-danger',
-                'warning' => 'alert-warning',
-                'info' => 'alert-info'
-            ][$type] ?? 'alert-info';
-            ?>
-            <div class="alert <?php echo $alertClass; ?> alert-dismissible fade show" role="alert">
-                <?php echo htmlspecialchars($text); ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- Панель управления -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-md-8">
-                            <h5 class="card-title mb-0">⚙️ Управление системой</h5>
-                            <p class="card-text text-muted mb-0">Мониторинг и обслуживание библиотеки</p>
-                        </div>
-                        <div class="col-md-4 text-end">
-                            <div class="btn-group" role="group">
-                                <?php if (Config::ENABLE_CACHE): ?>
-                                <a href="?action=clear_cache" class="btn btn-warning" 
-                                   onclick="return confirm('Очистить весь кэш? Это может временно замедлить работу.')">
-                                    🗑️ Очистить кэш
-                                </a>
-                                <?php endif; ?>
-                                <a href="cache_stats.php" class="btn btn-outline-primary">
-                                    📈 Статистика кэша
-                                </a>
-                                <a href="index.php" class="btn btn-outline-secondary">
-                                    🏠 На главную
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Основные метрики -->
     <div class="row mb-4">
+        <!-- Книги -->
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="card border-left-primary shadow h-100 py-2">
                 <div class="card-body">
@@ -155,6 +97,7 @@ require 'templates/header.php';
             </div>
         </div>
 
+        <!-- Авторы -->
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="card border-left-success shadow h-100 py-2">
                 <div class="card-body">
@@ -174,38 +117,50 @@ require 'templates/header.php';
             </div>
         </div>
 
+        <!-- Рейтинги -->
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="card border-left-warning shadow h-100 py-2">
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                🏷️ Жанров</div>
+                                ⭐ Оценок</div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                <?php echo number_format($stats['total_genres'], 0, '', ' '); ?>
+                                <?php echo number_format($ratingStats['total_ratings'], 0, '', ' '); ?>
+                            </div>
+                            <div class="mt-1">
+                                <small class="text-muted">
+                                    <?php echo number_format($ratingStats['rated_books'], 0, '', ' '); ?> книг оценено
+                                </small>
                             </div>
                         </div>
                         <div class="col-auto">
-                            <i class="fas fa-tags fa-2x text-gray-300"></i>
+                            <i class="fas fa-star fa-2x text-gray-300"></i>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- Избранное -->
         <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-info shadow h-100 py-2">
+            <div class="card border-left-danger shadow h-100 py-2">
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                📖 Серий</div>
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                ❤️ В избранном</div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                <?php echo number_format($stats['total_series'], 0, '', ' '); ?>
+                                <?php echo number_format($favoritesStats['total_favorites'], 0, '', ' '); ?>
+                            </div>
+                            <div class="mt-1">
+                                <small class="text-muted">
+                                    <?php echo number_format($favoritesStats['favorited_books'], 0, '', ' '); ?> книг
+                                </small>
                             </div>
                         </div>
                         <div class="col-auto">
-                            <i class="fas fa-layer-group fa-2x text-gray-300"></i>
+                            <i class="fas fa-heart fa-2x text-gray-300"></i>
                         </div>
                     </div>
                 </div>
@@ -214,11 +169,179 @@ require 'templates/header.php';
     </div>
 
     <div class="row">
-        <!-- Левая колонка - Статистика -->
+        <!-- Левая колонка - Общая статистика -->
         <div class="col-lg-8">
-            <!-- Распределение по форматам -->
+            <!-- Статистика рейтингов -->
             <div class="card shadow mb-4">
                 <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-warning">⭐ Статистика рейтингов</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center mb-3">
+                            <div class="h2 text-warning mb-1"><?php echo number_format($ratingStats['avg_rating'], 1); ?></div>
+                            <div class="text-muted">Средний рейтинг</div>
+                            <div class="mt-2">
+                                <?php
+                                $avgRounded = round($ratingStats['avg_rating'] * 2) / 2;
+                                $fullStars = floor($avgRounded);
+                                $halfStar = $avgRounded - $fullStars >= 0.5;
+                                for ($i = 0; $i < $fullStars; $i++): ?>
+                                    <i class="fas fa-star text-warning"></i>
+                                <?php endfor; ?>
+                                <?php if ($halfStar): ?>
+                                    <i class="fas fa-star-half-alt text-warning"></i>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-center mb-3">
+                            <div class="h2 text-primary mb-1"><?php echo number_format($ratingStats['rated_books'], 0, '', ' '); ?></div>
+                            <div class="text-muted">Оцененных книг</div>
+                            <div class="mt-2">
+                                <small><?php echo round($ratingStats['rated_books'] / max(1, $stats['total_books']) * 100, 1); ?>% от всех книг</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-center mb-3">
+                            <div class="h2 text-success mb-1"><?php echo number_format($ratingStats['unique_voters'], 0, '', ' '); ?></div>
+                            <div class="text-muted">Уникальных оценщиков</div>
+                            <div class="mt-2">
+                                <small>по IP-адресам</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Топ книг по рейтингу -->
+                    <?php if (!empty($topRatedBooks)): ?>
+                    <div class="mt-4">
+                        <h6 class="font-weight-bold">🏆 Топ книг по рейтингу:</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Книга</th>
+                                        <th>Автор</th>
+                                        <th>Рейтинг</th>
+                                        <th>Оценок</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($topRatedBooks as $index => $book): ?>
+                                    <tr>
+                                        <td>
+                                            <a href="book_detail.php?id=<?php echo $book['id']; ?>" class="text-decoration-none">
+                                                <?php echo htmlspecialchars(mb_substr($book['title'], 0, 30)) . (mb_strlen($book['title']) > 30 ? '...' : ''); ?>
+                                            </a>
+                                        </td>
+                                        <td><?php echo htmlspecialchars(mb_substr($book['author'], 0, 20)); ?></td>
+                                        <td>
+                                            <span class="text-warning">
+                                                <?php echo number_format($book['avg_rating'], 1); ?>
+                                            </span>
+                                            <small class="text-muted">
+                                                <?php
+                                                $fullStars = floor($book['avg_rating']);
+                                                $halfStar = $book['avg_rating'] - $fullStars >= 0.5;
+                                                for ($i = 0; $i < $fullStars; $i++): ?>
+                                                    <i class="fas fa-star text-warning" style="font-size: 0.8em;"></i>
+                                                <?php endfor; ?>
+                                                <?php if ($halfStar): ?>
+                                                    <i class="fas fa-star-half-alt text-warning" style="font-size: 0.8em;"></i>
+                                                <?php endif; ?>
+                                            </small>
+                                        </td>
+                                        <td><?php echo $book['votes']; ?></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Статистика избранного -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-danger">❤️ Статистика избранного</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center mb-3">
+                            <div class="h2 text-danger mb-1"><?php echo number_format($favoritesStats['total_favorites'], 0, '', ' '); ?></div>
+                            <div class="text-muted">Всего добавлений</div>
+                        </div>
+                        <div class="col-md-4 text-center mb-3">
+                            <div class="h2 text-info mb-1"><?php echo number_format($favoritesStats['favorited_books'], 0, '', ' '); ?></div>
+                            <div class="text-muted">Уникальных книг</div>
+                            <div class="mt-2">
+                                <small><?php echo round($favoritesStats['favorited_books'] / max(1, $stats['total_books']) * 100, 1); ?>% от всех книг</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-center mb-3">
+                            <div class="h2 text-success mb-1"><?php echo number_format($favoritesStats['users_with_favorites'], 0, '', ' '); ?></div>
+                            <div class="text-muted">Пользователей</div>
+                            <div class="mt-2">
+                                <small>используют избранное</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Популярные книги в избранном -->
+                    <?php
+                    try {
+                        $popularFavorites = $db->getConnection()->query("
+                            SELECT b.id, b.title, b.author, COUNT(f.id) as favorites_count
+                            FROM books b
+                            JOIN book_favorites f ON b.id = f.book_id
+                            GROUP BY b.id
+                            ORDER BY favorites_count DESC
+                            LIMIT 10
+                        ")->fetchAll();
+                    } catch (Exception $e) {
+                        $popularFavorites = [];
+                    }
+                    ?>
+
+                    <?php if (!empty($popularFavorites)): ?>
+                    <div class="mt-4">
+                        <h6 class="font-weight-bold">🔥 Самые популярные в избранном:</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Книга</th>
+                                        <th>Автор</th>
+                                        <th>В избранном</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($popularFavorites as $index => $book): ?>
+                                    <tr>
+                                        <td>
+                                            <a href="book_detail.php?id=<?php echo $book['id']; ?>" class="text-decoration-none">
+                                                <?php echo htmlspecialchars(mb_substr($book['title'], 0, 30)) . (mb_strlen($book['title']) > 30 ? '...' : ''); ?>
+                                            </a>
+                                        </td>
+                                        <td><?php echo htmlspecialchars(mb_substr($book['author'], 0, 20)); ?></td>
+                                        <td>
+                                            <span class="text-danger">
+                                                <i class="fas fa-heart"></i> <?php echo $book['favorites_count']; ?>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Распределение по форматам -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
                     <h6 class="m-0 font-weight-bold text-primary">📁 Распределение по форматам</h6>
                 </div>
                 <div class="card-body">
@@ -233,9 +356,9 @@ require 'templates/header.php';
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php 
+                                <?php
                                 $totalBooks = $stats['total_books'];
-                                foreach ($stats['file_types'] as $fileType): 
+                                foreach ($stats['file_types'] as $fileType):
                                     $percentage = $totalBooks > 0 ? round(($fileType['count'] / $totalBooks) * 100, 1) : 0;
                                     $progressWidth = min($percentage, 100);
                                     $progressClass = $percentage > 50 ? 'bg-success' : ($percentage > 20 ? 'bg-info' : 'bg-warning');
@@ -250,11 +373,11 @@ require 'templates/header.php';
                                     </td>
                                     <td>
                                         <div class="progress" style="height: 20px;">
-                                            <div class="progress-bar <?php echo $progressClass; ?>" 
-                                                 role="progressbar" 
+                                            <div class="progress-bar <?php echo $progressClass; ?>"
+                                                 role="progressbar"
                                                  style="width: <?php echo $progressWidth; ?>%"
-                                                 aria-valuenow="<?php echo $progressWidth; ?>" 
-                                                 aria-valuemin="0" 
+                                                 aria-valuenow="<?php echo $progressWidth; ?>"
+                                                 aria-valuemin="0"
                                                  aria-valuemax="100">
                                                 <?php if ($progressWidth > 20): ?>
                                                     <?php echo $percentage; ?>%
@@ -270,11 +393,16 @@ require 'templates/header.php';
                 </div>
             </div>
 
-            <!-- Топ авторов -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">👑 Топ-20 авторов</h6>
+            <!-- Статистика по жанрам -->
+           <div class="card shadow mb-4">
+
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-tags me-2"></i>
+                        Распределение по жанрам (Топ-20)
+                    </h6>
                 </div>
+
                 <div class="card-body">
                     <div class="row">
                         <?php foreach ($topAuthors as $index => $author): ?>
@@ -284,7 +412,7 @@ require 'templates/header.php';
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div>
                                             <span class="badge bg-primary me-2">#<?php echo $index + 1; ?></span>
-                                            <a href="index.php?field=author&q=<?php echo urlencode($author['author']); ?>" 
+                                            <a href="index.php?field=author&q=<?php echo urlencode($author['author']); ?>"
                                                class="text-decoration-none text-dark font-weight-bold">
                                                 <?php echo htmlspecialchars($author['author']); ?>
                                             </a>
@@ -301,9 +429,57 @@ require 'templates/header.php';
                     </div>
                 </div>
             </div>
+
+
+    <!-- Распределение по жанрам -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">👑 Топ-20 авторов</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <?php
+                        $counter = 0;
+                        $totalGenres = count($genres);
+                        $columns = 3;
+                        $genresPerColumn = ceil($totalGenres / $columns);
+
+                        for ($col = 0; $col < $columns; $col++):
+                            $start = $col * $genresPerColumn;
+                            $end = min($start + $genresPerColumn, $totalGenres);
+                            $columnGenres = array_slice($genres, $start, $end - $start);
+                        ?>
+                        <div class="col-md-4">
+                            <?php foreach ($columnGenres as $genre): ?>
+                            <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
+                                <div>
+                                    <a href="index.php?field=genre&q=<?php echo urlencode($genre['genre']); ?>"
+                                       class="text-decoration-none">
+                                        <?php echo htmlspecialchars($genre['readable_name'] ?? $genre['genre']); ?>
+                                    </a>
+                                </div>
+                                <div>
+                                    <span class="badge bg-primary"><?php echo $genre['count']; ?></span>
+                                    <small class="text-muted ms-1">
+                                        (<?php echo $totalBooks > 0 ? round(($genre['count'] / $totalBooks) * 100, 1) : 0; ?>%)
+                                    </small>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endfor; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
         </div>
 
-        <!-- Правая колонка - Системная информация -->
+        <!-- Правая колонка - Дополнительная информация -->
         <div class="col-lg-4">
             <!-- Системная информация -->
             <div class="card shadow mb-4">
@@ -314,12 +490,6 @@ require 'templates/header.php';
                     <div class="mb-3">
                         <h6 class="font-weight-bold text-dark mb-2">📊 Производительность</h6>
                         <div class="list-group list-group-flush">
-                            <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-0">
-                                <small>Нагрузка системы</small>
-                                <span class="badge <?php echo $systemInfo['load'][0] > 2 ? 'bg-danger' : ($systemInfo['load'][0] > 1 ? 'bg-warning' : 'bg-success'); ?>">
-                                    <?php echo round($systemInfo['load'][0], 2); ?>
-                                </span>
-                            </div>
                             <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-0">
                                 <small>Использовано памяти</small>
                                 <span class="badge bg-info">
@@ -356,115 +526,28 @@ require 'templates/header.php';
                                     <?php echo Config::ENABLE_CACHE ? '✅ Вкл' : '❌ Выкл'; ?>
                                 </span>
                             </div>
-                            <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-0">
-                                <small>APCu</small>
-                                <span class="badge <?php echo $systemInfo['apcu_enabled'] ? 'bg-success' : 'bg-danger'; ?>">
-                                    <?php echo $systemInfo['apcu_enabled'] ? '✅ Доступен' : '❌ Недоступен'; ?>
-                                </span>
-                            </div>
                         </div>
                     </div>
 
-                    <?php if ($stats['books_in_archives'] > 0): ?>
-                    <div class="mb-3">
-                        <h6 class="font-weight-bold text-dark mb-2">📦 Архивы</h6>
-                        <div class="alert alert-info mb-0">
-                            <small>
-                                <i class="fas fa-archive me-1"></i>
-                                Книг в архивах: <strong><?php echo number_format($stats['books_in_archives'], 0, '', ' '); ?></strong>
-                            </small>
+                    <!-- Быстрые ссылки -->
+                    <div class="mt-4">
+                        <h6 class="font-weight-bold text-dark mb-2">🚀 Быстрые действия</h6>
+                        <div class="d-grid gap-2">
+                            <a href="favorites.php" class="btn btn-outline-danger">
+                                <i class="fas fa-heart me-2"></i>Мои избранные
+                            </a>
+                            <a href="top_rated.php" class="btn btn-outline-warning">
+                                <i class="fas fa-star me-2"></i>Лучшие книги
+                            </a>
+                            <?php if (Config::ENABLE_CACHE): ?>
+                            <a href="cache_stats.php" class="btn btn-outline-info">
+                                <i class="fas fa-bolt me-2"></i>Статистика кэша
+                            </a>
+                            <?php endif; ?>
                         </div>
                     </div>
-                    <?php endif; ?>
-
-                    <?php if ($stats['last_update']): ?>
-                    <div>
-                        <h6 class="font-weight-bold text-dark mb-2">🕒 Обновление</h6>
-                        <div class="alert alert-light border mb-0">
-                            <small>
-                                <i class="fas fa-clock me-1"></i>
-                                Последнее обновление: 
-                                <strong><?php echo date('d.m.Y H:i', strtotime($stats['last_update'])); ?></strong>
-                            </small>
-                        </div>
-                    </div>
-                    <?php endif; ?>
                 </div>
             </div>
-
-            <!-- Статистика кэширования -->
-            <?php if (Config::ENABLE_CACHE && !empty($cacheStats)): ?>
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">📈 Кэширование</h6>
-                </div>
-                <div class="card-body">
-                    <?php if (isset($cacheStats['apcu'])): ?>
-                    <div class="mb-3">
-                        <h6 class="font-weight-bold text-dark mb-2">APCu Cache</h6>
-                        <div class="row">
-                            <div class="col-6 mb-2">
-                                <small class="text-muted d-block">Попадания</small>
-                                <span class="h6"><?php echo number_format($cacheStats['apcu']['hits']); ?></span>
-                            </div>
-                            <div class="col-6 mb-2">
-                                <small class="text-muted d-block">Промахи</small>
-                                <span class="h6"><?php echo number_format($cacheStats['apcu']['misses']); ?></span>
-                            </div>
-                            <div class="col-6 mb-2">
-                                <small class="text-muted d-block">Эффективность</small>
-                                <span class="h6 text-<?php echo $cacheStats['apcu']['effectiveness'] > 70 ? 'success' : ($cacheStats['apcu']['effectiveness'] > 40 ? 'warning' : 'danger'); ?>">
-                                    <?php echo $cacheStats['apcu']['effectiveness']; ?>%
-                                </span>
-                            </div>
-                            <div class="col-6 mb-2">
-                                <small class="text-muted d-block">Записей</small>
-                                <span class="h6"><?php echo number_format($cacheStats['apcu']['entries']); ?></span>
-                            </div>
-                            <div class="col-12">
-                                <small class="text-muted d-block">Память</small>
-                                <div class="progress" style="height: 10px;">
-                                    <?php 
-                                    $memoryPercent = $cacheStats['apcu']['memory_usage'] > 0 ? 
-                                        min(100, ($cacheStats['apcu']['memory_usage'] / (128 * 1024 * 1024)) * 100) : 0;
-                                    $memoryClass = $memoryPercent > 80 ? 'bg-danger' : ($memoryPercent > 60 ? 'bg-warning' : 'bg-success');
-                                    ?>
-                                    <div class="progress-bar <?php echo $memoryClass; ?>" 
-                                         style="width: <?php echo $memoryPercent; ?>%">
-                                    </div>
-                                </div>
-                                <small class="text-muted">
-                                    <?php echo round($cacheStats['apcu']['memory_usage'] / 1024 / 1024, 2); ?>MB / 128MB
-                                </small>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-
-                    <?php if (!empty($dbCacheStats)): ?>
-                    <div>
-                        <h6 class="font-weight-bold text-dark mb-2">Database Cache</h6>
-                        <div class="row">
-                            <div class="col-6">
-                                <small class="text-muted d-block">Попадания</small>
-                                <span class="h6"><?php echo number_format($dbCacheStats['hits']); ?></span>
-                            </div>
-                            <div class="col-6">
-                                <small class="text-muted d-block">Промахи</small>
-                                <span class="h6"><?php echo number_format($dbCacheStats['misses']); ?></span>
-                            </div>
-                            <div class="col-12 mt-2">
-                                <small class="text-muted d-block">Эффективность</small>
-                                <span class="h6 text-<?php echo $dbCacheStats['effectiveness'] > 70 ? 'success' : ($dbCacheStats['effectiveness'] > 40 ? 'warning' : 'danger'); ?>">
-                                    <?php echo $dbCacheStats['effectiveness']; ?>%
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-            <?php endif; ?>
 
             <!-- Случайные книги -->
             <?php if (!empty($randomBooks)): ?>
@@ -477,30 +560,40 @@ require 'templates/header.php';
                     <div class="mb-3 pb-3 border-bottom">
                         <div class="d-flex">
                             <div class="flex-shrink-0">
-                                <img src="./api/cover_direct.php?id=<?php echo $book['id']; ?>&thumb=1" 
-                                     class="rounded" 
-                                     style="width: 50px; height: 75px; object-fit: cover;"
-                                     onerror="this.style.display='none'"
-                                     alt="<?php echo htmlspecialchars($book['title']); ?>">
+                                <?php
+                                require_once 'lib/BookHelper.php';
+                                $hasCover = BookHelper::hasCover($book);
+                                ?>
+                                <?php if ($hasCover): ?>
+                                    <img src="./api/cover_direct.php?id=<?php echo $book['id']; ?>&thumb=1"
+                                         class="rounded"
+                                         style="width: 50px; height: 75px; object-fit: cover;"
+                                         alt="<?php echo htmlspecialchars($book['title']); ?>">
+                                <?php else: ?>
+                                    <div class="bg-light d-flex align-items-center justify-content-center rounded"
+                                         style="width: 50px; height: 75px;">
+                                        <i class="fas fa-book text-muted"></i>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                             <div class="flex-grow-1 ms-3">
-                                <a href="book_detail.php?id=<?php echo $book['id']; ?>" 
+                                <a href="book_detail.php?id=<?php echo $book['id']; ?>"
                                    class="text-decoration-none">
                                     <small class="d-block font-weight-bold text-dark mb-1">
-                                        <?php echo htmlspecialchars($book['title'] ?: 'Без названия'); ?>
+                                        <?php echo htmlspecialchars(mb_substr($book['title'] ?: 'Без названия', 0, 30)); ?>
                                     </small>
                                 </a>
                                 <?php if (!empty($book['author'])): ?>
                                 <small class="text-muted d-block">
-                                    <?php echo htmlspecialchars($book['author']); ?>
+                                    <?php echo htmlspecialchars(mb_substr($book['author'], 0, 25)); ?>
                                 </small>
                                 <?php endif; ?>
-                                <?php if (!empty($book['series'])): ?>
-                                <small class="text-muted d-block">
-                                    <i class="fas fa-bookmark me-1"></i>
-                                    <?php echo htmlspecialchars($book['series']); ?>
-                                </small>
-                                <?php endif; ?>
+                                <div class="mt-1">
+                                    <a href="book_detail.php?id=<?php echo $book['id']; ?>"
+                                       class="btn btn-sm btn-outline-primary btn-sm">
+                                        <i class="fas fa-eye me-1"></i>Смотреть
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -508,51 +601,6 @@ require 'templates/header.php';
                 </div>
             </div>
             <?php endif; ?>
-        </div>
-    </div>
-
-    <!-- Распределение по жанрам -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card shadow">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">🏷️ Распределение по жанрам (Топ-100)</h6>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <?php 
-                        $counter = 0;
-                        $totalGenres = count($genres);
-                        $columns = 3;
-                        $genresPerColumn = ceil($totalGenres / $columns);
-                        
-                        for ($col = 0; $col < $columns; $col++):
-                            $start = $col * $genresPerColumn;
-                            $end = min($start + $genresPerColumn, $totalGenres);
-                            $columnGenres = array_slice($genres, $start, $end - $start);
-                        ?>
-                        <div class="col-md-4">
-                            <?php foreach ($columnGenres as $genre): ?>
-                            <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
-                                <div>
-                                    <a href="index.php?field=genre&q=<?php echo urlencode($genre['genre']); ?>" 
-                                       class="text-decoration-none">
-                                        <?php echo htmlspecialchars($genre['readable_name'] ?? $genre['genre']); ?>
-                                    </a>
-                                </div>
-                                <div>
-                                    <span class="badge bg-primary"><?php echo $genre['count']; ?></span>
-                                    <small class="text-muted ms-1">
-                                        (<?php echo $totalBooks > 0 ? round(($genre['count'] / $totalBooks) * 100, 1) : 0; ?>%)
-                                    </small>
-                                </div>
-                            </div>
-                            <?php endforeach; ?>
-                        </div>
-                        <?php endfor; ?>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -573,7 +621,6 @@ require 'templates/header.php';
     </div>
 </div>
 
-<!-- Стили -->
 <style>
 .card {
     transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -588,6 +635,7 @@ require 'templates/header.php';
 .border-left-primary { border-left: 0.25rem solid #4e73df !important; }
 .border-left-success { border-left: 0.25rem solid #1cc88a !important; }
 .border-left-warning { border-left: 0.25rem solid #f6c23e !important; }
+.border-left-danger { border-left: 0.25rem solid #dc3545 !important; }
 .border-left-info { border-left: 0.25rem solid #36b9cc !important; }
 
 .progress {
@@ -621,57 +669,7 @@ require 'templates/header.php';
 }
 </style>
 
-<!-- Скрипты -->
-<script>
-// Автообновление страницы каждые 5 минут
-setTimeout(function() {
-    window.location.reload();
-}, 300000);
-
-// Подсветка эффективных показателей
-document.addEventListener('DOMContentLoaded', function() {
-    // Анимация для прогресс-баров
-    const progressBars = document.querySelectorAll('.progress-bar');
-    progressBars.forEach(bar => {
-        const width = bar.style.width;
-        bar.style.width = '0';
-        setTimeout(() => {
-            bar.style.width = width;
-        }, 100);
-    });
-    
-    // Плавная прокрутка к якорям
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function(e) {
-            e.preventDefault();
-            const target = document.querySelector(this.getAttribute('href'));
-            if (target) {
-                target.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start'
-                });
-            }
-        });
-    });
-});
-
-// Копирование статистики
-function copyStats() {
-    const statsText = `Статистика библиотеки:
-📚 Книг: ${<?php echo $stats['total_books']; ?>}
-✍️ Авторов: ${<?php echo $stats['total_authors']; ?>}
-🏷️ Жанров: ${<?php echo $stats['total_genres']; ?>}
-📖 Серий: ${<?php echo $stats['total_series']; ?>}
-🕒 Обновлено: ${'<?php echo date('d.m.Y H:i', strtotime($stats['last_update'])); ?>'}`;
-    
-    navigator.clipboard.writeText(statsText).then(() => {
-        alert('Статистика скопирована в буфер обмена!');
-    });
-}
-</script>
-
 <?php
-// Сохраняем страницу в кэш
 PageCache::save();
 require 'templates/footer.php';
 ?>
