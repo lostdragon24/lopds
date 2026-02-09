@@ -20,6 +20,10 @@ int mysql_execute_query(MySQLConnection *mysql_conn, const char *sql, Config *co
 // Функции для работы с таблицами
 int mysql_create_tables(MySQLConnection *mysql_conn, Config *config);
 int mysql_create_archive_table(MySQLConnection *mysql_conn, Config *config);
+// Добавить эти прототипы в database_mysql.h
+int mysql_create_ratings_table(MySQLConnection *mysql_conn, Config *config);
+int mysql_create_favorites_table(MySQLConnection *mysql_conn, Config *config);
+
 
 // Функции для работы с архивами
 int mysql_archive_needs_rescan(MySQLConnection *mysql_conn, const char *archive_path,

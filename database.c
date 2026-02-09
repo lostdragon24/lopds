@@ -166,6 +166,7 @@ int create_database_tables(DatabaseHandle *db_handle, Config *config) {
         return 0;
     }
 
+
     log_message(config, "INFO", "Database tables created successfully");
     return 1;
 }
@@ -202,10 +203,93 @@ int create_archive_table(DatabaseHandle *db_handle, Config *config) {
             return mysql_create_archive_table((MySQLConnection*)db_handle->connection, config);
         default:
             log_message(config, "ERROR", "Unknown database type in create archive table: %d", db_handle->db_type);
+
+            return 0;
+    }
+
+    if (!create_ratings_table(db_handle, config)) {
+        return 0;
+    }
+
+    return 1;
+}
+
+int create_ratings_table(DatabaseHandle *db_handle, Config *config) {
+    if (!db_handle || !db_handle->connection) {
+        log_message(config, "ERROR", "No database connection for creating ratings table");
+        return 0;
+    }
+
+    switch (db_handle->db_type) {
+        case DB_SQLITE: {
+            const char *create_ratings_table_sql =
+                "CREATE TABLE IF NOT EXISTS book_ratings ("
+                "    id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "    book_id INTEGER NOT NULL,"
+                "    user_ip VARCHAR(45) NOT NULL,"
+                "    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),"
+                "    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+                "    UNIQUE(user_ip, book_id),"
+                "    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE"
+                ");";
+
+            if (!db_execute(db_handle, create_ratings_table_sql, config)) {
+                log_message(config, "ERROR", "Failed to create ratings table");
+                return 0;
+            }
+
+            log_message(config, "DEBUG", "Ratings table created successfully");
+            break;
+        }
+        case DB_MYSQL:
+            return mysql_create_ratings_table((MySQLConnection*)db_handle->connection, config);
+        default:
+            log_message(config, "ERROR", "Unknown database type in create ratings table: %d", db_handle->db_type);
+            return 0;
+    }
+
+    if (!create_favorites_table(db_handle, config)) {
+        return 0;
+    }
+
+    return 1;
+}
+
+int create_favorites_table(DatabaseHandle *db_handle, Config *config) {
+    if (!db_handle || !db_handle->connection) {
+        log_message(config, "ERROR", "No database connection for creating favorites table");
+        return 0;
+    }
+
+    switch (db_handle->db_type) {
+        case DB_SQLITE: {
+            const char *create_favorites_table_sql =
+                "CREATE TABLE IF NOT EXISTS book_favorites ("
+                "    id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "    book_id INTEGER NOT NULL,"
+                "    user_ip VARCHAR(45) NOT NULL,"
+                "    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+                "    UNIQUE(user_ip, book_id),"
+                "    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE"
+                ");";
+
+            if (!db_execute(db_handle, create_favorites_table_sql, config)) {
+                log_message(config, "ERROR", "Failed to create favorites table");
+                return 0;
+            }
+
+            log_message(config, "DEBUG", "Favorites table created successfully");
+            break;
+        }
+        case DB_MYSQL:
+            return mysql_create_favorites_table((MySQLConnection*)db_handle->connection, config);
+        default:
+            log_message(config, "ERROR", "Unknown database type in create favorites table: %d", db_handle->db_type);
             return 0;
     }
     return 1;
 }
+
 
 int archive_needs_rescan(DatabaseHandle *db_handle, const char *archive_path, const char *current_hash, Config *config) {
     if (!db_handle || !db_handle->connection) {

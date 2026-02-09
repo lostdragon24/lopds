@@ -31,6 +31,9 @@ DatabaseHandle* db_connect(Config *config);
 void db_close(DatabaseHandle *db_handle);
 int create_database_tables(DatabaseHandle *db_handle, Config *config);
 int create_archive_table(DatabaseHandle *db_handle, Config *config);
+int create_ratings_table(DatabaseHandle *db_handle, Config *config);
+int create_favorites_table(DatabaseHandle *db_handle, Config *config);
+
 int db_execute(DatabaseHandle *db_handle, const char *sql, Config *config);
 
 // Функции для работы с архивами

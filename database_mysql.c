@@ -181,8 +181,51 @@ int mysql_create_archive_table(MySQLConnection *mysql_conn, Config *config) {
         "    UNIQUE KEY unique_archive (archive_path(255))"
         ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
+
+
+    if (!mysql_create_ratings_table(mysql_conn, config)) {
+        return 0;
+    }
+
+
     return mysql_execute_query(mysql_conn, create_archives_table, config);
 }
+
+int mysql_create_ratings_table(MySQLConnection *mysql_conn, Config *config) {
+    const char *create_ratings_table_sql =
+        "CREATE TABLE IF NOT EXISTS book_ratings ("
+        "    id INT AUTO_INCREMENT PRIMARY KEY,"
+        "    book_id INT NOT NULL,"
+        "    user_ip VARCHAR(45) NOT NULL,"
+        "    rating TINYINT NOT NULL,"
+        "    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+        "    CONSTRAINT chk_rating_range CHECK (rating >= 1 AND rating <= 5),"
+        "    CONSTRAINT unique_user_book UNIQUE (user_ip, book_id),"
+        "    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE"
+        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+    if (!mysql_create_favorites_table(mysql_conn, config)) {
+        return 0;
+    }
+
+
+    return mysql_execute_query(mysql_conn, create_ratings_table_sql, config);
+}
+
+int mysql_create_favorites_table(MySQLConnection *mysql_conn, Config *config) {
+    const char *create_favorites_table_sql =
+        "CREATE TABLE IF NOT EXISTS book_favorites ("
+        "    id INT AUTO_INCREMENT PRIMARY KEY,"
+        "    book_id INT NOT NULL,"
+        "    user_ip VARCHAR(45) NOT NULL,"
+        "    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+        "    CONSTRAINT unique_user_favorite UNIQUE (user_ip, book_id),"
+        "    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE"
+        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+    return mysql_execute_query(mysql_conn, create_favorites_table_sql, config);
+}
+
 
 int mysql_archive_needs_rescan(MySQLConnection *mysql_conn, const char *archive_path, const char *current_hash, Config *config) {
     log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] START for: %s", archive_path);

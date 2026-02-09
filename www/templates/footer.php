@@ -23,10 +23,10 @@
                                     <i class="fas fa-chart-bar me-1"></i>Статистика
                                 </a>
                                 <a href="top_rated.php" class="btn btn-sm btn-outline-light">
-                                    <i class="fas fa-chart-bar me-1"></i>Рейтинг
+                                    <i class="fas fa-star me-1"></i>Рейтинг
                                 </a>
                                 <a href="favorites.php" class="btn btn-sm btn-outline-light">
-                                    <i class="fas fa-chart-bar me-1"></i>Избранное
+                                    <i class="far fa-heart me-1"></i>Избранное
                                 </a>
                                 <?php if (Config::ENABLE_CACHE): ?>
                                 <a href="cache_stats.php" class="btn btn-sm btn-outline-warning">
@@ -37,54 +37,52 @@
                         </div>
                     </div>
                 </div>
+<!-- Правая колонка - Статистика -->
+<div class="col-lg-6">
+    <?php
+    try {
+        $db = Database::getInstance();
+        $stats = $db->getCollectionStats();
 
-                <!-- Правая колонка - Статистика -->
-                <div class="col-lg-6">
-                    <?php
-                    try {
-                        $db = Database::getInstance();
-                        $stats = $db->getCollectionStats();
+        // Производительность
+        $memory_usage = round(memory_get_peak_usage(true) / 1024 / 1024, 2);
+        $execution_time = round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3);
 
-                        // Производительность
-                        $memory_usage = round(memory_get_peak_usage(true) / 1024 / 1024, 2);
-                        $execution_time = round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3);
+    } catch (Exception $e) {
+        $stats = ['total_books' => 0];
+        $memory_usage = 0;
+        $execution_time = 0;
+    }
+    ?>
 
-                    } catch (Exception $e) {
-                        $stats = ['total_books' => 0];
-                        $memory_usage = 0;
-                        $execution_time = 0;
-                    }
-                    ?>
-
-                    <div class="card bg-dark bg-opacity-25 border-light">
-                        <div class="card-body p-3">
-                            <div class="row text-center">
-                                <div class="col-4">
-                                    <div class="mb-2">
-                                        <i class="fas fa-book fa-lg text-primary"></i>
-                                    </div>
-                                    <div class="h5 mb-0"><?php echo number_format($stats['total_books']); ?></div>
-                                    <small class="text-light" style="opacity: 0.7;">Книг</small>
-                                </div>
-                                <div class="col-4">
-                                    <div class="mb-2">
-                                        <i class="fas fa-memory fa-lg text-info"></i>
-                                    </div>
-                                    <div class="h5 mb-0"><?php echo $memory_usage; ?>MB</div>
-                                    <small class="text-light" style="opacity: 0.7;">Памяти</small>
-                                </div>
-                                <div class="col-4">
-                                    <div class="mb-2">
-                                        <i class="fas fa-stopwatch fa-lg text-success"></i>
-                                    </div>
-                                    <div class="h5 mb-0"><?php echo $execution_time; ?>s</div>
-                                    <small class="text-light" style="opacity: 0.7;">Загрузка</small>
-                                </div>
-                            </div>
-                        </div>
+    <div class="card bg-dark bg-opacity-25 border-light">
+        <div class="card-body p-3">
+            <div class="row text-center">
+                <div class="col-4">
+                    <div class="mb-2">
+                        <i class="fas fa-book fa-lg text-primary"></i>
                     </div>
+                    <div class="h5 mb-0 text-white"><?php echo number_format($stats['total_books']); ?></div>
+                    <small class="text-white-50">Книг</small>
+                </div>
+                <div class="col-4">
+                    <div class="mb-2">
+                        <i class="fas fa-memory fa-lg text-info"></i>
+                    </div>
+                    <div class="h5 mb-0 text-white"><?php echo $memory_usage; ?>MB</div>
+                    <small class="text-white-50">Памяти</small>
+                </div>
+                <div class="col-4">
+                    <div class="mb-2">
+                        <i class="fas fa-stopwatch fa-lg text-success"></i>
+                    </div>
+                    <div class="h5 mb-0 text-white"><?php echo $execution_time; ?>s</div>
+                    <small class="text-white-50">Загрузка</small>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
 
             <!-- Нижняя часть -->
             <div class="row mt-4 pt-3 border-top border-secondary">
