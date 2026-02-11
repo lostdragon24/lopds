@@ -375,6 +375,337 @@ QCheckBox::indicator:checked {
              </property>
             </widget>
            </item>
+           <!-- Строка для избранного и рейтинга -->
+<item row="8" column="0">
+    <widget class="QLabel" name="label_favorites">
+        <property name="text">
+            <string>Оценка:</string>
+        </property>
+    </widget>
+</item>
+<item row="8" column="1" colspan="2">
+    <widget class="QWidget" name="widgetRatingFavorites" native="true">
+        <layout class="QHBoxLayout" name="horizontalLayout_3">
+            <property name="spacing">
+                <number>10</number>
+            </property>
+            <property name="leftMargin">
+                <number>0</number>
+            </property>
+            <property name="topMargin">
+                <number>0</number>
+            </property>
+            <property name="rightMargin">
+                <number>0</number>
+            </property>
+            <property name="bottomMargin">
+                <number>0</number>
+            </property>
+            <item>
+                <widget class="QPushButton" name="btnFavorite">
+                    <property name="minimumSize">
+                        <size>
+                            <width>32</width>
+                            <height>32</height>
+                        </size>
+                    </property>
+                    <property name="maximumSize">
+                        <size>
+                            <width>32</width>
+                            <height>32</height>
+                        </size>
+                    </property>
+                    <property name="styleSheet">
+                        <string notr="true">QPushButton {
+    border: 2px solid #ff6b6b;
+    border-radius: 16px;
+    background-color: white;
+    font-size: 18px;
+    font-weight: bold;
+    color: #ff6b6b;
+}
+QPushButton:hover {
+    background-color: #fff0f0;
+    border-color: #ff5252;
+}
+QPushButton:checked {
+    background-color: #ff6b6b;
+    color: white;
+    border-color: #ff5252;
+}</string>
+                    </property>
+                    <property name="text">
+                        <string>♥</string>
+                    </property>
+                    <property name="checkable">
+                        <bool>true</bool>
+                    </property>
+                    <property name="toolTip">
+                        <string>Добавить в избранное / Удалить из избранного</string>
+                    </property>
+                </widget>
+            </item>
+            <item>
+                <spacer name="horizontalSpacer">
+                    <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                        <size>
+                            <width>10</width>
+                            <height>20</height>
+                        </size>
+                    </property>
+                </spacer>
+            </item>
+            <item>
+                <widget class="QPushButton" name="btnStar1">
+                    <property name="minimumSize">
+                        <size>
+                            <width>28</width>
+                            <height>28</height>
+                        </size>
+                    </property>
+                    <property name="maximumSize">
+                        <size>
+                            <width>28</width>
+                            <height>28</height>
+                        </size>
+                    </property>
+                    <property name="styleSheet">
+                        <string notr="true">QPushButton {
+    border: none;
+    background-color: transparent;
+    font-size: 22px;
+    color: #cccccc;
+}
+QPushButton:hover {
+    color: #ffd700;
+}
+QPushButton:checked {
+    color: #ffd700;
+}</string>
+                    </property>
+                    <property name="text">
+                        <string>☆</string>
+                    </property>
+                    <property name="checkable">
+                        <bool>true</bool>
+                    </property>
+                    <property name="toolTip">
+                        <string>Оценка: 1 из 5</string>
+                    </property>
+                </widget>
+            </item>
+            <item>
+                <widget class="QPushButton" name="btnStar2">
+                    <property name="minimumSize">
+                        <size>
+                            <width>28</width>
+                            <height>28</height>
+                        </size>
+                    </property>
+                    <property name="maximumSize">
+                        <size>
+                            <width>28</width>
+                            <height>28</height>
+                        </size>
+                    </property>
+                    <property name="styleSheet">
+                        <string notr="true">QPushButton {
+    border: none;
+    background-color: transparent;
+    font-size: 22px;
+    color: #cccccc;
+}
+QPushButton:hover {
+    color: #ffd700;
+}
+QPushButton:checked {
+    color: #ffd700;
+}</string>
+                    </property>
+                    <property name="text">
+                        <string>☆</string>
+                    </property>
+                    <property name="checkable">
+                        <bool>true</bool>
+                    </property>
+                    <property name="toolTip">
+                        <string>Оценка: 2 из 5</string>
+                    </property>
+                </widget>
+            </item>
+            <item>
+                <widget class="QPushButton" name="btnStar3">
+                    <property name="minimumSize">
+                        <size>
+                            <width>28</width>
+                            <height>28</height>
+                        </size>
+                    </property>
+                    <property name="maximumSize">
+                        <size>
+                            <width>28</width>
+                            <height>28</height>
+                        </size>
+                    </property>
+                    <property name="styleSheet">
+                        <string notr="true">QPushButton {
+    border: none;
+    background-color: transparent;
+    font-size: 22px;
+    color: #cccccc;
+}
+QPushButton:hover {
+    color: #ffd700;
+}
+QPushButton:checked {
+    color: #ffd700;
+}</string>
+                    </property>
+                    <property name="text">
+                        <string>☆</string>
+                    </property>
+                    <property name="checkable">
+                        <bool>true</bool>
+                    </property>
+                    <property name="toolTip">
+                        <string>Оценка: 3 из 5</string>
+                    </property>
+                </widget>
+            </item>
+            <item>
+                <widget class="QPushButton" name="btnStar4">
+                    <property name="minimumSize">
+                        <size>
+                            <width>28</width>
+                            <height>28</height>
+                        </size>
+                    </property>
+                    <property name="maximumSize">
+                        <size>
+                            <width>28</width>
+                            <height>28</height>
+                        </size>
+                    </property>
+                    <property name="styleSheet">
+                        <string notr="true">QPushButton {
+    border: none;
+    background-color: transparent;
+    font-size: 22px;
+    color: #cccccc;
+}
+QPushButton:hover {
+    color: #ffd700;
+}
+QPushButton:checked {
+    color: #ffd700;
+}</string>
+                    </property>
+                    <property name="text">
+                        <string>☆</string>
+                    </property>
+                    <property name="checkable">
+                        <bool>true</bool>
+                    </property>
+                    <property name="toolTip">
+                        <string>Оценка: 4 из 5</string>
+                    </property>
+                </widget>
+            </item>
+            <item>
+                <widget class="QPushButton" name="btnStar5">
+                    <property name="minimumSize">
+                        <size>
+                            <width>28</width>
+                            <height>28</height>
+                        </size>
+                    </property>
+                    <property name="maximumSize">
+                        <size>
+                            <width>28</width>
+                            <height>28</height>
+                        </size>
+                    </property>
+                    <property name="styleSheet">
+                        <string notr="true">QPushButton {
+    border: none;
+    background-color: transparent;
+    font-size: 22px;
+    color: #cccccc;
+}
+QPushButton:hover {
+    color: #ffd700;
+}
+QPushButton:checked {
+    color: #ffd700;
+}</string>
+                    </property>
+                    <property name="text">
+                        <string>☆</string>
+                    </property>
+                    <property name="checkable">
+                        <bool>true</bool>
+                    </property>
+                    <property name="toolTip">
+                        <string>Оценка: 5 из 5</string>
+                    </property>
+                </widget>
+            </item>
+            <item>
+                <spacer name="horizontalSpacer_2">
+                    <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                        <size>
+                            <width>10</width>
+                            <height>20</height>
+                        </size>
+                    </property>
+                </spacer>
+            </item>
+            <item>
+                <widget class="QPushButton" name="btnClearRating">
+                    <property name="minimumSize">
+                        <size>
+                            <width>24</width>
+                            <height>24</height>
+                        </size>
+                    </property>
+                    <property name="maximumSize">
+                        <size>
+                            <width>24</width>
+                            <height>24</height>
+                        </size>
+                    </property>
+                    <property name="styleSheet">
+                        <string notr="true">QPushButton {
+    border: 1px solid #ccc;
+    border-radius: 12px;
+    background-color: white;
+    font-size: 14px;
+    color: #666;
+}
+QPushButton:hover {
+    background-color: #f0f0f0;
+    border-color: #999;
+}</string>
+                    </property>
+                    <property name="text">
+                        <string>×</string>
+                    </property>
+                    <property name="toolTip">
+                        <string>Очистить рейтинг</string>
+                    </property>
+                </widget>
+            </item>
+        </layout>
+    </widget>
+</item>
+
+
            <item row="0" column="2" rowspan="8">
             <widget class="QGroupBox" name="groupBox_5">
              <property name="minimumSize">
@@ -430,7 +761,7 @@ QCheckBox::indicator:checked {
              </layout>
             </widget>
            </item>
-           <item row="8" column="0" colspan="3">
+           <item row="9" column="0" colspan="3">
             <widget class="QGroupBox" name="groupBox_4">
              <property name="title">
               <string>Описание</string>
@@ -454,7 +785,7 @@ QCheckBox::indicator:checked {
              </layout>
             </widget>
            </item>
-           <item row="9" column="0">
+           <item row="10" column="0">
             <widget class="QPushButton" name="btn_download">
              <property name="styleSheet">
               <string notr="true">QPushButton {
@@ -477,7 +808,7 @@ QPushButton:pressed {
              </property>
             </widget>
            </item>
-           <item row="9" column="2">
+           <item row="10" column="2">
             <widget class="QPushButton" name="btn_delete">
              <property name="styleSheet">
               <string notr="true">QPushButton {

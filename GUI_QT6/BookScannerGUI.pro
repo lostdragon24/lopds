@@ -7,6 +7,7 @@ CONFIG += c++17
 SOURCES += \
     archivehandler.cpp \
     bookparser.cpp \
+    favoritesdialog.cpp \
     fb2reader.cpp \
     inpxparser.cpp \
     main.cpp \
@@ -17,6 +18,7 @@ SOURCES += \
 HEADERS += \
     archivehandler.h \
     bookparser.h \
+    favoritesdialog.h \
     fb2reader.h \
     inpxparser.h \
     mainwindow.h \
@@ -26,7 +28,8 @@ HEADERS += \
 FORMS += \
     mainwindow.ui \
     settingsdialog.ui \
-    scannerdialog.ui
+    scannerdialog.ui \
+    favoritesdialog.ui
 
 # Для работы с архивами - исправляем линковку
 unix {

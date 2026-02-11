@@ -58,3 +58,4 @@ scanner.log
 *.db
 book_scanner
 www/quick_check.php
+*.user

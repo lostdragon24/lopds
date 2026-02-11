@@ -43,12 +43,17 @@
 #include <QPushButton>
 #include <QFileDialog>
 #include <QTextStream>
+#include <QHostInfo>
+#include <QHostAddress>
+#include <QAbstractSocket>
+
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     , booksModel(nullptr)
     , treeModel(nullptr)
+    , ratingGroup(nullptr)
     , letterButtonGroup(new QButtonGroup(this))
     , treeModeButtonGroup(new QButtonGroup(this))
     , settingsDialog(new SettingsDialog(this))
@@ -59,9 +64,10 @@ MainWindow::MainWindow(QWidget *parent)
     , bookContentCache(nullptr)
     , progressBar(nullptr)
     , statusLabel(nullptr)
-    , fb2Reader(nullptr)  // Инициализируем указатель
+    , fb2Reader(nullptr)
 {
     ui->setupUi(this);
+
 
     // Инициализируем кэши
     coverCache = new QCache<QString, QPixmap>(100);
@@ -130,6 +136,13 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Установка минимальных размеров
     setMinimumSize(800, 600);
+
+
+    ui->widgetRatingFavorites->setVisible(false);
+    QAction *actionFavorites = new QAction("Избранное и рейтинги", this);
+    connect(actionFavorites, &QAction::triggered, this, &MainWindow::showFavoritesDialog);
+    ui->menu->addAction(actionFavorites);
+
 
     // Открываем базу данных при запуске
     openDatabase();
@@ -208,7 +221,7 @@ void MainWindow::setupTreeViewModeSelector()
 void MainWindow::about()
 {
     QMessageBox::about(this, "О программе",
-                      "<h3>Электронная библиотека v0.13</h3>"
+                      "<h3>Электронная библиотека v 1.13</h3>"
                       "<p>Приложение для каталогизации электронных книг <br>в формате fb2</p>"
                       "<p><b>Поддерживаемые форматы:</b><br>"
                       "• fb2, epub<br>"
@@ -221,6 +234,7 @@ void MainWindow::about()
                       "• Несколько режимов просмотра: по авторам, по сериям, по жанрам<br>"
                       "• Статистика коллекции<br>"
                       "• Встроенная читалка FB2<br>"
+                      "• Рейтинги книг и Избранное<br>"
                       "• Поддержка СУБД: SQLite и MySQL/MariaDB<br>"
                       "• Инкрементальное сканирование - только измененные файлы<br>"
                       "• Контроль целостности архивов через хеширование MD5</p>"
@@ -228,6 +242,10 @@ void MainWindow::about()
                       "• LostDragon (ldragon24@gmail.com)</b></p");
 }
 
+void MainWindow::openBookById(int bookId)
+{
+    openBook(bookId); // Вызываем существующий приватный метод
+}
 
 
 // Слот для изменения режима отображения
@@ -1169,6 +1187,11 @@ MainWindow::~MainWindow()
     delete descriptionCache;
     delete bookContentCache;
 
+    // Освобождаем ratingGroup
+    if (ratingGroup) {
+        delete ratingGroup;
+    }
+
     delete ui;
 }
 
@@ -1456,6 +1479,42 @@ bool MainWindow::createDatabaseTables()
             return false;
         }
 
+        QString createBooksTableratings =
+                "CREATE TABLE IF NOT EXISTS book_ratings ("
+                "    id INT AUTO_INCREMENT PRIMARY KEY,"
+                "    book_id INT NOT NULL,"
+                "    user_ip VARCHAR(45) NOT NULL,"
+                "    rating TINYINT NOT NULL,"
+                "    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+                "    CONSTRAINT chk_rating_range CHECK (rating >= 1 AND rating <= 5),"
+                "    CONSTRAINT unique_user_book UNIQUE (user_ip, book_id),"
+                "    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE"
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+        if (!query.exec(createBooksTableratings)) {
+            qDebug() << "Failed to create book_ratings table:" << query.lastError().text();
+            return false;
+        }
+
+
+        QString createBooksTablefavorites =
+                "CREATE TABLE IF NOT EXISTS book_favorites ("
+                "    id INT AUTO_INCREMENT PRIMARY KEY,"
+                "    book_id INT NOT NULL,"
+                "    user_ip VARCHAR(45) NOT NULL,"
+                "    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+                "    CONSTRAINT unique_user_favorite UNIQUE (user_ip, book_id),"
+                "    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE"
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+        if (!query.exec(createBooksTablefavorites)) {
+            qDebug() << "Failed to create book_favorites table:" << query.lastError().text();
+            return false;
+        }
+
+
+
+
     } else {
         // SQLite - создаем таблицу если не существует
         QString createBooksTable =
@@ -1505,6 +1564,39 @@ bool MainWindow::createDatabaseTables()
             qDebug() << "Failed to create books table:" << query.lastError().text();
             return false;
         }
+
+        QString createBooksTableratings =
+                "CREATE TABLE IF NOT EXISTS book_ratings ("
+                "    id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "    book_id INTEGER NOT NULL,"
+                "    user_ip VARCHAR(45) NOT NULL,"
+                "    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),"
+                "    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+                "    UNIQUE(user_ip, book_id),"
+                "    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE"
+                ");";
+
+        if (!query.exec(createBooksTableratings)) {
+            qDebug() << "Failed to create book_ratings table:" << query.lastError().text();
+            return false;
+        }
+
+        QString createBooksTablefavorites =
+                "CREATE TABLE IF NOT EXISTS book_favorites ("
+                "    id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "    book_id INTEGER NOT NULL,"
+                "    user_ip VARCHAR(45) NOT NULL,"
+                "    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+                "    UNIQUE(user_ip, book_id),"
+                "    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE"
+                ");";
+
+        if (!query.exec(createBooksTablefavorites)) {
+            qDebug() << "Failed to create book_favorites table:" << query.lastError().text();
+            return false;
+        }
+
+
 
         // СОЗДАЕМ ИНДЕКСЫ ДЛЯ SQLite
         QStringList indexQueries;
@@ -1586,9 +1678,9 @@ void MainWindow::loadBookDetails(int bookId)
     if (!isDatabaseOpen()) return;
 
     QSqlQuery query;
-    query.prepare("SELECT title, author, series, series_number, year, language, "
+    query.prepare("SELECT id, title, author, series, series_number, year, language, "
                   "publisher, description, file_path, archive_path, archive_internal_path, "
-                  "file_name, file_size, genre "  // Добавили новые поля
+                  "file_name, file_size, genre "
                   "FROM books WHERE id = ?");
     query.addBindValue(bookId);
 
@@ -1599,6 +1691,10 @@ void MainWindow::loadBookDetails(int bookId)
     }
 
     updateBookDetails(query);
+
+    // Показываем блок избранного и рейтинга
+    ui->widgetRatingFavorites->setVisible(true);
+    ui->label_favorites->setVisible(true);
 
     // Загружаем обложку и полное описание
     loadBookCoverAndDescription(bookId);
@@ -1655,6 +1751,7 @@ QString MainWindow::loadFullDescription(const QString& filePath, const QString& 
 
 
 // Обновленный метод updateBookDetails
+
 void MainWindow::updateBookDetails(const QSqlQuery &query)
 {
     // Заполняем основную информацию о книге
@@ -1712,16 +1809,308 @@ void MainWindow::updateBookDetails(const QSqlQuery &query)
     ui->lbl_file_name->setText(displayFileName.isEmpty() ? "Не указан" : displayFileName);
 
     // Размер файла
-    qint64 fileSize = query.value("file_size").toLongLong();
-    ui->lbl_file_size->setText(formatFileSize(fileSize));
+    // Размер файла
+        qint64 fileSize = query.value("file_size").toLongLong();
+        ui->lbl_file_size->setText(formatFileSize(fileSize));
 
-    // Временное описание из БД
-    QString description = query.value("description").toString();
-    if (description.isEmpty()) {
-        description = "Загрузка описания...";
-    }
-    ui->txtDescription->setPlainText(description);
+        // ============ ОБНОВЛЯЕМ СОСТОЯНИЕ КНОПОК ИЗБРАННОГО И РЕЙТИНГА ============
+
+        // Получаем ID книги из запроса
+        // Получаем ID книги из запроса
+            int bookId = query.value("id").toInt();
+
+            // ОТКЛЮЧАЕМ ВСЕ СТАРЫЕ СИГНАЛЫ ОТ КНОПКИ ИЗБРАННОГО
+            ui->btnFavorite->blockSignals(true);
+            ui->btnFavorite->disconnect();
+            ui->btnFavorite->blockSignals(false);
+
+            // ОЧИЩАЕМ предыдущий ratingGroup если он есть
+            if (ratingGroup) {
+                // Отключаем все сигналы
+                ratingGroup->disconnect();
+                // Удаляем старую группу
+                delete ratingGroup;
+                ratingGroup = nullptr;
+            }
+
+            // Отключаем сигналы от кнопки очистки рейтинга
+            ui->btnClearRating->disconnect();
+
+            // СБРАСЫВАЕМ СОСТОЯНИЕ ВСЕХ КНОПОК
+            resetRatingButtons();
+
+            // Создаем новую группу для звезд рейтинга
+            ratingGroup = new QButtonGroup(this);
+            ratingGroup->addButton(ui->btnStar1, 1);
+            ratingGroup->addButton(ui->btnStar2, 2);
+            ratingGroup->addButton(ui->btnStar3, 3);
+            ratingGroup->addButton(ui->btnStar4, 4);
+            ratingGroup->addButton(ui->btnStar5, 5);
+            ratingGroup->setExclusive(true);
+
+            // Загружаем текущее состояние
+            if (bookId > 0) {
+                loadBookFavoriteStatus(bookId, ui->btnFavorite);
+                loadBookRating(bookId, ratingGroup);
+            }
+
+            // ПОДКЛЮЧАЕМ СИГНАЛЫ С ПЕРЕЗАХВАТОМ ТЕКУЩЕГО bookId
+            connect(ui->btnFavorite, &QPushButton::clicked,
+                    [this, bookId](bool checked) {
+                toggleFavorite(bookId, checked);
+                // Обновляем tooltip
+                if (checked) {
+                    ui->btnFavorite->setToolTip("Удалить из избранного");
+                } else {
+                    ui->btnFavorite->setToolTip("Добавить в избранное");
+                }
+            });
+
+            // Используем QOverload для правильного сигнала
+            connect(ratingGroup, &QButtonGroup::idClicked,
+                    [this, bookId](int rating) {
+                setBookRating(bookId, rating);
+
+                // Обновляем отображение всех звезд
+                updateStarsDisplay(rating);
+            });
+
+            connect(ui->btnClearRating, &QPushButton::clicked,
+                    [this, bookId]() {
+                clearBookRating(bookId);
+
+                // Сбрасываем все звезды
+                resetRatingButtons();
+            });
+
+        // Временное описание из БД
+        QString description = query.value("description").toString();
+        if (description.isEmpty()) {
+            description = "Загрузка описания...";
+        }
+        ui->txtDescription->setPlainText(description);
+
 }
+
+void MainWindow::resetRatingButtons()
+{
+    // Отключаем сигналы кнопки избранного перед сбросом
+    ui->btnFavorite->blockSignals(true);
+
+    // Сбрасываем состояние всех кнопок рейтинга
+    ui->btnStar1->setChecked(false);
+    ui->btnStar2->setChecked(false);
+    ui->btnStar3->setChecked(false);
+    ui->btnStar4->setChecked(false);
+    ui->btnStar5->setChecked(false);
+
+    // Сбрасываем состояние избранного
+    ui->btnFavorite->setChecked(false);
+    ui->btnFavorite->setToolTip("Добавить в избранное");
+
+    // Включаем сигналы обратно
+    ui->btnFavorite->blockSignals(false);
+
+    // Сбрасываем отображение звезд
+    updateStarsDisplay(0);
+}
+
+
+void MainWindow::updateStarsDisplay(int rating)
+{
+    // Обновляем текст и цвет звезд в зависимости от рейтинга
+    QVector<QPushButton*> stars = {
+        ui->btnStar1, ui->btnStar2, ui->btnStar3, ui->btnStar4, ui->btnStar5
+    };
+
+    for (int i = 0; i < stars.size(); i++) {
+        QPushButton *starBtn = stars[i];
+        bool isActive = (i < rating);
+
+        QString starChar = isActive ? "★" : "☆";
+        QString starColor = isActive ? "#ffd700" : "#cccccc";
+
+        QString styleSheet = QString(
+            "QPushButton {"
+            "    border: none;"
+            "    background-color: transparent;"
+            "    font-size: 22px;"
+            "    color: %1;"
+            "}"
+            "QPushButton:hover {"
+            "    color: #ffd700;"
+            "}"
+        ).arg(starColor);
+
+        starBtn->setStyleSheet(styleSheet);
+        starBtn->setText(starChar);
+
+        // Также устанавливаем checked состояние для активных звезд
+        if (ratingGroup) {
+            starBtn->setChecked(isActive);
+        }
+    }
+}
+
+
+void MainWindow::clearBookRating(int bookId)
+{
+    if (!isDatabaseOpen()) return;
+
+    QString userIdentifier = getCurrentUserIdentifier();
+    QSqlQuery query(db);
+    query.prepare("DELETE FROM book_ratings WHERE book_id = ? AND user_ip = ?");
+    query.addBindValue(bookId);
+    query.addBindValue(userIdentifier);
+
+    if (query.exec()) {
+        statusBar()->showMessage("Рейтинг очищен", 3000);
+    } else {
+        qDebug() << "Error clearing rating:" << query.lastError().text();
+    }
+}
+
+QString MainWindow::getCurrentUserIdentifier()
+{
+    // Используем IP адрес как идентификатор пользователя
+    QString hostName = QHostInfo::localHostName();
+    QString ipAddress;
+
+    QList<QHostAddress> ipAddressesList = QNetworkInterface::allAddresses();
+    for (const QHostAddress &address : ipAddressesList) {
+        if (address != QHostAddress::LocalHost && address.protocol() == QAbstractSocket::IPv4Protocol) {
+            ipAddress = address.toString();
+            break;
+        }
+    }
+
+    if (ipAddress.isEmpty()) {
+        ipAddress = "127.0.0.1";
+    }
+
+    return QString("%1@%2").arg(hostName).arg(ipAddress);
+}
+
+void MainWindow::toggleFavorite(int bookId, bool favorite)
+{
+    if (!isDatabaseOpen()) return;
+
+    QString userIdentifier = getCurrentUserIdentifier();
+    QSqlQuery query(db);  // Используйте db вместо m_database
+
+    if (favorite) {
+        query.prepare("INSERT OR REPLACE INTO book_favorites (book_id, user_ip) VALUES (?, ?)");
+        query.addBindValue(bookId);
+        query.addBindValue(userIdentifier);
+
+        if (query.exec()) {
+            statusBar()->showMessage("Книга добавлена в избранное", 3000);
+        }
+    } else {
+        query.prepare("DELETE FROM book_favorites WHERE book_id = ? AND user_ip = ?");
+        query.addBindValue(bookId);
+        query.addBindValue(userIdentifier);
+
+        if (query.exec()) {
+            statusBar()->showMessage("Книга удалена из избранного", 3000);
+        }
+    }
+}
+
+void MainWindow::setBookRating(int bookId, int rating)
+{
+    if (!isDatabaseOpen()) return;
+
+    QString userIdentifier = getCurrentUserIdentifier();
+    QSqlQuery query(db);  // Используйте db вместо m_database
+
+    query.prepare(
+        "INSERT OR REPLACE INTO book_ratings (book_id, user_ip, rating) "
+        "VALUES (?, ?, ?)"
+    );
+    query.addBindValue(bookId);
+    query.addBindValue(userIdentifier);
+    query.addBindValue(rating);
+
+    if (query.exec()) {
+        statusBar()->showMessage(QString("Оценка %1/5 сохранена").arg(rating), 3000);
+    } else {
+        qDebug() << "Error saving rating:" << query.lastError().text();
+    }
+}
+
+void MainWindow::loadBookFavoriteStatus(int bookId, QPushButton *button)
+{
+    if (!isDatabaseOpen() || !button) return;
+
+    QString userIdentifier = getCurrentUserIdentifier();
+    QSqlQuery query(db);
+    query.prepare("SELECT 1 FROM book_favorites WHERE book_id = ? AND user_ip = ?");
+    query.addBindValue(bookId);
+    query.addBindValue(userIdentifier);
+
+    bool isFavorite = false;
+    if (query.exec() && query.next()) {
+        isFavorite = true;
+       } else {
+            isFavorite = false;
+       }
+
+    button->setChecked(isFavorite);
+
+    // Обновляем tooltip в зависимости от состояния
+    if (isFavorite) {
+        button->setToolTip("Удалить из избранного");
+    } else {
+        button->setToolTip("Добавить в избранное");
+    }
+}
+
+void MainWindow::loadBookRating(int bookId, QButtonGroup *ratingGroup)
+{
+    if (!isDatabaseOpen() || !ratingGroup) return;
+
+    QString userIdentifier = getCurrentUserIdentifier();
+    QSqlQuery query(db);
+    query.prepare("SELECT rating FROM book_ratings WHERE book_id = ? AND user_ip = ?");
+    query.addBindValue(bookId);
+    query.addBindValue(userIdentifier);
+
+    int rating = 0;
+    if (query.exec() && query.next()) {
+        rating = query.value(0).toInt();
+    }
+
+    // Устанавливаем соответствующую звезду
+    if (rating >= 1 && rating <= 5) {
+        QAbstractButton *button = ratingGroup->button(rating);
+        if (button) {
+            button->setChecked(true);
+        }
+    }
+
+    // Обновляем отображение звезд
+    updateStarsDisplay(rating);
+}
+
+void MainWindow::showFavoritesDialog()
+{
+    if (!isDatabaseOpen()) {
+        showError("База данных не открыта");
+        return;
+    }
+
+    if (!m_favoritesDialog) {
+        m_favoritesDialog = new FavoritesDialog(db, this);
+    }
+
+    m_favoritesDialog->show();
+    m_favoritesDialog->raise();
+    m_favoritesDialog->activateWindow();
+}
+
+
+
 
 // Метод для форматирования размера файла
 QString MainWindow::formatFileSize(qint64 bytes)
@@ -1753,6 +2142,13 @@ void MainWindow::clearBookDetails()
     ui->txtDescription->clear();
     ui->lbl_cover->setText("обложка");
     ui->lbl_cover->setPixmap(QPixmap());
+
+    // Сбрасываем состояние кнопок избранного и рейтинга
+    resetRatingButtons();
+
+    // Скрываем блок избранного и рейтинга
+    ui->widgetRatingFavorites->setVisible(false);
+    ui->label_favorites->setVisible(false);
 }
 
 bool MainWindow::isDatabaseOpen()

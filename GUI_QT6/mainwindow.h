@@ -15,9 +15,10 @@
 #include <QTimer>
 
 #include "scannerdialog.h"
+#include "favoritesdialog.h"
 #include "fb2reader.h"
 #include <QTemporaryFile>
-
+#include <QNetworkInterface>
 
 
 QT_BEGIN_NAMESPACE
@@ -41,6 +42,7 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+    void openBookById(int bookId);
 
 protected:
     void showEvent(QShowEvent *event) override;
@@ -108,6 +110,7 @@ private:
     // Элементы UI для статуса
     QProgressBar *progressBar;
     QLabel *statusLabel;
+    QButtonGroup *ratingGroup;
 
     void openDatabase();
     bool setupDatabaseConnection();
@@ -131,6 +134,22 @@ private:
     bool isDatabaseOpen();
     void showError(const QString &message);
     void showInfo(const QString &message);
+    void clearBookRating(int bookId);
+    void updateStarsDisplay(int rating);
+    void resetRatingButtons();
+
+    // Методы для избранного и рейтинга
+      void toggleFavorite(int bookId, bool favorite);
+      void setBookRating(int bookId, int rating);
+      void loadBookFavoriteStatus(int bookId, QPushButton *button);
+      void loadBookRating(int bookId, QButtonGroup *ratingGroup);
+      QString getCurrentUserIdentifier();
+
+      // Форма просмотра избранного и рейтинга
+      void showFavoritesDialog();
+
+      QDialog *m_favoritesDialog = nullptr;
+
 
 
 
