@@ -3,12 +3,13 @@ require_once 'config/config.php';
 require_once 'lib/Database.php';
 require_once 'lib/PageCache.php';
 
-PageCache::start('favorites_' . $_SERVER['REMOTE_ADDR'] . '_' . date('Ymd'));
-
 $db = Database::getInstance();
 $userIp = $_SERVER['REMOTE_ADDR'];
 $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
 $perPage = Config::ITEMS_PER_PAGE;
+
+// Кеширование с учетом номера страницы
+PageCache::start('favorites_' . $userIp . '_' . date('Ymd') . '_page_' . $page);
 
 $favorites = $db->getUserFavorites($userIp, $page, $perPage);
 $totalFavorites = $db->getUserFavoritesCount($userIp);
