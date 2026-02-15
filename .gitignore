@@ -59,3 +59,5 @@ scanner.log
 book_scanner
 www/quick_check.php
 *.user
+www/all_code.txt
+www/collect_php.sh

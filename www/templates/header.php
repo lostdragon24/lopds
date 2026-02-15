@@ -14,12 +14,9 @@ $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 
-
-
-    <link rel="stylesheet" href="css/bootstrap.min.css">
-    <link rel="stylesheet" href="css/all.min.css">
-    <style>
+   <style>
         .book-cover { max-width: 100px; height: auto; }
         .book-card { margin-bottom: 20px; }
         .search-form { margin-bottom: 30px; }
@@ -54,6 +51,38 @@ $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
             </div>
         </div>
     </nav>
+
+
+
+
+    <!-- Индикатор режима чтения (будет показан только в reader.php) -->
+    <?php if (isset($inReader) && $inReader): ?>
+    <style>
+    .reader-mode-indicator {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 8px 0;
+        font-size: 0.9rem;
+        text-align: center;
+        position: relative;
+        z-index: 1040;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .reader-mode-indicator i {
+        margin-right: 8px;
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.6; }
+        100% { opacity: 1; }
+    }
+    </style>
+    <div class="reader-mode-indicator">
+        <i class="fas fa-book-open"></i>
+        Режим чтения
+    </div>
+    <?php endif; ?>
     
     <div class="container mt-4">
 

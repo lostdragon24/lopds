@@ -88,6 +88,15 @@ require 'templates/header.php';
                            class="btn btn-lg btn-success">
                             <i class="fas fa-download me-2"></i>Скачать книгу
                         </a>
+
+<?php if (in_array(strtolower($book['file_type']), ['fb2', 'epub', 'pdf'])): ?>
+    <a href="reader.php?id=<?php echo $book['id']; ?>" 
+       class="btn btn-lg btn-primary mt-2">
+        <i class="fas fa-book-open me-2"></i>Читать онлайн
+    </a>
+    <?php endif; ?>
+
+
                     </div>
                 </div>
             </div>

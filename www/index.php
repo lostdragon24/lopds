@@ -124,10 +124,7 @@ require 'templates/header.php';
                                                  style="max-width: 100px; height: auto;"
                                                  onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';"
                                                  loading="lazy">
-                                            <div class="book-cover-placeholder bg-light d-flex align-items-center justify-content-center" 
-                                                 style="display:none; width:100px; height:150px;">
-                                                <small class="text-muted">Ошибка загрузки</small>
-                                            </div>
+
                                         <?php else: ?>
                                             <div class="book-cover-placeholder bg-light d-flex align-items-center justify-content-center" 
                                                  style="width:100px; height:150px;">
