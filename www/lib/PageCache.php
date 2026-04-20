@@ -1,122 +1,227 @@
 <?php
 
-require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/Cache.php';
+// lib/PageCache.php
 
-class PageCache {
-    private static $enabled = null;
-    private static $currentKey = null;
-    
+require_once __DIR__.'/../config/config.php';
+require_once __DIR__.'/Cache.php';
+require_once __DIR__.'/../init.php';
+
+class PageCache
+{
+    private static $enabled;
+    private static $currentKey;
+
     /**
-     * Инициализация кэширования страниц
+     * Инициализация кэширования страниц.
      */
-    public static function init() {
-        if (self::$enabled !== null) {
+    public static function init()
+    {
+        if (null !== self::$enabled) {
             return;
         }
-        
+
         self::$enabled = Config::PERFORMANCE['enable_page_cache'] && Config::ENABLE_CACHE;
-        
-        // Начинаем буферизацию вывода если включено кэширование
+
         if (self::$enabled && !headers_sent()) {
             ob_start();
         }
+
+        if (!self::$enabled && Config::isDevelopment()) {
+            error_log(__('page_cache_disabled'));
+        }
     }
-    
+
     /**
-     * Начать кэширование страницы
+     * Начать кэширование страницы.
      */
-    public static function start($key = null) {
+    public static function start($key = null)
+    {
         if (!self::$enabled) {
             return false;
         }
-        
-        if ($key === null) {
+
+        if (null === $key) {
             $key = self::generateKey();
         }
-        
+
         self::$currentKey = $key;
-        
-        // Пробуем получить кэшированную версию
-        $cached = Cache::get($key, 'page_cache');
-        if ($cached !== null) {
-            echo $cached;
-            ob_end_flush();
-            exit;
-        }
-        
-        return true;
-    }
-    
-    /**
-     * Сохранить страницу в кэш
-     */
-    public static function save() {
-        if (!self::$enabled || self::$currentKey === null) {
+
+        // Проверяем AJAX запросы - для них не используем кэш
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])
+            && 'xmlhttprequest' == strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])) {
             return false;
         }
-        
-        $content = ob_get_contents();
-        if ($content) {
-            Cache::set(self::$currentKey, $content, 'page_cache');
+
+        // Проверяем наличие параметров, влияющих на персонализацию
+        if (isset($_GET['page']) || isset($_GET['q']) || isset($_GET['field'])) {
+            $cached = Cache::get($key, Cache::TYPE_PAGE);
+            if (null !== $cached) {
+                if (Config::isDevelopment()) {
+                    header('X-Page-Cache: HIT');
+                }
+                echo $cached;
+                ob_end_flush();
+                exit;
+            }
+        } else {
+            $cached = Cache::get($key, Cache::TYPE_PAGE);
+            if (null !== $cached) {
+                if (Config::isDevelopment()) {
+                    header('X-Page-Cache: HIT');
+                }
+                echo $cached;
+                ob_end_flush();
+                exit;
+            }
         }
-        
-        self::$currentKey = null;
+
+        if (Config::isDevelopment()) {
+            header('X-Page-Cache: MISS');
+        }
+
         return true;
     }
-    
+
     /**
-     * Сгенерировать ключ для кэша на основе URL и параметров
+     * Сохранить страницу в кэш.
      */
-    private static function generateKey() {
+    public static function save()
+    {
+        if (!self::$enabled || null === self::$currentKey) {
+            return false;
+        }
+
+        $content = ob_get_contents();
+        if ($content) {
+            if (0 === strpos(self::$currentKey, 'favorites_')) {
+                Cache::set(self::$currentKey, $content, Cache::TYPE_FAVORITES);
+            } else {
+                Cache::set(self::$currentKey, $content, Cache::TYPE_PAGE);
+            }
+
+            if (Config::isDevelopment()) {
+                error_log(sprintf(__('page_cache_saved'), self::$currentKey));
+            }
+        }
+
+        self::$currentKey = null;
+
+        return true;
+    }
+
+    /**
+     * Инвалидировать кэш для всех страниц пользователя.
+     */
+    public static function invalidateUserPages($userIp)
+    {
+        Cache::invalidateByType(Cache::TYPE_FAVORITES);
+        Cache::invalidateByType('top_rated');
+        Cache::invalidateByType(Cache::TYPE_PAGE);
+
+        if (Config::isDevelopment()) {
+            error_log(sprintf(__('page_cache_invalidated_user'), $userIp));
+        }
+
+        return true;
+    }
+
+    /**
+     * Сгенерировать ключ для кэша на основе URL и параметров.
+     */
+    private static function generateKey()
+    {
         $key = $_SERVER['REQUEST_URI'];
-        
+
+        // Добавляем язык в ключ кэша
+        $currentLang = LanguageDetector::getInstance()->getCurrentLanguage();
+        $key .= '_lang_'.$currentLang;
+
         // Добавляем параметры GET
         if (!empty($_GET)) {
-            ksort($_GET); // Сортируем для консистентности
-            $key .= '?' . http_build_query($_GET);
+            ksort($_GET);
+            $key .= '?'.http_build_query($_GET);
         }
-        
-        // Добавляем язык если используется
-        if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
-            $key .= '_' . substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2);
+
+        return 'page_'.md5($key);
+    }
+
+    /**
+     * Очистить кэш страниц.
+     */
+    public static function clear()
+    {
+        $deleted = Cache::invalidateByType(Cache::TYPE_PAGE);
+        $deleted += Cache::invalidateByType(Cache::TYPE_FAVORITES);
+
+        // Очищаем файловый кэш если используется
+        $cacheDir = Config::getCacheDir().'/page_cache';
+        if (file_exists($cacheDir)) {
+            $files = glob($cacheDir.'/*');
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    unlink($file);
+                    ++$deleted;
+                }
+            }
         }
-        
-        return 'page_' . md5($key);
+
+        if (Config::isDevelopment()) {
+            error_log(sprintf(__('page_cache_cleared'), $deleted));
+        }
+
+        return $deleted;
     }
-    
+
     /**
-     * Очистить кэш страниц
+     * Инвалидировать кэш для определенной страницы.
      */
-    public static function clear() {
-        // Реализация очистки всех кэшированных страниц
-        // Может потребоваться специальная логика для поиска ключей страниц
-        return Cache::clear();
-    }
-    
-    /**
-     * Инвалидировать кэш для определенной страницы
-     */
-    public static function invalidate($key) {
+    public static function invalidate($key)
+    {
         return Cache::delete($key);
     }
-    
+
     /**
-     * Получить статистику кэширования страниц
+     * Очистить кэш для конкретного языка.
      */
-    public static function getStats() {
-        $stats = Cache::getStats();
-        if (isset($stats['apcu'])) {
-            // Можно добавить специфичную статистику для страниц
-            $stats['page_cache'] = [
-                'enabled' => self::$enabled,
-                'current_key' => self::$currentKey
-            ];
+    public static function clearLanguageCache($lang)
+    {
+        if (!function_exists('apcu_cache_info')) {
+            return 0;
         }
-        return $stats;
+
+        $info = apcu_cache_info(true);
+        if (!isset($info['cache_list'])) {
+            return 0;
+        }
+
+        $deleted = 0;
+        foreach ($info['cache_list'] as $entry) {
+            if (false !== strpos($entry['key'], '_lang_'.$lang)) {
+                if (apcu_delete($entry['key'])) {
+                    ++$deleted;
+                }
+            }
+        }
+
+        if (Config::isDevelopment() && $deleted > 0) {
+            error_log(sprintf(__('page_cache_lang_cleared'), $lang, $deleted));
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * Получить статус кэширования страниц.
+     */
+    public static function getStatus()
+    {
+        return [
+            'enabled' => self::$enabled,
+            'current_key' => self::$currentKey,
+            'stats' => Cache::getStats(),
+        ];
     }
 }
 
 // Автоматическая инициализация
 PageCache::init();
-?>

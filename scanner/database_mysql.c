@@ -1,693 +1,1053 @@
 #include "database_mysql.h"
 #include "common.h"
+#include "config.h"
+#include "database.h"
+#include "path_validation.h"
+#include "utils.h"
+#include <limits.h>
+#include <mysql/mysql.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
-#include <stdbool.h>
 
-MySQLConnection* mysql_conn_connect(Config *config) {
-    if (!config || !config->database.host || !config->database.user) {
-        return NULL;
+#ifdef MYSQL_VERSION_ID
+#if MYSQL_VERSION_ID >= 80000
+// MySQL 8.0+ использует bool
+typedef bool mysql_bool_t;
+#define MYSQL_BOOL_TRUE true
+#define MYSQL_BOOL_FALSE false
+#define MYSQL_BOOL_CAST (void *)
+#else
+// MySQL 5.x и MariaDB используют my_bool
+typedef my_bool mysql_bool_t;
+#define MYSQL_BOOL_TRUE 1
+#define MYSQL_BOOL_FALSE 0
+#define MYSQL_BOOL_CAST (void *)
+#endif
+#else
+// Если MYSQL_VERSION_ID не определён, пробуем определить по наличию my_bool
+#ifdef my_bool
+typedef my_bool mysql_bool_t;
+#define MYSQL_BOOL_TRUE 1
+#define MYSQL_BOOL_FALSE 0
+#define MYSQL_BOOL_CAST (void *)
+#else
+typedef bool mysql_bool_t;
+#define MYSQL_BOOL_TRUE true
+#define MYSQL_BOOL_FALSE false
+#define MYSQL_BOOL_CAST (void *)
+#endif
+#endif
+
+// Макрос для безопасного присваивания is_null
+#define SET_IS_NULL(bind, val)                                                 \
+  do {                                                                         \
+    (bind).is_null = MYSQL_BOOL_CAST(val);                                     \
+  } while (0)
+
+#ifndef SAFE_FREE
+#define SAFE_FREE(ptr)                                                         \
+  do {                                                                         \
+    if (ptr) {                                                                 \
+      free(ptr);                                                               \
+      ptr = NULL;                                                              \
+    }                                                                          \
+  } while (0)
+#endif
+
+MySQLConnection *mysql_conn_connect(Config *config) {
+  if (!config || !config->database.host || !config->database.user) {
+    return NULL;
+  }
+
+  log_message(config, "DEBUG", "Connecting to MySQL at %s...",
+              config->database.host);
+
+  MySQLConnection *mysql_conn = malloc(sizeof(MySQLConnection));
+  if (!mysql_conn) {
+    log_message(config, "ERROR", "Failed to allocate MySQL connection");
+    return NULL;
+  }
+
+  mysql_conn->mysql = NULL;
+  mysql_conn->stmt = NULL;
+
+  mysql_conn->mysql = mysql_init(NULL);
+  if (!mysql_conn->mysql) {
+    log_message(config, "ERROR", "mysql_init failed");
+    free(mysql_conn);
+    return NULL;
+  }
+
+  unsigned int timeout = 30;
+  mysql_options(mysql_conn->mysql, MYSQL_OPT_CONNECT_TIMEOUT, &timeout);
+  mysql_options(mysql_conn->mysql, MYSQL_OPT_READ_TIMEOUT, &timeout);
+  mysql_options(mysql_conn->mysql, MYSQL_OPT_WRITE_TIMEOUT, &timeout);
+
+  if (!mysql_real_connect(mysql_conn->mysql, config->database.host,
+                          config->database.user, config->database.password,
+                          NULL, config->database.port, config->database.socket,
+                          config->database.flags)) {
+    log_message(config, "ERROR", "MySQL connection failed: %s",
+                mysql_error(mysql_conn->mysql));
+    mysql_close(mysql_conn->mysql);
+    free(mysql_conn);
+    return NULL;
+  }
+
+  log_message(config, "INFO", "Connected to MySQL server");
+
+  if (config->database.database) {
+    log_message(config, "DEBUG", "Checking database '%s'...",
+                config->database.database);
+
+    char create_db_sql[512];
+    snprintf(create_db_sql, sizeof(create_db_sql),
+             "CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE "
+             "utf8mb4_unicode_ci",
+             config->database.database);
+
+    if (mysql_query(mysql_conn->mysql, create_db_sql)) {
+      log_message(config, "ERROR", "Failed to create database: %s",
+                  mysql_error(mysql_conn->mysql));
+      mysql_close(mysql_conn->mysql);
+      free(mysql_conn);
+      return NULL;
     }
 
-    log_message(config, "DEBUG", "Connecting to MySQL at %s...", config->database.host);
+    log_message(config, "DEBUG", "Database '%s' created or already exists",
+                config->database.database);
 
-    MySQLConnection *mysql_conn = malloc(sizeof(MySQLConnection));
-    if (!mysql_conn) {
-        log_message(config, "ERROR", "Failed to allocate MySQL connection");
-        return NULL;
+    if (mysql_select_db(mysql_conn->mysql, config->database.database)) {
+      log_message(config, "ERROR", "Failed to select database: %s",
+                  mysql_error(mysql_conn->mysql));
+      mysql_close(mysql_conn->mysql);
+      free(mysql_conn);
+      return NULL;
     }
 
-    mysql_conn->mysql = NULL;
-    mysql_conn->stmt = NULL;
+    log_message(config, "INFO", "Using database '%s'",
+                config->database.database);
+  }
 
-    mysql_conn->mysql = mysql_init(NULL);
-    if (!mysql_conn->mysql) {
-        log_message(config, "ERROR", "mysql_init failed");
-        free(mysql_conn);
-        return NULL;
-    }
+  if (mysql_set_character_set(mysql_conn->mysql, "utf8mb4")) {
+    log_message(config, "WARNING", "Failed to set UTF-8 character set: %s",
+                mysql_error(mysql_conn->mysql));
+  }
 
-    unsigned int timeout = 28800;
-    mysql_options(mysql_conn->mysql, MYSQL_OPT_CONNECT_TIMEOUT, &timeout);
-    mysql_options(mysql_conn->mysql, MYSQL_OPT_READ_TIMEOUT, &timeout);
-    mysql_options(mysql_conn->mysql, MYSQL_OPT_WRITE_TIMEOUT, &timeout);
-
-    if (!mysql_real_connect(mysql_conn->mysql,
-                           config->database.host,
-                           config->database.user,
-                           config->database.password,
-                           NULL,
-                           config->database.port,
-                           config->database.socket,
-                           config->database.flags)) {
-        log_message(config, "ERROR", "MySQL connection failed: %s", mysql_error(mysql_conn->mysql));
-        mysql_close(mysql_conn->mysql);
-        free(mysql_conn);
-        return NULL;
-    }
-
-    log_message(config, "INFO", "Connected to MySQL server");
-
-    if (config->database.database) {
-        log_message(config, "DEBUG", "Checking database '%s'...", config->database.database);
-
-        char create_db_sql[256];
-        snprintf(create_db_sql, sizeof(create_db_sql),
-                 "CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
-                 config->database.database);
-
-        if (mysql_query(mysql_conn->mysql, create_db_sql)) {
-            log_message(config, "ERROR", "Failed to create database: %s", mysql_error(mysql_conn->mysql));
-            mysql_close(mysql_conn->mysql);
-            free(mysql_conn);
-            return NULL;
-        }
-
-        log_message(config, "DEBUG", "Database '%s' created or already exists", config->database.database);
-
-        if (mysql_select_db(mysql_conn->mysql, config->database.database)) {
-            log_message(config, "ERROR", "Failed to select database: %s", mysql_error(mysql_conn->mysql));
-            mysql_close(mysql_conn->mysql);
-            free(mysql_conn);
-            return NULL;
-        }
-
-        log_message(config, "INFO", "Using database '%s'", config->database.database);
-    }
-
-    if (mysql_set_character_set(mysql_conn->mysql, "utf8mb4")) {
-        log_message(config, "WARNING", "Failed to set UTF-8 character set: %s", mysql_error(mysql_conn->mysql));
-    }
-
-    return mysql_conn;
+  return mysql_conn;
 }
 
-int mysql_execute_query(MySQLConnection *mysql_conn, const char *sql, Config *config) {
-    if (!mysql_conn || !mysql_conn->mysql) {
-        log_message(config, "ERROR", "MySQL connection is not initialized");
-        return 0;
-    }
+int mysql_execute_query(MySQLConnection *mysql_conn, const char *sql,
+                        Config *config) {
+  if (!mysql_conn || !mysql_conn->mysql) {
+    log_message(config, "ERROR", "MySQL connection is not initialized");
+    return 0;
+  }
 
-    log_message(config, "DEBUG", "Executing MySQL query: %s", sql);
+  log_message(config, "DEBUG", "Executing MySQL query: %s", sql);
 
-    if (mysql_query(mysql_conn->mysql, sql)) {
-        log_message(config, "ERROR", "MySQL query failed: %s", mysql_error(mysql_conn->mysql));
-        return 0;
-    }
+  if (mysql_query(mysql_conn->mysql, sql)) {
+    log_message(config, "ERROR", "MySQL query failed: %s",
+                mysql_error(mysql_conn->mysql));
+    return 0;
+  }
 
-    MYSQL_RES *result = mysql_store_result(mysql_conn->mysql);
-    if (result) {
-        mysql_free_result(result);
-    }
+  MYSQL_RES *result = mysql_store_result(mysql_conn->mysql);
+  if (result) {
+    mysql_free_result(result);
+  }
 
-    log_message(config, "DEBUG", "MySQL query executed successfully");
-    return 1;
+  return 1;
 }
 
 void mysql_conn_close(MySQLConnection *mysql_conn) {
-    if (!mysql_conn) return;
+  if (!mysql_conn)
+    return;
 
-    log_message(NULL, "DEBUG", "Closing MySQL connection...");
+  if (mysql_conn->stmt) {
+    mysql_stmt_close(mysql_conn->stmt);
+    mysql_conn->stmt = NULL;
+  }
 
-    if (mysql_conn->stmt) {
-        log_message(NULL, "DEBUG", "Closing MySQL statement...");
-        mysql_stmt_close(mysql_conn->stmt);
-        mysql_conn->stmt = NULL;
-    }
+  if (mysql_conn->mysql) {
+    mysql_close(mysql_conn->mysql);
+    mysql_conn->mysql = NULL;
+  }
 
-    if (mysql_conn->mysql) {
-        log_message(NULL, "DEBUG", "Closing MySQL connection...");
-        mysql_close(mysql_conn->mysql);
-        mysql_conn->mysql = NULL;
-    }
-
-    free(mysql_conn);
-    log_message(NULL, "DEBUG", "MySQL connection closed");
+  free(mysql_conn);
 }
 
 int mysql_create_tables(MySQLConnection *mysql_conn, Config *config) {
-    const char *create_books_table =
-        "CREATE TABLE IF NOT EXISTS books ("
-        "    id INT AUTO_INCREMENT PRIMARY KEY,"
-        "    file_path TEXT,"
-        "    file_name TEXT,"
-        "    file_size BIGINT,"
-        "    file_type VARCHAR(10),"
-        "    archive_path TEXT,"
-        "    archive_internal_path TEXT,"
-        "    file_hash VARCHAR(64),"
-        "    title TEXT,"
-        "    author TEXT,"
-        "    genre TEXT,"
-        "    series TEXT,"
-        "    series_number INT,"
-        "    year INT,"
-        "    language VARCHAR(10),"
-        "    publisher TEXT,"
-        "    description TEXT,"
-        "    added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
-        "    last_modified TIMESTAMP NULL,"
-        "    last_scanned TIMESTAMP NULL,"
-        "    file_mtime BIGINT,"
-        "    UNIQUE KEY unique_book (file_path(255), archive_path(255), archive_internal_path(255)),"
-        "    UNIQUE KEY unique_title_author (title(255), author(255))"
-        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+  const char *create_books_table =
+      "CREATE TABLE IF NOT EXISTS books ("
+      "    id INT AUTO_INCREMENT PRIMARY KEY,"
+      "    file_path TEXT,"
+      "    file_name TEXT,"
+      "    file_size BIGINT,"
+      "    file_type VARCHAR(10),"
+      "    archive_path TEXT,"
+      "    archive_internal_path TEXT,"
+      "    file_hash VARCHAR(64),"
+      "    title TEXT,"
+      "    author TEXT,"
+      "    genre TEXT,"
+      "    series TEXT,"
+      "    series_number INT,"
+      "    year INT,"
+      "    language VARCHAR(10),"
+      "    publisher TEXT,"
+      "    description TEXT,"
+      "    added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+      "    last_modified TIMESTAMP NULL,"
+      "    last_scanned TIMESTAMP NULL,"
+      "    file_mtime BIGINT,"
+      "    UNIQUE KEY unique_book (file_path(255), archive_path(255), "
+      "archive_internal_path(255)),"
+      "    UNIQUE KEY unique_title_author (title(255),author(255)),"
+      "    INDEX idx_author (author(100)),"
+      "    INDEX idx_title (title(100)),"
+      "    INDEX idx_genre (genre(50)),"
+      "    INDEX idx_series (series(100)),"
+      "    INDEX idx_added_date (added_date),"
+      "    INDEX idx_file_type (file_type),"
+      "    INDEX idx_year (year),"
+      "    INDEX idx_author_added (author(100),added_date),"
+      "    INDEX idx_author_count (author(100)),"
+      "    INDEX idx_genre_count (genre(50)),"
+      "    INDEX idx_series_count (series(100)),"
+      "    INDEX idx_author_title (author(100),title(100)),"
+      "    INDEX idx_genre_added (genre(50),added_date),"
+      "    INDEX idx_series_added (series(100),added_date),"
+      "    INDEX idx_books_added_date (added_date DESC),"
+      "    FULLTEXT INDEX ft_search (title, author, genre, series),"
+      "    FULLTEXT INDEX title (title,author),"
+      "    FULLTEXT INDEX ft_idx (title, author, genre, series)"
+      ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
-    if (!mysql_execute_query(mysql_conn, create_books_table, config)) {
-        return 0;
-    }
+  if (!mysql_execute_query(mysql_conn, create_books_table, config)) {
+    return 0;
+  }
 
-    if (!mysql_create_archive_table(mysql_conn, config)) {
-        return 0;
-    }
+  if (!mysql_create_archive_table(mysql_conn, config)) {
+    return 0;
+  }
 
-    log_message(config, "INFO", "MySQL tables created successfully");
-    return 1;
+  log_message(config, "INFO", "MySQL tables created successfully");
+  return 1;
 }
 
 int mysql_create_archive_table(MySQLConnection *mysql_conn, Config *config) {
-    const char *create_archives_table =
-        "CREATE TABLE IF NOT EXISTS archives ("
-        "    id INT AUTO_INCREMENT PRIMARY KEY,"
-        "    archive_path TEXT,"
-        "    archive_hash VARCHAR(64),"
-        "    file_count INT,"
-        "    total_size BIGINT,"
-        "    last_modified BIGINT,"
-        "    last_scanned TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
-        "    needs_rescan BOOLEAN DEFAULT TRUE,"
-        "    UNIQUE KEY unique_archive (archive_path(255))"
-        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+  const char *create_archives_table =
+      "CREATE TABLE IF NOT EXISTS archives ("
+      "    id INT AUTO_INCREMENT PRIMARY KEY,"
+      "    archive_path TEXT,"
+      "    archive_hash VARCHAR(64),"
+      "    file_count INT,"
+      "    total_size BIGINT,"
+      "    last_modified BIGINT,"
+      "    last_scanned TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+      "    needs_rescan BOOLEAN DEFAULT TRUE,"
+      "    UNIQUE KEY unique_archive (archive_path(255))"
+      ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
+  if (!mysql_execute_query(mysql_conn, create_archives_table, config)) {
+    return 0;
+  }
 
+  if (!mysql_create_ratings_table(mysql_conn, config)) {
+    return 0;
+  }
 
-    if (!mysql_create_ratings_table(mysql_conn, config)) {
-        return 0;
-    }
-
-
-    return mysql_execute_query(mysql_conn, create_archives_table, config);
+  return 1;
 }
 
 int mysql_create_ratings_table(MySQLConnection *mysql_conn, Config *config) {
-    const char *create_ratings_table_sql =
-        "CREATE TABLE IF NOT EXISTS book_ratings ("
-        "    id INT AUTO_INCREMENT PRIMARY KEY,"
-        "    book_id INT NOT NULL,"
-        "    user_ip VARCHAR(45) NOT NULL,"
-        "    rating TINYINT NOT NULL,"
-        "    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
-        "    CONSTRAINT chk_rating_range CHECK (rating >= 1 AND rating <= 5),"
-        "    CONSTRAINT unique_user_book UNIQUE (user_ip, book_id),"
-        "    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE"
-        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+  const char *create_ratings_table_sql =
+      "CREATE TABLE IF NOT EXISTS book_ratings ("
+      "    id INT AUTO_INCREMENT PRIMARY KEY,"
+      "    book_id INT NOT NULL,"
+      "    user_ip VARCHAR(45) NOT NULL,"
+      "    rating TINYINT NOT NULL,"
+      "    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+      "    CONSTRAINT chk_rating_range CHECK (rating >= 1 AND rating <= 5),"
+      "    CONSTRAINT unique_user_book UNIQUE (user_ip, book_id),"
+      "    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE"
+      ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
-    if (!mysql_create_favorites_table(mysql_conn, config)) {
-        return 0;
-    }
+  if (!mysql_execute_query(mysql_conn, create_ratings_table_sql, config)) {
+    return 0;
+  }
 
+  if (!mysql_create_favorites_table(mysql_conn, config)) {
+    return 0;
+  }
 
-    return mysql_execute_query(mysql_conn, create_ratings_table_sql, config);
+  return 1;
 }
 
 int mysql_create_favorites_table(MySQLConnection *mysql_conn, Config *config) {
-    const char *create_favorites_table_sql =
-        "CREATE TABLE IF NOT EXISTS book_favorites ("
-        "    id INT AUTO_INCREMENT PRIMARY KEY,"
-        "    book_id INT NOT NULL,"
-        "    user_ip VARCHAR(45) NOT NULL,"
-        "    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
-        "    CONSTRAINT unique_user_favorite UNIQUE (user_ip, book_id),"
-        "    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE"
-        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+  const char *create_favorites_table_sql =
+      "CREATE TABLE IF NOT EXISTS book_favorites ("
+      "    id INT AUTO_INCREMENT PRIMARY KEY,"
+      "    book_id INT NOT NULL,"
+      "    user_ip VARCHAR(45) NOT NULL,"
+      "    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+      "    CONSTRAINT unique_user_favorite UNIQUE (user_ip, book_id),"
+      "    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE"
+      ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
-    return mysql_execute_query(mysql_conn, create_favorites_table_sql, config);
+  return mysql_execute_query(mysql_conn, create_favorites_table_sql, config);
 }
 
+int mysql_archive_needs_rescan(MySQLConnection *mysql_conn,
+                               const char *archive_path,
+                               const char *current_hash, Config *config) {
+  log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] START for: %s",
+              archive_path);
 
-int mysql_archive_needs_rescan(MySQLConnection *mysql_conn, const char *archive_path, const char *current_hash, Config *config) {
-    log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] START for: %s", archive_path);
+  if (!mysql_conn || !mysql_conn->mysql) {
+    log_message(config, "DEBUG",
+                "[MYSQL_ARCHIVE_NEEDS_RESCAN] No MySQL connection");
+    return 1;
+  }
 
-    if (!mysql_conn || !mysql_conn->mysql) {
-        log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] No MySQL connection");
-        return 1;
+  struct stat st;
+  if (stat(archive_path, &st) == -1) {
+    log_message(config, "DEBUG",
+                "[MYSQL_ARCHIVE_NEEDS_RESCAN] Cannot stat archive: %s",
+                archive_path);
+    return 1;
+  }
+
+  if (config->scanner.rescan_unchanged) {
+    log_message(config, "DEBUG",
+                "[MYSQL_ARCHIVE_NEEDS_RESCAN] Forced rescan enabled");
+    return 1;
+  }
+
+  if (mysql_ping(mysql_conn->mysql)) {
+    log_message(
+        config, "WARNING",
+        "[MYSQL_ARCHIVE_NEEDS_RESCAN] Connection lost, reconnecting...");
+    if (!mysql_reconnect(mysql_conn, config)) {
+      log_message(config, "ERROR",
+                  "[MYSQL_ARCHIVE_NEEDS_RESCAN] Reconnection failed");
+      return 1;
     }
+  }
 
-    struct stat st;
-    if (stat(archive_path, &st) == -1) {
-        log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Cannot stat archive: %s", archive_path);
-        return 1;
-    }
+  char *escaped_path = malloc(strlen(archive_path) * 2 + 1);
+  if (!escaped_path) {
+    log_message(config, "ERROR",
+                "[MYSQL_ARCHIVE_NEEDS_RESCAN] Memory allocation failed");
+    return 1;
+  }
 
-    if (config->scanner.rescan_unchanged) {
-        log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Forced rescan enabled");
-        return 1;
-    }
+  mysql_real_escape_string(mysql_conn->mysql, escaped_path, archive_path,
+                           strlen(archive_path));
 
-    if (mysql_ping(mysql_conn->mysql)) {
-        log_message(config, "WARNING", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Connection lost, reconnecting...");
-        if (!mysql_reconnect(mysql_conn, config)) {
-            log_message(config, "ERROR", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Reconnection failed");
-            return 1;
-        }
-    }
+  char sql[2048];
+  snprintf(sql, sizeof(sql),
+           "SELECT archive_hash, last_modified, needs_rescan FROM archives "
+           "WHERE archive_path = '%s'",
+           escaped_path);
 
-    char *escaped_path = malloc(strlen(archive_path) * 2 + 1);
-    if (!escaped_path) {
-        log_message(config, "ERROR", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Memory allocation failed");
-        return 1;
-    }
+  log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Executing SQL: %s",
+              sql);
 
-    mysql_real_escape_string(mysql_conn->mysql, escaped_path, archive_path, strlen(archive_path));
-
-    char sql[2048];
-    snprintf(sql, sizeof(sql),
-        "SELECT archive_hash, last_modified, needs_rescan FROM archives WHERE archive_path = '%s'",
-        escaped_path);
-
-    log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Executing SQL: %s", sql);
-
-    if (mysql_query(mysql_conn->mysql, sql)) {
-        log_message(config, "ERROR", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Query failed: %s", mysql_error(mysql_conn->mysql));
-        free(escaped_path);
-        return 1;
-    }
-
-    MYSQL_RES *result = mysql_store_result(mysql_conn->mysql);
-    if (!result) {
-        log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Archive not in database or no result: %s", archive_path);
-        free(escaped_path);
-        return 1;
-    }
-
-    MYSQL_ROW row = mysql_fetch_row(result);
-    int needs_rescan = 1;
-
-    if (row) {
-        const char *stored_hash = row[0];
-        const char *mtime_str = row[1];
-        const char *needs_rescan_str = row[2];
-
-        time_t stored_mtime = mtime_str ? atol(mtime_str) : 0;
-        int needs_rescan_flag = needs_rescan_str ? atoi(needs_rescan_str) : 0;
-
-        log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Found in DB: hash=%s, mtime=%ld, needs_rescan=%d",
-                   stored_hash ? stored_hash : "NULL", stored_mtime, needs_rescan_flag);
-
-        if (needs_rescan_flag) {
-            log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Flag needs_rescan=TRUE");
-            mysql_free_result(result);
-            free(escaped_path);
-            return 1;
-        }
-
-        if (stored_hash && current_hash && strcmp(stored_hash, current_hash) == 0 &&
-            stored_mtime == st.st_mtime) {
-
-            log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Archive unchanged, skipping: %s", archive_path);
-
-            char update_sql[1024];
-            snprintf(update_sql, sizeof(update_sql),
-                     "UPDATE archives SET last_scanned = NOW() WHERE archive_path = '%s'",
-                     escaped_path);
-
-            if (mysql_query(mysql_conn->mysql, update_sql)) {
-                log_message(config, "WARNING", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Failed to update last_scanned: %s",
-                           mysql_error(mysql_conn->mysql));
-            }
-
-            needs_rescan = 0;
-        } else {
-            log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Archive changed");
-        }
-    } else {
-        log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Archive not in database: %s", archive_path);
-    }
-
-    mysql_free_result(result);
+  if (mysql_query(mysql_conn->mysql, sql)) {
+    log_message(config, "ERROR",
+                "[MYSQL_ARCHIVE_NEEDS_RESCAN] Query failed: %s",
+                mysql_error(mysql_conn->mysql));
     free(escaped_path);
+    return 1;
+  }
 
-    log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Needs rescan: %d", needs_rescan);
-    return needs_rescan;
-}
+  MYSQL_RES *result = mysql_store_result(mysql_conn->mysql);
+  if (!result) {
+    log_message(
+        config, "DEBUG",
+        "[MYSQL_ARCHIVE_NEEDS_RESCAN] Archive not in database or no result: %s",
+        archive_path);
+    free(escaped_path);
+    return 1;
+  }
 
-void mysql_update_archive_info(MySQLConnection *mysql_conn, const char *archive_path, const char *hash,
-                              int file_count, long total_size, Config *config) {
-    if (!mysql_conn || !mysql_conn->mysql) return;
+  MYSQL_ROW row = mysql_fetch_row(result);
+  int needs_rescan = 1;
 
-    struct stat st;
-    if (stat(archive_path, &st) != 0) return;
+  if (row) {
+    const char *stored_hash = row[0];
+    const char *mtime_str = row[1];
+    const char *needs_rescan_str = row[2];
 
-    const char *sql = "INSERT INTO archives (archive_path, archive_hash, file_count, total_size, last_modified, last_scanned, needs_rescan) "
-                      "VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, FALSE) "
-                      "ON DUPLICATE KEY UPDATE archive_hash = VALUES(archive_hash), file_count = VALUES(file_count), "
-                      "total_size = VALUES(total_size), last_modified = VALUES(last_modified), "
-                      "last_scanned = VALUES(last_scanned), needs_rescan = VALUES(needs_rescan)";
+    time_t stored_mtime = mtime_str ? atol(mtime_str) : 0;
+    int needs_rescan_flag = needs_rescan_str ? atoi(needs_rescan_str) : 0;
 
-    MYSQL_STMT *stmt = mysql_stmt_init(mysql_conn->mysql);
-    if (!stmt) return;
+    log_message(config, "DEBUG",
+                "[MYSQL_ARCHIVE_NEEDS_RESCAN] Found in DB: hash=%s, mtime=%ld, "
+                "needs_rescan=%d",
+                stored_hash ? stored_hash : "NULL", stored_mtime,
+                needs_rescan_flag);
 
-    if (mysql_stmt_prepare(stmt, sql, strlen(sql))) {
-        mysql_stmt_close(stmt);
-        return;
+    if (needs_rescan_flag) {
+      log_message(config, "DEBUG",
+                  "[MYSQL_ARCHIVE_NEEDS_RESCAN] Flag needs_rescan=TRUE");
+      mysql_free_result(result);
+      free(escaped_path);
+      return 1;
     }
 
-    MYSQL_BIND bind[5];
-    unsigned long lengths[5];
+    if (stored_hash && current_hash && strcmp(stored_hash, current_hash) == 0 &&
+        stored_mtime == st.st_mtime) {
 
-    memset(bind, 0, sizeof(bind));
+      log_message(
+          config, "DEBUG",
+          "[MYSQL_ARCHIVE_NEEDS_RESCAN] Archive unchanged, skipping: %s",
+          archive_path);
 
-    lengths[0] = strlen(archive_path);
-    bind[0].buffer_type = MYSQL_TYPE_STRING;
-    bind[0].buffer = (char*)archive_path;
-    bind[0].buffer_length = lengths[0];
-    bind[0].length = &lengths[0];
+      char update_sql[1024];
+      snprintf(
+          update_sql, sizeof(update_sql),
+          "UPDATE archives SET last_scanned = NOW() WHERE archive_path = '%s'",
+          escaped_path);
 
-    lengths[1] = hash ? strlen(hash) : 0;
+      if (mysql_query(mysql_conn->mysql, update_sql)) {
+        log_message(
+            config, "WARNING",
+            "[MYSQL_ARCHIVE_NEEDS_RESCAN] Failed to update last_scanned: %s",
+            mysql_error(mysql_conn->mysql));
+      }
+
+      needs_rescan = 0;
+    } else {
+      log_message(config, "DEBUG",
+                  "[MYSQL_ARCHIVE_NEEDS_RESCAN] Archive changed");
+    }
+  } else {
+    log_message(config, "DEBUG",
+                "[MYSQL_ARCHIVE_NEEDS_RESCAN] Archive not in database: %s",
+                archive_path);
+  }
+
+  mysql_free_result(result);
+  free(escaped_path);
+
+  log_message(config, "DEBUG", "[MYSQL_ARCHIVE_NEEDS_RESCAN] Needs rescan: %d",
+              needs_rescan);
+  return needs_rescan;
+}
+
+void mysql_update_archive_info(MySQLConnection *mysql_conn,
+                               const char *archive_path, const char *hash,
+                               int file_count, long total_size,
+                               Config *config) {
+  if (!mysql_conn || !mysql_conn->mysql)
+    return;
+
+  struct stat st;
+  if (stat(archive_path, &st) != 0)
+    return;
+
+  const char *sql =
+      "INSERT INTO archives (archive_path, archive_hash, file_count, "
+      "total_size, last_modified, last_scanned, needs_rescan) "
+      "VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, FALSE) "
+      "ON DUPLICATE KEY UPDATE archive_hash = VALUES(archive_hash), file_count "
+      "= VALUES(file_count), "
+      "total_size = VALUES(total_size), last_modified = VALUES(last_modified), "
+      "last_scanned = VALUES(last_scanned), needs_rescan = "
+      "VALUES(needs_rescan)";
+
+  MYSQL_STMT *stmt = mysql_stmt_init(mysql_conn->mysql);
+  if (!stmt)
+    return;
+
+  if (mysql_stmt_prepare(stmt, sql, strlen(sql))) {
+    mysql_stmt_close(stmt);
+    return;
+  }
+
+  MYSQL_BIND bind[5];
+  unsigned long lengths[5];
+  int is_null[5] = {0};
+  int false_val = 0;
+
+  memset(bind, 0, sizeof(bind));
+
+  // archive_path
+  lengths[0] = strlen(archive_path);
+  bind[0].buffer_type = MYSQL_TYPE_STRING;
+  bind[0].buffer = (char *)archive_path;
+  bind[0].buffer_length = lengths[0];
+  bind[0].length = &lengths[0];
+  bind[0].is_null = (void *)&false_val;
+
+  // archive_hash
+  if (hash) {
+    lengths[1] = strlen(hash);
     bind[1].buffer_type = MYSQL_TYPE_STRING;
-    bind[1].buffer = (char*)hash;
+    bind[1].buffer = (char *)hash;
     bind[1].buffer_length = lengths[1];
     bind[1].length = &lengths[1];
+    bind[1].is_null = (void *)&false_val;
+  } else {
+    is_null[1] = 1;
+    bind[1].is_null = (void *)&is_null[1];
+  }
 
-    bind[2].buffer_type = MYSQL_TYPE_LONG;
-    bind[2].buffer = &file_count;
+  // file_count
+  bind[2].buffer_type = MYSQL_TYPE_LONG;
+  bind[2].buffer = &file_count;
+  bind[2].is_null = (void *)&false_val;
 
-    bind[3].buffer_type = MYSQL_TYPE_LONGLONG;
-    bind[3].buffer = &total_size;
+  // total_size
+  long long total_size_ll = total_size;
+  bind[3].buffer_type = MYSQL_TYPE_LONGLONG;
+  bind[3].buffer = &total_size_ll;
+  bind[3].is_null = (void *)&false_val;
 
-    bind[4].buffer_type = MYSQL_TYPE_LONGLONG;
-    bind[4].buffer = &st.st_mtime;
+  // last_modified
+  long long mtime_ll = st.st_mtime;
+  bind[4].buffer_type = MYSQL_TYPE_LONGLONG;
+  bind[4].buffer = &mtime_ll;
+  bind[4].is_null = (void *)&false_val;
 
-    if (mysql_stmt_bind_param(stmt, bind)) {
-        mysql_stmt_close(stmt);
-        return;
-    }
-
-    if (mysql_stmt_execute(stmt)) {
-        log_message(config, "ERROR", "Failed to update archive info: %s", mysql_stmt_error(stmt));
-    } else {
-        log_message(config, "DEBUG", "Updated archive info: %s (%d files, %ld bytes)",
-                   archive_path, file_count, total_size);
-    }
-
+  if (mysql_stmt_bind_param(stmt, bind)) {
     mysql_stmt_close(stmt);
+    return;
+  }
+
+  if (mysql_stmt_execute(stmt)) {
+    log_message(config, "ERROR", "Failed to update archive info: %s",
+                mysql_stmt_error(stmt));
+  } else {
+    log_message(config, "DEBUG",
+                "Updated archive info: %s (%d files, %ld bytes)", archive_path,
+                file_count, total_size);
+  }
+
+  mysql_stmt_close(stmt);
 }
 
-int mysql_book_exists(MySQLConnection *mysql_conn, const char *filepath, const char *archive_path,
-                     const char *internal_path, const char *file_hash, Config *config) {
-    (void)archive_path;
-    (void)internal_path;
-    (void)file_hash;
+int mysql_book_exists(MySQLConnection *mysql_conn, const char *filepath,
+                      const char *archive_path, const char *internal_path,
+                      const char *file_hash, Config *config) {
+  (void)archive_path;
+  (void)internal_path;
+  (void)file_hash;
 
-    if (!mysql_conn || !mysql_conn->mysql) return 0;
+  if (!mysql_conn || !mysql_conn->mysql)
+    return 0;
 
-    log_message(config, "DEBUG", "[MYSQL_BOOK_EXISTS] Checking if book exists: %s", filepath);
+  log_message(config, "DEBUG",
+              "[MYSQL_BOOK_EXISTS] Checking if book exists: %s", filepath);
 
-    char *escaped_filepath = malloc(strlen(filepath) * 2 + 1);
-    if (!escaped_filepath) return 0;
+  char *escaped_filepath = malloc(strlen(filepath) * 2 + 1);
+  if (!escaped_filepath)
+    return 0;
 
-    mysql_real_escape_string(mysql_conn->mysql, escaped_filepath, filepath, strlen(filepath));
+  mysql_real_escape_string(mysql_conn->mysql, escaped_filepath, filepath,
+                           strlen(filepath));
 
-    char sql[1024];
-    snprintf(sql, sizeof(sql),
-             "SELECT id FROM books WHERE file_path = '%s'",
-             escaped_filepath);
+  char sql[4096];
+  snprintf(sql, sizeof(sql), "SELECT id FROM books WHERE file_path = '%s'",
+           escaped_filepath);
 
-    log_message(config, "DEBUG", "[MYSQL_BOOK_EXISTS] Executing SQL: %s", sql);
+  log_message(config, "DEBUG", "[MYSQL_BOOK_EXISTS] Executing SQL: %s", sql);
 
-    if (mysql_query(mysql_conn->mysql, sql)) {
-        log_message(config, "ERROR", "[MYSQL_BOOK_EXISTS] Query failed: %s", mysql_error(mysql_conn->mysql));
-        free(escaped_filepath);
-        return 0;
-    }
-
-    MYSQL_RES *result = mysql_store_result(mysql_conn->mysql);
-    if (!result) {
-        free(escaped_filepath);
-        return 0;
-    }
-
-    int exists = (mysql_num_rows(result) > 0);
-    mysql_free_result(result);
+  if (mysql_query(mysql_conn->mysql, sql)) {
+    log_message(config, "ERROR", "[MYSQL_BOOK_EXISTS] Query failed: %s",
+                mysql_error(mysql_conn->mysql));
     free(escaped_filepath);
+    return 0;
+  }
 
-    log_message(config, "DEBUG", "[MYSQL_BOOK_EXISTS] Book %s exists: %s", filepath, exists ? "YES" : "NO");
-    return exists;
+  MYSQL_RES *result = mysql_store_result(mysql_conn->mysql);
+  if (!result) {
+    free(escaped_filepath);
+    return 0;
+  }
+
+  int exists = (mysql_num_rows(result) > 0);
+  mysql_free_result(result);
+  free(escaped_filepath);
+
+  log_message(config, "DEBUG", "[MYSQL_BOOK_EXISTS] Book %s exists: %s",
+              filepath, exists ? "YES" : "NO");
+  return exists;
 }
 
 int mysql_reconnect(MySQLConnection *mysql_conn, Config *config) {
-    log_message(config, "DEBUG", "[MYSQL_RECONNECT] Attempting to reconnect...");
+  log_message(config, "DEBUG", "[MYSQL_RECONNECT] Attempting to reconnect...");
 
-    if (mysql_conn->mysql) {
-        mysql_close(mysql_conn->mysql);
-        mysql_conn->mysql = NULL;
-    }
+  if (mysql_conn->mysql) {
+    mysql_close(mysql_conn->mysql);
+    mysql_conn->mysql = NULL;
+  }
 
-    mysql_conn->mysql = mysql_init(NULL);
-    if (!mysql_conn->mysql) {
-        log_message(config, "ERROR", "[MYSQL_RECONNECT] mysql_init failed");
-        return 0;
-    }
+  mysql_conn->mysql = mysql_init(NULL);
+  if (!mysql_conn->mysql) {
+    log_message(config, "ERROR", "[MYSQL_RECONNECT] mysql_init failed");
+    return 0;
+  }
 
-    unsigned int timeout = 28800;
-    mysql_options(mysql_conn->mysql, MYSQL_OPT_CONNECT_TIMEOUT, &timeout);
-    mysql_options(mysql_conn->mysql, MYSQL_OPT_READ_TIMEOUT, &timeout);
-    mysql_options(mysql_conn->mysql, MYSQL_OPT_WRITE_TIMEOUT, &timeout);
+  unsigned int timeout = 30;
+  mysql_options(mysql_conn->mysql, MYSQL_OPT_CONNECT_TIMEOUT, &timeout);
+  mysql_options(mysql_conn->mysql, MYSQL_OPT_READ_TIMEOUT, &timeout);
+  mysql_options(mysql_conn->mysql, MYSQL_OPT_WRITE_TIMEOUT, &timeout);
 
-    if (!mysql_real_connect(mysql_conn->mysql,
-                           config->database.host,
-                           config->database.user,
-                           config->database.password,
-                           config->database.database,
-                           config->database.port,
-                           config->database.socket,
-                           config->database.flags)) {
-        log_message(config, "ERROR", "[MYSQL_RECONNECT] Reconnection failed: %s", mysql_error(mysql_conn->mysql));
-        mysql_close(mysql_conn->mysql);
-        mysql_conn->mysql = NULL;
-        return 0;
-    }
+  if (!mysql_real_connect(mysql_conn->mysql, config->database.host,
+                          config->database.user, config->database.password,
+                          config->database.database, config->database.port,
+                          config->database.socket, config->database.flags)) {
+    log_message(config, "ERROR", "[MYSQL_RECONNECT] Reconnection failed: %s",
+                mysql_error(mysql_conn->mysql));
+    mysql_close(mysql_conn->mysql);
+    mysql_conn->mysql = NULL;
+    return 0;
+  }
 
-    mysql_set_character_set(mysql_conn->mysql, "utf8mb4");
+  mysql_set_character_set(mysql_conn->mysql, "utf8mb4");
 
-    log_message(config, "DEBUG", "[MYSQL_RECONNECT] Successfully reconnected");
-    return 1;
+  log_message(config, "DEBUG", "[MYSQL_RECONNECT] Successfully reconnected");
+  return 1;
 }
 
-void mysql_insert_book(MySQLConnection *mysql_conn, const char *filepath, BookMeta *meta,
-                      const char *archive_path, const char *internal_path, Config *config) {
-    if (!mysql_conn || !mysql_conn->mysql) {
-        log_message(config, "ERROR", "MySQL connection is not valid");
-        return;
+void mysql_insert_book(MySQLConnection *mysql_conn, const char *filepath,
+                       BookMeta *meta, const char *archive_path,
+                       const char *internal_path, Config *config) {
+  if (!mysql_conn || !mysql_conn->mysql) {
+    log_message(config, "ERROR", "MySQL connection is not valid");
+    return;
+  }
+
+  if (!meta || !filepath) {
+    log_message(config, "ERROR", "Invalid parameters for book insertion");
+    return;
+  }
+
+  if (mysql_ping(mysql_conn->mysql)) {
+    log_message(config, "WARNING",
+                "MySQL connection lost, attempting to reconnect...");
+    if (!mysql_reconnect(mysql_conn, config)) {
+      log_message(config, "ERROR", "Reconnection failed");
+      return;
     }
+  }
 
-    if (!meta || !filepath) {
-        log_message(config, "ERROR", "Invalid parameters for book insertion");
-        return;
-    }
+  log_message(config, "INFO", "Inserting book: %s", filepath);
 
-    if (mysql_ping(mysql_conn->mysql)) {
-        log_message(config, "WARNING", "MySQL connection lost, attempting to reconnect...");
-        if (!mysql_reconnect(mysql_conn, config)) {
-            log_message(config, "ERROR", "Reconnection failed");
-            return;
-        }
-    }
-
-    log_message(config, "INFO", "Inserting book: %s", filepath);
-
-    int should_skip = check_book_exists_smart(mysql_conn, meta, config);
-
-    if (should_skip) {
-        log_message(config, "DEBUG", "[MYSQL_INSERT_BOOK] Book should be skipped based on smart check");
-        return;
-    }
-
-    const char *filename = "unknown";
-    if (internal_path) {
-        filename = internal_path;
+  // Подготовка данных
+  const char *filename = "unknown";
+  if (internal_path) {
+    filename = internal_path;
+  } else {
+    const char *slash = strrchr(filepath, '/');
+    if (slash) {
+      filename = slash + 1;
     } else {
-        const char *slash = strrchr(filepath, '/');
-        if (slash) {
-            filename = slash + 1;
-        } else {
-            filename = filepath;
-        }
+      filename = filepath;
     }
+  }
 
-    const char *file_type = "unknown";
-    const char *ext = strrchr(filename, '.');
-    if (ext && strlen(ext) > 1) {
-        file_type = ext + 1;
-    }
+  // Извлекаем расширение для file_type
+  const char *file_type = normalize_file_type(filename);
 
-    const char *title = meta->title ? meta->title : "Unknown Title";
-    const char *author = meta->author ? meta->author : "Unknown Author";
-    const char *genre = meta->genre ? meta->genre : "";
-    const char *series = meta->series ? meta->series : "";
-    const char *language = meta->language ? meta->language : "";
-    const char *publisher = meta->publisher ? meta->publisher : "";
+  log_message(config, "DEBUG",
+              "[MYSQL_INSERT_BOOK] File: %s, Detected type: %s", filename,
+              file_type);
 
-    long file_size = meta->file_size > 0 ? meta->file_size : 0;
-    int series_number = meta->series_number > 0 ? meta->series_number : 0;
-    int year = meta->year > 0 ? meta->year : 0;
+  // Используем prepared statement
+  const char *sql =
+      "INSERT INTO books (file_path, file_name, file_size, file_type, "
+      "archive_path, archive_internal_path, title, author, genre, series, "
+      "series_number, year, language, publisher, last_modified) VALUES ("
+      "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
 
-    log_message(config, "DEBUG", "[MYSQL_INSERT_BOOK] Book data - Title: '%s', Author: '%s'", title, author);
+  MYSQL_STMT *stmt = mysql_stmt_init(mysql_conn->mysql);
+  if (!stmt) {
+    log_message(config, "ERROR", "mysql_stmt_init failed");
+    return;
+  }
 
-    char escaped_filepath[4096] = {0};
-    char escaped_filename[1024] = {0};
-    char escaped_filetype[64] = {0};
-    char escaped_title[2048] = {0};
-    char escaped_author[1024] = {0};
-    char escaped_genre[512] = {0};
-    char escaped_series[512] = {0};
-    char escaped_language[64] = {0};
-    char escaped_publisher[1024] = {0};
-    char escaped_archive[4096] = {0};
-    char escaped_internal[1024] = {0};
+  if (mysql_stmt_prepare(stmt, sql, strlen(sql))) {
+    log_message(config, "ERROR", "mysql_stmt_prepare failed: %s",
+                mysql_stmt_error(stmt));
+    mysql_stmt_close(stmt);
+    return;
+  }
 
-    mysql_real_escape_string(mysql_conn->mysql, escaped_filepath, filepath, strlen(filepath));
-    mysql_real_escape_string(mysql_conn->mysql, escaped_filename, filename, strlen(filename));
-    mysql_real_escape_string(mysql_conn->mysql, escaped_filetype, file_type, strlen(file_type));
-    mysql_real_escape_string(mysql_conn->mysql, escaped_title, title, strlen(title));
-    mysql_real_escape_string(mysql_conn->mysql, escaped_author, author, strlen(author));
-    mysql_real_escape_string(mysql_conn->mysql, escaped_genre, genre, strlen(genre));
-    mysql_real_escape_string(mysql_conn->mysql, escaped_series, series, strlen(series));
-    mysql_real_escape_string(mysql_conn->mysql, escaped_language, language, strlen(language));
-    mysql_real_escape_string(mysql_conn->mysql, escaped_publisher, publisher, strlen(publisher));
+  MYSQL_BIND bind[14];
+  unsigned long lengths[14];
+  int true_val = 1;
+  int false_val = 0;
 
-    char sql[16384];
+  memset(bind, 0, sizeof(bind));
+  memset(lengths, 0, sizeof(lengths));
 
-    if (archive_path && internal_path) {
-        mysql_real_escape_string(mysql_conn->mysql, escaped_archive, archive_path, strlen(archive_path));
-        mysql_real_escape_string(mysql_conn->mysql, escaped_internal, internal_path, strlen(internal_path));
+  // file_path
+  lengths[0] = strlen(filepath);
+  bind[0].buffer_type = MYSQL_TYPE_STRING;
+  bind[0].buffer = (char *)filepath;
+  bind[0].buffer_length = lengths[0];
+  bind[0].length = &lengths[0];
+  bind[0].is_null = (void *)&false_val;
 
-        snprintf(sql, sizeof(sql),
-            "INSERT IGNORE INTO books (file_path, file_name, file_size, file_type, "
-            "archive_path, archive_internal_path, title, author, genre, series, "
-            "series_number, year, language, publisher, last_modified) VALUES ("
-            "'%s', '%s', %ld, '%s', '%s', '%s', '%s', '%s', '%s', '%s', %d, %d, '%s', '%s', NOW())",
-            escaped_filepath, escaped_filename, file_size, escaped_filetype,
-            escaped_archive, escaped_internal, escaped_title, escaped_author,
-            escaped_genre, escaped_series, series_number, year, escaped_language,
-            escaped_publisher);
-    } else {
-        snprintf(sql, sizeof(sql),
-            "INSERT IGNORE INTO books (file_path, file_name, file_size, file_type, "
-            "title, author, genre, series, series_number, year, language, publisher, last_modified) VALUES ("
-            "'%s', '%s', %ld, '%s', '%s', '%s', '%s', '%s', %d, %d, '%s', '%s', NOW())",
-            escaped_filepath, escaped_filename, file_size, escaped_filetype,
-            escaped_title, escaped_author, escaped_genre, escaped_series,
-            series_number, year, escaped_language, escaped_publisher);
-    }
+  // file_name
+  lengths[1] = strlen(filename);
+  bind[1].buffer_type = MYSQL_TYPE_STRING;
+  bind[1].buffer = (char *)filename;
+  bind[1].buffer_length = lengths[1];
+  bind[1].length = &lengths[1];
+  bind[1].is_null = (void *)&false_val;
 
-    log_message(config, "DEBUG", "[MYSQL_INSERT_BOOK] Executing INSERT IGNORE...");
+  // file_size
+  long long file_size = meta->file_size > 0 ? meta->file_size : 0;
+  bind[2].buffer_type = MYSQL_TYPE_LONGLONG;
+  bind[2].buffer = &file_size;
+  bind[2].is_null = (void *)((meta->file_size <= 0) ? &true_val : &false_val);
 
-    if (mysql_query(mysql_conn->mysql, sql)) {
-        log_message(config, "ERROR", "INSERT failed: %s", mysql_error(mysql_conn->mysql));
-    } else {
-        my_ulonglong affected_rows = mysql_affected_rows(mysql_conn->mysql);
-        log_message(config, "INFO", "Book inserted successfully. Affected rows: %llu", affected_rows);
-    }
+  // file_type
+  lengths[3] = strlen(file_type);
+  bind[3].buffer_type = MYSQL_TYPE_STRING;
+  bind[3].buffer = (char *)file_type;
+  bind[3].buffer_length = lengths[3];
+  bind[3].length = &lengths[3];
+  bind[3].is_null = (void *)&false_val;
+
+  // archive_path
+  if (archive_path && archive_path[0] != '\0') {
+    lengths[4] = strlen(archive_path);
+    bind[4].buffer_type = MYSQL_TYPE_STRING;
+    bind[4].buffer = (char *)archive_path;
+    bind[4].buffer_length = lengths[4];
+    bind[4].length = &lengths[4];
+    bind[4].is_null = (void *)&false_val;
+  } else {
+    bind[4].is_null = (void *)&true_val;
+  }
+
+  // archive_internal_path
+  if (internal_path && internal_path[0] != '\0') {
+    lengths[5] = strlen(internal_path);
+    bind[5].buffer_type = MYSQL_TYPE_STRING;
+    bind[5].buffer = (char *)internal_path;
+    bind[5].buffer_length = lengths[5];
+    bind[5].length = &lengths[5];
+    bind[5].is_null = (void *)&false_val;
+  } else {
+    bind[5].is_null = (void *)&true_val;
+  }
+
+  // title
+  const char *title = meta->title ? meta->title : "Unknown Title";
+  lengths[6] = strlen(title);
+  bind[6].buffer_type = MYSQL_TYPE_STRING;
+  bind[6].buffer = (char *)title;
+  bind[6].buffer_length = lengths[6];
+  bind[6].length = &lengths[6];
+  bind[6].is_null = (void *)&false_val;
+
+  // author
+  const char *author = meta->author ? meta->author : "Unknown Author";
+  lengths[7] = strlen(author);
+  bind[7].buffer_type = MYSQL_TYPE_STRING;
+  bind[7].buffer = (char *)author;
+  bind[7].buffer_length = lengths[7];
+  bind[7].length = &lengths[7];
+  bind[7].is_null = (void *)&false_val;
+
+  // genre
+  if (meta->genre && meta->genre[0] != '\0') {
+    lengths[8] = strlen(meta->genre);
+    bind[8].buffer_type = MYSQL_TYPE_STRING;
+    bind[8].buffer = meta->genre;
+    bind[8].buffer_length = lengths[8];
+    bind[8].length = &lengths[8];
+    bind[8].is_null = (void *)&false_val;
+  } else {
+    bind[8].is_null = (void *)&true_val;
+  }
+
+  // series
+  if (meta->series && meta->series[0] != '\0') {
+    lengths[9] = strlen(meta->series);
+    bind[9].buffer_type = MYSQL_TYPE_STRING;
+    bind[9].buffer = meta->series;
+    bind[9].buffer_length = lengths[9];
+    bind[9].length = &lengths[9];
+    bind[9].is_null = (void *)&false_val;
+  } else {
+    bind[9].is_null = (void *)&true_val;
+  }
+
+  // series_number
+  int series_number = meta->series_number;
+  bind[10].buffer_type = MYSQL_TYPE_LONG;
+  bind[10].buffer = &series_number;
+  bind[10].is_null = (void *)((series_number <= 0) ? &true_val : &false_val);
+
+  // year
+  int year = meta->year;
+  bind[11].buffer_type = MYSQL_TYPE_LONG;
+  bind[11].buffer = &year;
+  bind[11].is_null = (void *)((year <= 0) ? &true_val : &false_val);
+
+  // language
+  if (meta->language && meta->language[0] != '\0') {
+    lengths[12] = strlen(meta->language);
+    bind[12].buffer_type = MYSQL_TYPE_STRING;
+    bind[12].buffer = meta->language;
+    bind[12].buffer_length = lengths[12];
+    bind[12].length = &lengths[12];
+    bind[12].is_null = (void *)&false_val;
+  } else {
+    bind[12].is_null = (void *)&true_val;
+  }
+
+  // publisher
+  if (meta->publisher && meta->publisher[0] != '\0') {
+    lengths[13] = strlen(meta->publisher);
+    bind[13].buffer_type = MYSQL_TYPE_STRING;
+    bind[13].buffer = meta->publisher;
+    bind[13].buffer_length = lengths[13];
+    bind[13].length = &lengths[13];
+    bind[13].is_null = (void *)&false_val;
+  } else {
+    bind[13].is_null = (void *)&true_val;
+  }
+
+  // Биндим параметры
+  if (mysql_stmt_bind_param(stmt, bind)) {
+    log_message(config, "ERROR", "mysql_stmt_bind_param failed: %s",
+                mysql_stmt_error(stmt));
+    mysql_stmt_close(stmt);
+    return;
+  }
+
+  // Выполняем запрос
+  if (mysql_stmt_execute(stmt)) {
+    log_message(config, "ERROR", "mysql_stmt_execute failed: %s",
+                mysql_stmt_error(stmt));
+    mysql_stmt_close(stmt);
+    return;
+  }
+
+  my_ulonglong affected_rows = mysql_stmt_affected_rows(stmt);
+  log_message(config, "INFO", "Book inserted successfully. Affected rows: %llu",
+              affected_rows);
+
+  mysql_stmt_close(stmt);
 }
 
-int check_book_exists_smart(MySQLConnection *mysql_conn, BookMeta *meta, Config *config) {
-    if (!mysql_conn || !mysql_conn->mysql || !meta || !meta->title || !meta->author) {
-        return 0;
+int check_book_exists_smart(MySQLConnection *mysql_conn, BookMeta *meta,
+                            Config *config) {
+  if (!mysql_conn || !mysql_conn->mysql) {
+    log_message(config, "ERROR",
+                "[CHECK_BOOK_EXISTS_SMART] MySQL connection is NULL");
+    return 0;
+  }
+
+  if (!meta) {
+    log_message(config, "ERROR", "[CHECK_BOOK_EXISTS_SMART] BookMeta is NULL");
+    return 0;
+  }
+
+  if (!meta->title || !meta->author) {
+    log_message(
+        config, "DEBUG",
+        "[CHECK_BOOK_EXISTS_SMART] Missing title or author, cannot check");
+    return 0;
+  }
+
+  log_message(config, "DEBUG",
+              "[CHECK_BOOK_EXISTS_SMART] Checking: '%s' by '%s' (size: %ld)",
+              meta->title, meta->author, meta->file_size);
+
+  char *escaped_title = NULL;
+  char *escaped_author = NULL;
+  MYSQL_RES *result = NULL;
+  int should_skip = 0;
+
+  // Проверка длины строк для предотвращения DoS
+  size_t title_len = strlen(meta->title);
+  size_t author_len = strlen(meta->author);
+
+  if (title_len > 1024 || author_len > 1024) {
+    log_message(
+        config, "WARNING",
+        "[CHECK_BOOK_EXISTS_SMART] Title or author too long (%zu/%zu chars)",
+        title_len, author_len);
+    return 0;
+  }
+
+  escaped_title = malloc(title_len * 2 + 1);
+  escaped_author = malloc(author_len * 2 + 1);
+
+  if (!escaped_title || !escaped_author) {
+    log_message(config, "ERROR",
+                "[CHECK_BOOK_EXISTS_SMART] Memory allocation failed");
+    SAFE_FREE(escaped_title);
+    SAFE_FREE(escaped_author);
+    return 0;
+  }
+
+  mysql_real_escape_string(mysql_conn->mysql, escaped_title, meta->title,
+                           title_len);
+  mysql_real_escape_string(mysql_conn->mysql, escaped_author, meta->author,
+                           author_len);
+
+  char sql[8192];
+  int sql_len =
+      snprintf(sql, sizeof(sql),
+               "SELECT id, file_size, file_path FROM books WHERE title = '%s' "
+               "AND author = '%s' ORDER BY file_size DESC",
+               escaped_title, escaped_author);
+
+  if (sql_len < 0 || (size_t)sql_len >= sizeof(sql)) {
+    log_message(
+        config, "ERROR",
+        "[CHECK_BOOK_EXISTS_SMART] SQL buffer overflow (needed %d bytes)",
+        sql_len);
+    SAFE_FREE(escaped_title);
+    SAFE_FREE(escaped_author);
+    return 0;
+  }
+
+  log_message(config, "DEBUG", "[CHECK_BOOK_EXISTS_SMART] SQL: %s", sql);
+
+  if (mysql_query(mysql_conn->mysql, sql)) {
+    log_message(config, "ERROR", "[CHECK_BOOK_EXISTS_SMART] Query failed: %s",
+                mysql_error(mysql_conn->mysql));
+    SAFE_FREE(escaped_title);
+    SAFE_FREE(escaped_author);
+    return 0;
+  }
+
+  result = mysql_store_result(mysql_conn->mysql);
+  if (!result) {
+    if (mysql_errno(mysql_conn->mysql) != 0) {
+      log_message(config, "ERROR",
+                  "[CHECK_BOOK_EXISTS_SMART] Failed to store result: %s",
+                  mysql_error(mysql_conn->mysql));
+    } else {
+      log_message(config, "DEBUG",
+                  "[CHECK_BOOK_EXISTS_SMART] No existing books found");
     }
+    SAFE_FREE(escaped_title);
+    SAFE_FREE(escaped_author);
+    return 0;
+  }
 
-    log_message(config, "DEBUG", "[CHECK_BOOK_EXISTS_SMART] Checking: '%s' by '%s' (size: %ld)",
-               meta->title, meta->author, meta->file_size);
+  int existing_count = mysql_num_rows(result);
+  log_message(config, "DEBUG",
+              "[CHECK_BOOK_EXISTS_SMART] Found %d existing books",
+              existing_count);
 
-    char *escaped_title = malloc(strlen(meta->title) * 2 + 1);
-    char *escaped_author = malloc(strlen(meta->author) * 2 + 1);
-
-    mysql_real_escape_string(mysql_conn->mysql, escaped_title, meta->title, strlen(meta->title));
-    mysql_real_escape_string(mysql_conn->mysql, escaped_author, meta->author, strlen(meta->author));
-
-    char sql[4096];
-    snprintf(sql, sizeof(sql),
-        "SELECT id, file_size, file_path FROM books WHERE title = '%s' AND author = '%s' ORDER BY file_size DESC",
-        escaped_title, escaped_author);
-
-    log_message(config, "DEBUG", "[CHECK_BOOK_EXISTS_SMART] SQL: %s", sql);
-
-    if (mysql_query(mysql_conn->mysql, sql)) {
-        log_message(config, "ERROR", "[CHECK_BOOK_EXISTS_SMART] Query failed: %s", mysql_error(mysql_conn->mysql));
-        free(escaped_title);
-        free(escaped_author);
-        return 0;
-    }
-
-    MYSQL_RES *result = mysql_store_result(mysql_conn->mysql);
-    if (!result) {
-        log_message(config, "DEBUG", "[CHECK_BOOK_EXISTS_SMART] No existing books found");
-        free(escaped_title);
-        free(escaped_author);
-        return 0;
-    }
-
-    int existing_count = mysql_num_rows(result);
-    log_message(config, "DEBUG", "[CHECK_BOOK_EXISTS_SMART] Found %d existing books", existing_count);
-
-    if (existing_count == 0) {
-        mysql_free_result(result);
-        free(escaped_title);
-        free(escaped_author);
-        return 0;
-    }
-
-    MYSQL_ROW row;
-    int should_skip = 0;
-    char decision_reason[256] = {0};
-
-    while ((row = mysql_fetch_row(result))) {
-        int existing_id = atoi(row[0]);
-        long existing_size = row[1] ? atol(row[1]) : 0;
-        const char *existing_path = row[2] ? row[2] : "unknown";
-
-        log_message(config, "DEBUG", "[CHECK_BOOK_EXISTS_SMART] Existing book: ID=%d, Size=%ld, Path=%s",
-                   existing_id, existing_size, existing_path);
-
-        if (meta->file_size > 0 && existing_size > 0 && meta->file_size < existing_size * 0.5) {
-            snprintf(decision_reason, sizeof(decision_reason),
-                     "new book is much smaller (%ld vs %ld) - probably abridged version",
-                     meta->file_size, existing_size);
-            should_skip = 1;
-            break;
-        }
-
-        if (meta->file_size > 0 && existing_size > 0 && meta->file_size > existing_size * 1.1) {
-            snprintf(decision_reason, sizeof(decision_reason),
-                     "new book is much larger (%ld vs %ld) - probably full version, will replace",
-                     meta->file_size, existing_size);
-            char delete_sql[512];
-            snprintf(delete_sql, sizeof(delete_sql), "DELETE FROM books WHERE id = %d", existing_id);
-            mysql_query(mysql_conn->mysql, delete_sql);
-            log_message(config, "DEBUG", "[CHECK_BOOK_EXISTS_SMART] Deleted smaller version: ID=%d", existing_id);
-            should_skip = 0;
-            break;
-        }
-
-        if (meta->file_size > 0 && existing_size > 0 &&
-            meta->file_size >= existing_size * 0.5 &&
-            meta->file_size <= existing_size * 1.5) {
-            snprintf(decision_reason, sizeof(decision_reason),
-                     "sizes are comparable (%ld vs %ld) - probably same book",
-                     meta->file_size, existing_size);
-            should_skip = 1;
-            break;
-        }
-    }
-
+  if (existing_count == 0) {
     mysql_free_result(result);
-    free(escaped_title);
-    free(escaped_author);
+    SAFE_FREE(escaped_title);
+    SAFE_FREE(escaped_author);
+    return 0;
+  }
 
-    log_message(config, "DEBUG", "[CHECK_BOOK_EXISTS_SMART] Decision: %s (%s)",
-               should_skip ? "SKIP" : "INSERT", decision_reason);
+  MYSQL_ROW row;
+  char decision_reason[256] = {0};
 
-    return should_skip;
+  while ((row = mysql_fetch_row(result))) {
+    if (!row[0] || !row[1] || !row[2]) {
+      log_message(config, "WARNING",
+                  "[CHECK_BOOK_EXISTS_SMART] Incomplete row data");
+      continue;
+    }
+
+    int existing_id = atoi(row[0]);
+    long existing_size = row[1] ? atol(row[1]) : 0;
+    const char *existing_path = row[2] ? row[2] : "unknown";
+
+    log_message(
+        config, "DEBUG",
+        "[CHECK_BOOK_EXISTS_SMART] Existing book: ID=%d, Size=%ld, Path=%s",
+        existing_id, existing_size, existing_path);
+
+    if (meta->file_size <= 0 || existing_size <= 0) {
+      log_message(
+          config, "DEBUG",
+          "[CHECK_BOOK_EXISTS_SMART] Missing size info, skipping comparison");
+      continue;
+    }
+
+    if (existing_size > LONG_MAX / 2) {
+      log_message(config, "WARNING",
+                  "[CHECK_BOOK_EXISTS_SMART] Existing size too large: %ld",
+                  existing_size);
+      continue;
+    }
+
+    if (meta->file_size < existing_size / 2) {
+      snprintf(decision_reason, sizeof(decision_reason),
+               "new book is much smaller (%ld vs %ld bytes) - probably "
+               "abridged version",
+               meta->file_size, existing_size);
+      should_skip = 1;
+      break;
+    }
+
+    if (meta->file_size > existing_size * 11 / 10) {
+      snprintf(decision_reason, sizeof(decision_reason),
+               "new book is much larger (%ld vs %ld bytes) - probably full "
+               "version, will replace",
+               meta->file_size, existing_size);
+
+      char delete_sql[256];
+      int delete_len = snprintf(delete_sql, sizeof(delete_sql),
+                                "DELETE FROM books WHERE id = %d", existing_id);
+
+      if (delete_len > 0 && (size_t)delete_len < sizeof(delete_sql)) {
+        if (mysql_query(mysql_conn->mysql, delete_sql)) {
+          log_message(
+              config, "WARNING",
+              "[CHECK_BOOK_EXISTS_SMART] Failed to delete old version: %s",
+              mysql_error(mysql_conn->mysql));
+        } else {
+          log_message(
+              config, "DEBUG",
+              "[CHECK_BOOK_EXISTS_SMART] Deleted smaller version: ID=%d",
+              existing_id);
+        }
+      }
+
+      should_skip = 0;
+      break;
+    }
+
+    if (meta->file_size >= existing_size / 2 &&
+        meta->file_size <= existing_size * 15 / 10) {
+      snprintf(decision_reason, sizeof(decision_reason),
+               "sizes are comparable (%ld vs %ld bytes) - probably same book",
+               meta->file_size, existing_size);
+      should_skip = 1;
+      break;
+    }
+  }
+
+  mysql_free_result(result);
+  SAFE_FREE(escaped_title);
+  SAFE_FREE(escaped_author);
+
+  if (should_skip) {
+    log_message(config, "DEBUG",
+                "[CHECK_BOOK_EXISTS_SMART] Decision: SKIP (%s)",
+                decision_reason);
+  } else {
+    log_message(config, "DEBUG",
+                "[CHECK_BOOK_EXISTS_SMART] Decision: INSERT (%s)",
+                decision_reason);
+  }
+
+  return should_skip;
 }

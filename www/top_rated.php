@@ -1,22 +1,145 @@
 <?php
-require_once 'config/config.php';
-require_once 'lib/Database.php';
-require_once 'lib/PageCache.php';
+// top_rated.php
 
-PageCache::start('top_rated');
+define('LOPDS_ROOT', __DIR__);
+
+// Если это AJAX запрос, не используем кэш страниц
+if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])
+    && 'xmlhttprequest' == strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+    require_once 'config/config.php';
+    require_once 'lib/Database.php';
+    require_once 'lib/BookHelper.php';
+    require_once 'lib/Cache.php';
+} else {
+    require_once 'config/config.php';
+    require_once 'lib/Database.php';
+    require_once 'lib/BookHelper.php';
+    require_once 'lib/Cache.php';
+    require_once 'lib/PageCache.php';
+    require_once 'init.php';
+
+    // Начинаем кэширование страницы
+    $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+    $cacheKey = 'top_rated_page_'.$page;
+    PageCache::start($cacheKey);
+}
 
 $db = Database::getInstance();
+$userIp = $_SERVER['REMOTE_ADDR'];
 $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-$perPage = 20;
 
-// Получаем топ книги с минимум 1 оценкой
-$topBooks = $db->getTopRatedBooks(100, 1); // 100 книг, минимум 1 оценка
+// количество на странице для топа
+$perPage = Config::getItemsPerPage();
 
-// Пагинация
-$totalBooks = count($topBooks);
+// ========== ПОЛУЧАЕМ ДАННЫЕ ИЗ КЭША ==========
+$cacheKey = 'top_rated_data_v2';
+$allBooks = Cache::get($cacheKey, 'statistics');
+
+if (null === $allBooks) {
+    // ОПТИМИЗИРОВАННЫЙ ЗАПРОС С ИСПОЛЬЗОВАНИЕМ ИНДЕКСОВ
+    $startTime = microtime(true);
+
+    if ('mysql' === Config::getDbType()) {
+        // MySQL версия с подзапросом
+        $sql = 'SELECT 
+                    b.id,
+                    b.title,
+                    b.author,
+                    b.series,
+                    b.series_number,
+                    b.genre,
+                    b.file_type,
+                    b.added_date,
+                    COALESCE(r_stats.avg_rating, 0) as avg_rating,
+                    COALESCE(r_stats.votes_count, 0) as votes_count
+                FROM books b
+                LEFT JOIN (
+                    SELECT 
+                        book_id, 
+                        AVG(rating) as avg_rating, 
+                        COUNT(*) as votes_count
+                    FROM book_ratings
+                    GROUP BY book_id
+                ) r_stats ON b.id = r_stats.book_id
+                WHERE r_stats.votes_count >= 1
+                ORDER BY r_stats.avg_rating DESC, r_stats.votes_count DESC, b.title
+                LIMIT 100';
+    } else {
+        // SQLite версия
+        $sql = 'SELECT 
+                    b.id,
+                    b.title,
+                    b.author,
+                    b.series,
+                    b.series_number,
+                    b.genre,
+                    b.file_type,
+                    b.added_date,
+                    IFNULL(r_stats.avg_rating, 0) as avg_rating,
+                    IFNULL(r_stats.votes_count, 0) as votes_count
+                FROM books b
+                LEFT JOIN (
+                    SELECT 
+                        book_id, 
+                        AVG(rating) as avg_rating, 
+                        COUNT(*) as votes_count
+                    FROM book_ratings
+                    GROUP BY book_id
+                ) r_stats ON b.id = r_stats.book_id
+                WHERE r_stats.votes_count >= 1
+                ORDER BY r_stats.avg_rating DESC, r_stats.votes_count DESC, b.title
+                LIMIT 100';
+    }
+
+    $stmt = $db->getConnection()->query($sql);
+    $allBooks = $stmt->fetchAll();
+    $queryTime = microtime(true) - $startTime;
+    error_log('Top rated query time: '.round($queryTime, 2).' sec');
+
+    // Кэшируем на 1 час
+    Cache::set($cacheKey, $allBooks, 3600);
+}
+
+// ========== ПОЛУЧАЕМ СТАТУС ИЗБРАННОГО ОДНИМ ЗАПРОСОМ ==========
+$favoritesMap = [];
+$bookIds = array_column($allBooks, 'id');
+if (!empty($bookIds)) {
+    $placeholders = implode(',', array_fill(0, count($bookIds), '?'));
+    $params = array_merge($bookIds, [$userIp]);
+
+    $stmt = $db->getConnection()->prepare("
+        SELECT book_id 
+        FROM book_favorites 
+        WHERE book_id IN ($placeholders) AND user_ip = ?
+    ");
+    $stmt->execute($params);
+
+    while ($row = $stmt->fetch()) {
+        $favoritesMap[$row['book_id']] = true;
+    }
+}
+
+// ========== ПАГИНАЦИЯ ==========
+$totalBooks = count($allBooks);
 $totalPages = ceil($totalBooks / $perPage);
 $offset = ($page - 1) * $perPage;
-$currentBooks = array_slice($topBooks, $offset, $perPage);
+$currentBooks = array_slice($allBooks, $offset, $perPage);
+
+// ========== ОБЩАЯ СТАТИСТИКА РЕЙТИНГОВ ==========
+$statsCacheKey = 'rating_stats_global';
+$ratingStats = Cache::get($statsCacheKey, 'statistics');
+
+if (null === $ratingStats) {
+    $stmt = $db->getConnection()->query('
+        SELECT
+            COUNT(DISTINCT book_id) as rated_books,
+            COUNT(*) as total_ratings,
+            COALESCE(AVG(rating), 0) as avg_rating
+        FROM book_ratings
+    ');
+    $ratingStats = $stmt->fetch();
+    Cache::set($statsCacheKey, $ratingStats, 3600);
+}
 
 require 'templates/header.php';
 ?>
@@ -24,7 +147,7 @@ require 'templates/header.php';
 <div class="container mt-4">
     <h1 class="mb-4">
         <i class="fas fa-star text-warning me-2"></i>
-        Лучшие книги по оценкам читателей
+        <?php echo __('top_rated_title'); ?>
     </h1>
     
     <div class="alert alert-info">
@@ -34,76 +157,55 @@ require 'templates/header.php';
             </div>
             <div>
                 <p class="mb-0">
-                    Здесь представлены книги с наивысшим рейтингом от пользователей библиотеки.
-                    Для попадания в рейтинг книга должна иметь минимум <strong>1 оценку</strong>.
-                    Чем больше оценок, тем точнее рейтинг.
+                    <?php echo __('top_rated_description'); ?>
                 </p>
             </div>
         </div>
     </div>
     
-    <?php if (empty($topBooks)): ?>
+    <?php if (empty($allBooks)) { ?>
         <div class="alert alert-warning">
-            <div class="d-flex align-items-center">
-                <div class="me-3">
-                    <i class="fas fa-exclamation-triangle fa-2x"></i>
-                </div>
-                <div>
-                    <h5 class="alert-heading">Пока нет оценок</h5>
-                    <p class="mb-0">
-                        Ни одна книга еще не получила оценок.
-                        <a href="index.php" class="alert-link">Перейдите в каталог</a> и оцените понравившиеся книги,
-                        чтобы помочь другим читателям!
-                    </p>
-                </div>
-            </div>
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <?php echo __('top_rated_empty'); ?>
         </div>
-    <?php else: ?>
+    <?php } else { ?>
         <!-- Статистика рейтингов -->
         <div class="row mb-4">
             <div class="col-md-4">
-                <div class="card text-center">
+                <div class="card text-center shadow-sm">
                     <div class="card-body">
-                        <h5 class="card-title text-muted">Всего оценено книг</h5>
-                        <div class="display-4 text-primary"><?php echo count($topBooks); ?></div>
-                        <small class="text-muted">
-                            <?php 
-                            $totalAllBooks = $db->getTotalBooksCount();
-                            echo round(count($topBooks) / max(1, $totalAllBooks) * 100, 1); ?>% от всех книг
-                        </small>
+                        <h6 class="card-title text-muted"><?php echo __('top_rated_total_rated'); ?></h6>
+                        <div class="display-4 text-primary"><?php echo number_format($ratingStats['rated_books']); ?></div>
+                        <small class="text-muted"><?php echo __('of'); ?> <?php echo number_format($totalBooks); ?> <?php echo __('top_rated_in_top'); ?></small>
                     </div>
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="card text-center">
+                <div class="card text-center shadow-sm">
                     <div class="card-body">
-                        <h5 class="card-title text-muted">Всего оценок</h5>
-                        <?php
-                        try {
-                            $totalRatings = $db->getConnection()->query("SELECT COUNT(*) as count FROM book_ratings")->fetch()['count'];
-                        } catch (Exception $e) {
-                            $totalRatings = 0;
-                        }
-                        ?>
-                        <div class="display-4 text-success"><?php echo $totalRatings; ?></div>
-                        <small class="text-muted">от пользователей</small>
+                        <h6 class="card-title text-muted"><?php echo __('top_rated_total_votes'); ?></h6>
+                        <div class="display-4 text-success"><?php echo number_format($ratingStats['total_ratings']); ?></div>
+                        <small class="text-muted"><?php echo __('top_rated_from_users'); ?></small>
                     </div>
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="card text-center">
+                <div class="card text-center shadow-sm">
                     <div class="card-body">
-                        <h5 class="card-title text-muted">Средний рейтинг</h5>
-                        <?php
-                        try {
-                            $avgRating = $db->getConnection()->query("SELECT AVG(rating) as avg FROM book_ratings")->fetch()['avg'];
-                            $avgRating = $avgRating ? round($avgRating, 2) : 0;
-                        } catch (Exception $e) {
-                            $avgRating = 0;
-                        }
-                        ?>
-                        <div class="display-4 text-warning"><?php echo $avgRating; ?></div>
-                        <small class="text-muted">из 5 возможных</small>
+                        <h6 class="card-title text-muted"><?php echo __('stats_avg_rating'); ?></h6>
+                        <div class="display-4 text-warning"><?php echo number_format($ratingStats['avg_rating'], 2); ?></div>
+                        <div class="mt-2">
+                            <?php
+                            $avgRounded = round($ratingStats['avg_rating'] * 2) / 2;
+        $fullStars = floor($avgRounded);
+        $halfStar = $avgRounded - $fullStars >= 0.5;
+        for ($i = 0; $i < $fullStars; ++$i) { ?>
+                                <i class="fas fa-star text-warning"></i>
+                            <?php } ?>
+                            <?php if ($halfStar) { ?>
+                                <i class="fas fa-star-half-alt text-warning"></i>
+                            <?php } ?>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -111,316 +213,231 @@ require 'templates/header.php';
         
         <!-- Таблица рейтинга -->
         <div class="card shadow">
-            <div class="card-header py-3">
+            <div class="card-header py-3 bg-white">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="m-0 font-weight-bold text-primary">
                         <i class="fas fa-trophy me-2"></i>
-                        Рейтинг книг
+                        <?php echo __('top_rated_books'); ?>
                     </h6>
-                    <div class="text-muted">
-                        Страница <?php echo $page; ?> из <?php echo $totalPages; ?>
+                    <div class="text-muted small">
+                        <?php echo __('page'); ?> <?php echo $page; ?> <?php echo __('of'); ?> <?php echo $totalPages; ?>
                     </div>
                 </div>
             </div>
-            <div class="card-body">
+            <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead class="thead-light">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
                             <tr>
                                 <th width="60" class="text-center">#</th>
-                                <th>Книга</th>
-                                <th width="150">Автор</th>
-                                <th width="120">Рейтинг</th>
-                                <th width="100" class="text-center">Оценок</th>
-                                <th width="150" class="text-center">Действия</th>
+                                <th><?php echo __('book_title'); ?></th>
+                                <th width="200"><?php echo __('book_author'); ?></th>
+                                <th width="150"><?php echo __('rating'); ?></th>
+                                <th width="80" class="text-center"><?php echo __('votes'); ?></th>
+                                <th width="100" class="text-center"><?php echo __('book_format'); ?></th>
+                                <th width="150" class="text-center"><?php echo __('actions'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($currentBooks as $index => $book): 
+                            <?php foreach ($currentBooks as $index => $book) {
                                 $globalIndex = $offset + $index + 1;
-                                $rating = $db->getBookRating($book['id']);
-                                $avgRating = $rating['average'];
-                                $votes = $rating['votes'];
-                            ?>
+                                $avgRating = (float) $book['avg_rating'];
+                                $votes = (int) $book['votes_count'];
+                                $isFavorite = isset($favoritesMap[$book['id']]);
+                                ?>
                                 <tr>
-                                    <td class="text-center">
-                                        <?php if ($globalIndex <= 3): ?>
-                                            <span class="badge bg-warning text-dark fs-6 p-2"><?php echo $globalIndex; ?></span>
-                                        <?php else: ?>
-                                            <span class="badge bg-secondary fs-6"><?php echo $globalIndex; ?></span>
-                                        <?php endif; ?>
+                                    <td class="text-center align-middle">
+                                        <?php if ($globalIndex <= 3) { ?>
+                                            <span class="badge bg-warning text-dark rounded-circle p-2" style="width: 32px;">
+                                                <?php echo $globalIndex; ?>
+                                            </span>
+                                        <?php } else { ?>
+                                            <span class="badge bg-secondary rounded-circle p-2" style="width: 32px;">
+                                                <?php echo $globalIndex; ?>
+                                            </span>
+                                        <?php } ?>
                                     </td>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="me-3">
-                                                <?php
-                                                require_once 'lib/BookHelper.php';
-                                                $hasCover = BookHelper::hasCover($book);
-                                                ?>
-                                                <?php if ($hasCover): ?>
-                                                    <img src="./api/cover_direct.php?id=<?php echo $book['id']; ?>&thumb=1" 
-                                                         class="rounded" 
-                                                         style="width: 50px; height: 75px; object-fit: cover;"
-                                                         alt="Обложка"
-                                                         onerror="this.style.display='none'">
-                                                <?php endif; ?>
-                                                <?php if (!$hasCover): ?>
-                                                    <div class="bg-light d-flex align-items-center justify-content-center rounded" 
-                                                         style="width: 50px; height: 75px;">
-                                                        <i class="fas fa-book text-muted"></i>
-                                                    </div>
-                                                <?php endif; ?>
-                                            </div>
-                                            <div>
-                                                <strong>
-                                                    <a href="book_detail.php?id=<?php echo $book['id']; ?>" 
-                                                       class="text-decoration-none">
-                                                        <?php echo htmlspecialchars($book['title'] ?: 'Без названия'); ?>
-                                                    </a>
-                                                </strong>
-                                                <?php if (!empty($book['series'])): ?>
-                                                    <div class="text-muted">
-                                                        <small>
-                                                            <i class="fas fa-bookmark me-1"></i>
-                                                            <?php echo htmlspecialchars($book['series']); ?>
-                                                            <?php if (!empty($book['series_number'])): ?>
-                                                                <span class="badge bg-light text-dark border ms-1">
-                                                                    #<?php echo $book['series_number']; ?>
-                                                                </span>
-                                                            <?php endif; ?>
-                                                        </small>
-                                                    </div>
-                                                <?php endif; ?>
-                                                <?php if (!empty($book['genre'])): ?>
-                                                    <div>
-                                                        <small class="badge bg-light text-dark border">
-                                                            <?php echo htmlspecialchars($db->getReadableGenre($book['genre']) ?: $book['genre']); ?>
-                                                        </small>
-                                                    </div>
-                                                <?php endif; ?>
-                                            </div>
+                                    <td class="align-middle">
+                                        <div>
+                                            <a href="book_detail.php?id=<?php echo $book['id']; ?>" 
+                                               class="text-decoration-none fw-bold">
+                                                <?php echo htmlspecialchars(mb_substr($book['title'] ?: __('book_untitled'), 0, 60)).(mb_strlen($book['title'] ?? '') > 60 ? '…' : ''); ?>
+                                            </a>
+                                            <?php if (!empty($book['series'])) { ?>
+                                                <div class="small text-muted">
+                                                    <i class="fas fa-bookmark me-1"></i>
+                                                    <?php echo htmlspecialchars(mb_substr($book['series'], 0, 40)); ?>
+                                                    <?php if (!empty($book['series_number'])) { ?>
+                                                        <span class="badge bg-light text-dark border ms-1">#<?php echo $book['series_number']; ?></span>
+                                                    <?php } ?>
+                                                </div>
+                                            <?php } ?>
                                         </div>
                                     </td>
-                                    <td>
-                                        <?php if (!empty($book['author'])): ?>
+                                    <td class="align-middle">
+                                        <?php if (!empty($book['author'])) { ?>
                                             <a href="index.php?field=author&q=<?php echo urlencode($book['author']); ?>" 
                                                class="text-decoration-none">
-                                                <?php echo htmlspecialchars($book['author']); ?>
+                                                <?php echo htmlspecialchars(mb_substr($book['author'], 0, 30)); ?>
                                             </a>
-                                        <?php else: ?>
-                                            <span class="text-muted">Неизвестен</span>
-                                        <?php endif; ?>
+                                        <?php } else { ?>
+                                            <span class="text-muted"><?php echo __('book_unknown_author'); ?></span>
+                                        <?php } ?>
                                     </td>
-                                    <td>
+                                    <td class="align-middle">
                                         <div class="d-flex align-items-center">
-                                            <div class="me-2">
-                                                <span class="h5 mb-0 text-warning"><?php echo number_format($avgRating, 1); ?></span>
-                                            </div>
-                                            <div>
-                                                <div class="star-rating-small">
-                                                    <?php
-                                                    $fullStars = floor($rating['average_rounded']);
-                                                    $halfStar = $rating['average_rounded'] - $fullStars >= 0.5;
-                                                    
-                                                    for ($i = 0; $i < $fullStars; $i++): ?>
-                                                        <i class="fas fa-star text-warning" style="font-size: 0.9em;"></i>
-                                                    <?php endfor; ?>
-                                                    
-                                                    <?php if ($halfStar): ?>
-                                                        <i class="fas fa-star-half-alt text-warning" style="font-size: 0.9em;"></i>
-                                                    <?php endif; ?>
-                                                    
-                                                    <?php for ($i = 0; $i < (5 - $fullStars - ($halfStar ? 1 : 0)); $i++): ?>
-                                                        <i class="far fa-star text-warning" style="font-size: 0.9em;"></i>
-                                                    <?php endfor; ?>
-                                                </div>
+                                            <span class="h5 mb-0 text-warning me-2"><?php echo number_format($avgRating, 1); ?></span>
+                                            <div class="star-rating">
+                                                <?php
+                                                    $fullStars = floor($avgRating);
+                                $halfStar = $avgRating - $fullStars >= 0.5;
+                                for ($i = 0; $i < $fullStars; ++$i) { ?>
+                                                    <i class="fas fa-star text-warning" style="font-size: 0.8em;"></i>
+                                                <?php } ?>
+                                                <?php if ($halfStar) { ?>
+                                                    <i class="fas fa-star-half-alt text-warning" style="font-size: 0.8em;"></i>
+                                                <?php } ?>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="text-center">
-                                        <span class="h5"><?php echo $votes; ?></span>
-                                        <div><small class="text-muted">оценок</small></div>
+                                    <td class="text-center align-middle">
+                                        <span class="badge bg-primary rounded-pill"><?php echo $votes; ?></span>
                                     </td>
-                                    <td class="text-center">
+                                    <td class="text-center align-middle">
+                                        <span class="badge bg-secondary"><?php echo strtoupper($book['file_type']); ?></span>
+                                    </td>
+                                    <td class="text-center align-middle">
                                         <div class="btn-group btn-group-sm" role="group">
                                             <a href="book_detail.php?id=<?php echo $book['id']; ?>" 
-                                               class="btn btn-outline-primary" title="Подробнее">
+                                               class="btn btn-outline-primary" 
+                                               title="<?php echo __('details'); ?>"
+                                               data-bs-toggle="tooltip">
                                                 <i class="fas fa-eye"></i>
                                             </a>
                                             <a href="./api/download.php?id=<?php echo $book['id']; ?>" 
-                                               class="btn btn-outline-success" title="Скачать">
+                                               class="btn btn-outline-success" 
+                                               title="<?php echo __('download'); ?>"
+                                               data-bs-toggle="tooltip">
                                                 <i class="fas fa-download"></i>
                                             </a>
-                                            <?php
-                                            $isFavorite = $db->isBookInFavorites($book['id'], $_SERVER['REMOTE_ADDR']);
-                                            ?>
-                                            <button type="button" 
-                                                    class="btn <?php echo $isFavorite ? 'btn-danger' : 'btn-outline-danger'; ?> favorite-toggle"
+                                            <button class="btn <?php echo $isFavorite ? 'btn-danger' : 'btn-outline-danger'; ?> favorite-btn"
+                                                    onclick="toggleFavorite(<?php echo $book['id']; ?>, this)"
                                                     data-book-id="<?php echo $book['id']; ?>"
-                                                    title="<?php echo $isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'; ?>">
+                                                    title="<?php echo $isFavorite ? __('favorites_remove') : __('favorites_add'); ?>">
                                                 <i class="<?php echo $isFavorite ? 'fas' : 'far'; ?> fa-heart"></i>
                                             </button>
                                         </div>
                                     </td>
                                 </tr>
-                            <?php endforeach; ?>
+                            <?php } ?>
                         </tbody>
                     </table>
                 </div>
                 
                 <!-- Пагинация -->
-                <?php if ($totalPages > 1): ?>
-                    <nav aria-label="Пагинация" class="mt-4">
-                        <ul class="pagination justify-content-center">
-                            <?php if ($page > 1): ?>
+                <?php if ($totalPages > 1) { ?>
+                <div class="card-footer bg-white">
+                    <nav aria-label="<?php echo __('pagination'); ?>">
+                        <ul class="pagination justify-content-center mb-0">
+                            <?php if ($page > 1) { ?>
                                 <li class="page-item">
-                                    <a class="page-link" href="?page=<?php echo $page - 1; ?>">
-                                        <i class="fas fa-chevron-left me-1"></i>Назад
+                                    <a class="page-link" href="?page=<?php echo $page - 1; ?>" aria-label="<?php echo __('previous'); ?>">
+                                        <span aria-hidden="true">&laquo;</span>
                                     </a>
                                 </li>
-                            <?php endif; ?>
+                            <?php } ?>
                             
                             <?php
                             $startPage = max(1, $page - 2);
-                            $endPage = min($totalPages, $page + 2);
-                            
-                            for ($i = $startPage; $i <= $endPage; $i++): ?>
+                    $endPage = min($totalPages, $page + 2);
+
+                    if ($startPage > 1) {
+                        echo '<li class="page-item"><a class="page-link" href="?page=1">1</a></li>';
+                        if ($startPage > 2) {
+                            echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                        }
+                    }
+
+                    for ($i = $startPage; $i <= $endPage; ++$i) { ?>
                                 <li class="page-item <?php echo $i == $page ? 'active' : ''; ?>">
                                     <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
                                 </li>
-                            <?php endfor; ?>
+                            <?php } ?>
                             
-                            <?php if ($page < $totalPages): ?>
+                            <?php if ($endPage < $totalPages) { ?>
+                                <?php if ($endPage < $totalPages - 1) { ?>
+                                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                                <?php } ?>
                                 <li class="page-item">
-                                    <a class="page-link" href="?page=<?php echo $page + 1; ?>">
-                                        Вперед<i class="fas fa-chevron-right ms-1"></i>
+                                    <a class="page-link" href="?page=<?php echo $totalPages; ?>"><?php echo $totalPages; ?></a>
+                                </li>
+                            <?php } ?>
+                            
+                            <?php if ($page < $totalPages) { ?>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=<?php echo $page + 1; ?>" aria-label="<?php echo __('next'); ?>">
+                                        <span aria-hidden="true">&raquo;</span>
                                     </a>
                                 </li>
-                            <?php endif; ?>
+                            <?php } ?>
                         </ul>
                     </nav>
-                <?php endif; ?>
+                </div>
+                <?php } ?>
             </div>
         </div>
-    <?php endif; ?>
+    <?php } ?>
     
     <div class="mt-4 text-center">
         <a href="index.php" class="btn btn-primary">
-            <i class="fas fa-search me-2"></i>Найти больше книг
+            <i class="fas fa-search me-2"></i><?php echo __('favorites_find_books'); ?>
         </a>
         <a href="favorites.php" class="btn btn-outline-danger ms-2">
-            <i class="fas fa-heart me-2"></i>Мои избранные
+            <i class="fas fa-heart me-2"></i><?php echo __('my_favorites'); ?>
         </a>
         <a href="stats.php" class="btn btn-outline-info ms-2">
-            <i class="fas fa-chart-bar me-2"></i>Статистика
+            <i class="fas fa-chart-bar me-2"></i><?php echo __('stats_full'); ?>
         </a>
     </div>
 </div>
 
-<!-- JavaScript для избранного -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Обработчики для кнопок избранного
-    document.querySelectorAll('.favorite-toggle').forEach(button => {
-        button.addEventListener('click', function() {
-            const bookId = this.dataset.bookId;
-            if (!bookId) return;
-            
-            toggleFavorite(bookId, this);
-        });
-    });
-});
-
-function toggleFavorite(bookId, button) {
-    const originalHTML = button.innerHTML;
-    const originalClass = button.className;
-    
-    // Показываем загрузку
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-    button.disabled = true;
-    
-    fetch('./api/rating.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            action: 'toggle_favorite',
-            book_id: bookId
-        })
-    })
-    .then(response => {
-        if (!response.ok) throw new Error('Network error');
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            // Обновляем кнопку
-            if (data.is_favorite) {
-                button.innerHTML = '<i class="fas fa-heart"></i>';
-                button.className = originalClass.replace('btn-outline-danger', 'btn-danger');
-                button.title = 'Удалить из избранного';
-                showNotification('Добавлено в избранное', 'success');
-            } else {
-                button.innerHTML = '<i class="far fa-heart"></i>';
-                button.className = originalClass.replace('btn-danger', 'btn-outline-danger');
-                button.title = 'Добавить в избранное';
-                showNotification('Удалено из избранного', 'info');
-            }
-        } else {
-            button.innerHTML = originalHTML;
-            showNotification(data.message || 'Ошибка', 'error');
-        }
-        button.disabled = false;
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        button.innerHTML = originalHTML;
-        button.disabled = false;
-        showNotification('Ошибка сети', 'error');
-    });
-}
-
-function showNotification(message, type) {
-    // Создаем уведомление
-    const alert = document.createElement('div');
-    alert.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-    alert.style.cssText = 'top: 20px; right: 20px; z-index: 1050; max-width: 300px;';
-    alert.innerHTML = `
-        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'} me-2"></i>
-        ${message}
-        <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
-    `;
-    
-    document.body.appendChild(alert);
-    
-    setTimeout(() => {
-        if (alert.parentNode) {
-            alert.remove();
-        }
-    }, 3000);
-}
-</script>
+<!-- Информация о времени генерации -->
+<div class="container mt-2">
+    <div class="text-center text-muted small">
+        <?php
+        $genTime = round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3);
+?>
+        <i class="fas fa-clock me-1"></i>
+        <?php echo sprintf(__('stats_generated_in'), $genTime); ?> | 
+        <i class="fas fa-database me-1"></i>
+        <?php echo __('stats_queries'); ?>: <?php echo $db->getQueryCount(); ?> | 
+        <i class="fas fa-bolt me-1"></i>
+        <?php echo __('stats_cache'); ?>: <?php echo $allBooks ? 'HIT' : 'MISS'; ?>
+    </div>
+</div>
 
 <style>
-.star-rating-small i {
-    margin: 0 1px;
-}
-
 .table-hover tbody tr:hover {
     background-color: rgba(0,0,0,0.02);
 }
-
-.badge {
-    font-weight: 600;
+.star-rating {
+    display: inline-block;
+    white-space: nowrap;
 }
-
-.card-header {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+.badge.rounded-circle {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
 }
-
-.btn-group-sm .btn {
-    padding: 0.25rem 0.5rem;
+.fa-spinner {
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 </style>
 

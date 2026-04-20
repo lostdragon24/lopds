@@ -20,13 +20,17 @@
 // СТАНДАРТНЫЕ ЗАГОЛОВОЧНЫЕ ФАЙЛЫ
 // ============================================================================
 
+#include <ctype.h>
+#include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <ctype.h>
-#include <stdarg.h>
-#include <errno.h>
+
+#include <openssl/evp.h>
+#include <openssl/md5.h>
+#include <openssl/sha.h>
 
 // ============================================================================
 // ПЛАТФОРМО-ЗАВИСИМЫЕ ЗАГОЛОВКИ
@@ -34,19 +38,19 @@
 
 #ifndef _WIN32
 // Unix/Linux/macOS/BSD системы
-#include <unistd.h>
-#include <sys/stat.h>
 #include <dirent.h>
 #include <fcntl.h>
-#include <sys/file.h>
-#include <pwd.h>
 #include <grp.h>
+#include <pwd.h>
+#include <sys/file.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #else
 // Windows системы
-#include <windows.h>
 #include <direct.h>
 #include <io.h>
 #include <process.h>
+#include <windows.h>
 
 // Определяем Unix-совместимые константы для Windows
 #define R_OK 04
@@ -94,11 +98,12 @@
 
 // Эмуляция flock для Windows
 struct flock {
-    short l_type;   /* Тип блокировки: F_RDLCK, F_WRLCK, F_UNLCK */
-    short l_whence; /* Как интерпретировать l_start: SEEK_SET, SEEK_CUR, SEEK_END */
-    off_t l_start;  /* Смещение для начала блокировки */
-    off_t l_len;    /* Количество байтов для блокировки */
-    pid_t l_pid;    /* PID процесса, владеющего блокировкой (F_GETLK only) */
+  short l_type; /* Тип блокировки: F_RDLCK, F_WRLCK, F_UNLCK */
+  short
+      l_whence; /* Как интерпретировать l_start: SEEK_SET, SEEK_CUR, SEEK_END */
+  off_t l_start; /* Смещение для начала блокировки */
+  off_t l_len;   /* Количество байтов для блокировки */
+  pid_t l_pid;   /* PID процесса, владеющего блокировкой (F_GETLK only) */
 };
 
 #define F_RDLCK 0
@@ -110,35 +115,35 @@ struct flock {
 
 // Windows версия fcntl для flock
 static inline int fcntl(int fd, int cmd, ...) {
-    va_list ap;
-    va_start(ap, cmd);
+  va_list ap;
+  va_start(ap, cmd);
 
-    if (cmd == F_SETLK || cmd == F_SETLKW) {
-        struct flock* lock = va_arg(ap, struct flock*);
-        OVERLAPPED ov = {0};
+  if (cmd == F_SETLK || cmd == F_SETLKW) {
+    struct flock *lock = va_arg(ap, struct flock *);
+    OVERLAPPED ov = {0};
 
-        if (lock->l_type == F_WRLCK) {
-            // Эксклюзивная блокировка
-            if (LockFileEx((HANDLE)_get_osfhandle(fd), LOCKFILE_EXCLUSIVE_LOCK,
-                          0, lock->l_len, 0, &ov)) {
-                return 0;
-            }
-        } else if (lock->l_type == F_RDLCK) {
-            // Разделяемая блокировка
-            if (LockFileEx((HANDLE)_get_osfhandle(fd), 0, 0, lock->l_len, 0, &ov)) {
-                return 0;
-            }
-        } else if (lock->l_type == F_UNLCK) {
-            // Разблокировка
-            if (UnlockFileEx((HANDLE)_get_osfhandle(fd), 0, lock->l_len, 0, &ov)) {
-                return 0;
-            }
-        }
-        return -1;
+    if (lock->l_type == F_WRLCK) {
+      // Эксклюзивная блокировка
+      if (LockFileEx((HANDLE)_get_osfhandle(fd), LOCKFILE_EXCLUSIVE_LOCK, 0,
+                     lock->l_len, 0, &ov)) {
+        return 0;
+      }
+    } else if (lock->l_type == F_RDLCK) {
+      // Разделяемая блокировка
+      if (LockFileEx((HANDLE)_get_osfhandle(fd), 0, 0, lock->l_len, 0, &ov)) {
+        return 0;
+      }
+    } else if (lock->l_type == F_UNLCK) {
+      // Разблокировка
+      if (UnlockFileEx((HANDLE)_get_osfhandle(fd), 0, lock->l_len, 0, &ov)) {
+        return 0;
+      }
     }
-
-    va_end(ap);
     return -1;
+  }
+
+  va_end(ap);
+  return -1;
 }
 
 #endif // _WIN32
@@ -160,23 +165,23 @@ static inline int fcntl(int fd, int cmd, ...) {
 #endif
 
 // Макросы для безопасности строк
-#define STR_SAFE_COPY(dest, src, size) \
-    do { \
-        strncpy((dest), (src), (size) - 1); \
-        (dest)[(size) - 1] = '\0'; \
-    } while(0)
+#define STR_SAFE_COPY(dest, src, size)                                         \
+  do {                                                                         \
+    strncpy((dest), (src), (size) - 1);                                        \
+    (dest)[(size) - 1] = '\0';                                                 \
+  } while (0)
 
-#define STR_SAFE_CAT(dest, src, size) \
-    do { \
-        size_t dest_len = strlen(dest); \
-        size_t src_len = strlen(src); \
-        if (dest_len + src_len < (size) - 1) { \
-            strcat(dest, src); \
-        } else { \
-            strncat(dest, src, (size) - dest_len - 1); \
-            (dest)[(size) - 1] = '\0'; \
-        } \
-    } while(0)
+#define STR_SAFE_CAT(dest, src, size)                                          \
+  do {                                                                         \
+    size_t dest_len = strlen(dest);                                            \
+    size_t src_len = strlen(src);                                              \
+    if (dest_len + src_len < (size) - 1) {                                     \
+      strcat(dest, src);                                                       \
+    } else {                                                                   \
+      strncat(dest, src, (size) - dest_len - 1);                               \
+      (dest)[(size) - 1] = '\0';                                               \
+    }                                                                          \
+  } while (0)
 
 // ============================================================================
 // ЛОГИРОВАНИЕ И ОТЛАДКА
@@ -197,26 +202,30 @@ static inline int fcntl(int fd, int cmd, ...) {
 #ifdef DEBUG
 #define DBG(...) printf("DEBUG: " __VA_ARGS__)
 #else
-#define DBG(...) ((void)0)  // ничего не делать в release
+#define DBG(...) ((void)0) // ничего не делать в release
 #endif
 
 // Макрос для логов без конфигурации (до её инициализации)
-#define LOG_EARLY(level, ...) \
-    do { \
-        time_t now = time(NULL); \
-        struct tm *tm_info = localtime(&now); \
-        char timestamp[20]; \
-        strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info); \
-        fprintf(stderr, "[%s] %s: ", timestamp, level); \
-        fprintf(stderr, __VA_ARGS__); \
-        fprintf(stderr, "\n"); \
-    } while(0)
+#ifndef LOG_EARLY_DEFINED
+#define LOG_EARLY_DEFINED
+
+#define LOG_EARLY(level, ...)                                                  \
+  do {                                                                         \
+    time_t now = time(NULL);                                                   \
+    struct tm *tm_info = localtime(&now);                                      \
+    char timestamp[20];                                                        \
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);      \
+    fprintf(stderr, "[%s] %s: ", timestamp, level);                            \
+    fprintf(stderr, __VA_ARGS__);                                              \
+    fprintf(stderr, "\n");                                                     \
+  } while (0)
 
 #define LOG_EARLY_DEBUG(...) LOG_EARLY("DEBUG", __VA_ARGS__)
 #define LOG_EARLY_INFO(...) LOG_EARLY("INFO", __VA_ARGS__)
 #define LOG_EARLY_WARNING(...) LOG_EARLY("WARNING", __VA_ARGS__)
 #define LOG_EARLY_ERROR(...) LOG_EARLY("ERROR", __VA_ARGS__)
 
+#endif // LOG_EARLY_DEFINE
 #endif // LOGGING_H
 
 // ============================================================================
@@ -242,11 +251,11 @@ typedef HANDLE file_handle_t;
 // Структура для статистики файла
 struct file_stat {
 #ifdef _WIN32
-    struct _stat64 st;
+  struct _stat64 st;
 #else
-    struct stat st;
+  struct stat st;
 #endif
-    int is_valid;
+  int is_valid;
 };
 
 // ============================================================================
@@ -267,24 +276,24 @@ char* safe_strdup(const char* s);
 */
 
 // Вместо этого добавим общие вспомогательные функции
-int crossplat_access(const char* path, int mode);
-FILE* crossplat_fopen(const char* path, const char* mode);
-int crossplat_stat(const char* path, struct file_stat* fstat);
-int crossplat_mkdir(const char* path, mode_t mode);
-int crossplat_rmdir(const char* path);
-int crossplat_unlink(const char* path);
+int crossplat_access(const char *path, int mode);
+FILE *crossplat_fopen(const char *path, const char *mode);
+int crossplat_stat(const char *path, struct file_stat *fstat);
+int crossplat_mkdir(const char *path, mode_t mode);
+int crossplat_rmdir(const char *path);
+int crossplat_unlink(const char *path);
 
 // Функции для работы с путями
-char* path_join(const char* dir, const char* file);
-char* path_dirname(const char* path);
-char* path_basename(const char* path);
-int path_is_absolute(const char* path);
-char* path_normalize(const char* path);
+char *path_join(const char *dir, const char *file);
+char *path_dirname(const char *path);
+char *path_basename(const char *path);
+int path_is_absolute(const char *path);
+char *path_normalize(const char *path);
 
 // Утилиты
 void sleep_ms(int milliseconds);
-char* get_platform_name(void);
-char* get_architecture_name(void);
+char *get_platform_name(void);
+char *get_architecture_name(void);
 
 #ifdef __cplusplus
 }
@@ -339,42 +348,25 @@ char* get_architecture_name(void);
 #define APPLE_ONLY(code)
 #endif
 
-#define LOG_EARLY(level, ...) \
-    do { \
-        time_t now = time(NULL); \
-        struct tm *tm_info = localtime(&now); \
-        char timestamp[20]; \
-        strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info); \
-        fprintf(stderr, "[%s] %s: ", timestamp, level); \
-        fprintf(stderr, __VA_ARGS__); \
-        fprintf(stderr, "\n"); \
-    } while(0)
-
-#define LOG_EARLY_DEBUG(...) LOG_EARLY("DEBUG", __VA_ARGS__)
-#define LOG_EARLY_INFO(...) LOG_EARLY("INFO", __VA_ARGS__)
-#define LOG_EARLY_WARNING(...) LOG_EARLY("WARNING", __VA_ARGS__)
-#define LOG_EARLY_ERROR(...) LOG_EARLY("ERROR", __VA_ARGS__)
-
 // ============================================================================
 // ВЕРСИЯ И СБОРОЧНАЯ ИНФОРМАЦИЯ
 // ============================================================================
 
 #define PROJECT_NAME "Book Scanner"
-#define PROJECT_VERSION "0.0.13"
+#define PROJECT_VERSION "0.1.13"
 #define PROJECT_AUTHOR "Sqee&Dragon"
 #define PROJECT_LICENSE "GNU GPLv2"
 
 // Макрос для вывода информации о сборке
-#define PRINT_BUILD_INFO() \
-    do { \
-        printf("%s v%s\n", PROJECT_NAME, PROJECT_VERSION); \
-        printf("Build: %s %s\n", __DATE__, __TIME__); \
-        printf("Platform: %s\n", get_platform_name()); \
-        printf("Architecture: %s\n", get_architecture_name()); \
-    } while(0)
+#define PRINT_BUILD_INFO()                                                     \
+  do {                                                                         \
+    printf("%s v%s\n", PROJECT_NAME, PROJECT_VERSION);                         \
+    printf("Build: %s %s\n", __DATE__, __TIME__);                              \
+    printf("Platform: %s\n", get_platform_name());                             \
+    printf("Architecture: %s\n", get_architecture_name());                     \
+  } while (0)
 
 #endif // COMMON_H
-
 
 // Добавляем отладочные макросы
 
@@ -387,20 +379,18 @@ char* get_architecture_name(void);
 #endif
 
 // Макрос для проверки NULL с логом
-#define CHECK_NULL(ptr, config, msg) \
-    do { \
-        if (!(ptr)) { \
-            log_message(config, "ERROR", "NULL pointer: %s", msg); \
-            return; \
-        } \
-    } while(0)
+#define CHECK_NULL(ptr, config, msg)                                           \
+  do {                                                                         \
+    if (!(ptr)) {                                                              \
+      log_message(config, "ERROR", "NULL pointer: %s", msg);                   \
+      return;                                                                  \
+    }                                                                          \
+  } while (0)
 
-#define CHECK_NULL_RET(ptr, config, msg, retval) \
-    do { \
-        if (!(ptr)) { \
-            log_message(config, "ERROR", "NULL pointer: %s", msg); \
-            return retval; \
-        } \
-    } while(0)
-
-
+#define CHECK_NULL_RET(ptr, config, msg, retval)                               \
+  do {                                                                         \
+    if (!(ptr)) {                                                              \
+      log_message(config, "ERROR", "NULL pointer: %s", msg);                   \
+      return retval;                                                           \
+    }                                                                          \
+  } while (0)

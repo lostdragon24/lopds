@@ -6,7 +6,7 @@
 
 // Функции интеграции INPX
 int process_inpx_if_enabled(DatabaseHandle *db_handle, Config *config);
-char* find_inpx_file(const char *books_dir);
+char *find_inpx_file(const char *books_dir);
 int clear_database(DatabaseHandle *db_handle, Config *config);
 
 #endif
