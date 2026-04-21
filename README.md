@@ -207,14 +207,14 @@ FROM books;
 
 | Интерфейс | Описание |
 | :---- | :---- |
-| [https://i.ibb.co/xS483ZrP/homepage.png](https://i.ibb.co/xS483ZrP/homepage.png) | Главная страница \- поиск и навигация |
-| [https://i.ibb.co/DH5z6nt2/search.png](https://i.ibb.co/DH5z6nt2/search.png) | Расширенный поиск \- фильтрация по различным критериям |
-| [https://i.ibb.co/DDn36TR9/book-detail.png](https://i.ibb.co/DDn36TR9/book-detail.png) | Подробная информация о книге |
-| [https://i.ibb.co/KpwpNC53/book-reading.png](https://i.ibb.co/KpwpNC53/book-reading.png) | Встроенная читалка \- чтение прямо в браузере |
-| [https://i.ibb.co/7xCzGMqC/favorites.png](https://i.ibb.co/7xCzGMqC/favorites.png) | Избранное \- личная коллекция |
-| [https://i.ibb.co/1f1vjHKq/rating.png](https://i.ibb.co/1f1vjHKq/rating.png) | Система рейтингов \- оценка книг |
-| [https://i.ibb.co/jZhKFVhg/statistica.png](https://i.ibb.co/jZhKFVhg/statistica.png) | Статистика \- анализ коллекции |
-| [https://i.ibb.co/VcrCF6VV/cache-stat.png](https://i.ibb.co/VcrCF6VV/cache-stat.png) | Статистика кэша \- оптимизация производительности |
+| ![https://i.ibb.co/xS483ZrP/homepage.png](https://i.ibb.co/xS483ZrP/homepage.png) | Главная страница \- поиск и навигация |
+| ![https://i.ibb.co/DH5z6nt2/search.png](https://i.ibb.co/DH5z6nt2/search.png) | Расширенный поиск \- фильтрация по различным критериям |
+| ![https://i.ibb.co/DDn36TR9/book-detail.png](https://i.ibb.co/DDn36TR9/book-detail.png) | Подробная информация о книге |
+| ![https://i.ibb.co/KpwpNC53/book-reading.png](https://i.ibb.co/KpwpNC53/book-reading.png) | Встроенная читалка \- чтение прямо в браузере |
+| ![https://i.ibb.co/7xCzGMqC/favorites.png](https://i.ibb.co/7xCzGMqC/favorites.png) | Избранное \- личная коллекция |
+| ![https://i.ibb.co/1f1vjHKq/rating.png](https://i.ibb.co/1f1vjHKq/rating.png) | Система рейтингов \- оценка книг |
+| ![https://i.ibb.co/jZhKFVhg/statistica.png](https://i.ibb.co/jZhKFVhg/statistica.png) | Статистика \- анализ коллекции |
+| ![https://i.ibb.co/VcrCF6VV/cache-stat.png](https://i.ibb.co/VcrCF6VV/cache-stat.png) | Статистика кэша \- оптимизация производительности |
 
 ### **Десктоп-клиент (Qt/C++)**
 
@@ -222,10 +222,10 @@ FROM books;
 
 | Интерфейс | Описание |
 | :---- | :---- |
-| [https://i.postimg.cc/6ppyqTJd/book1.png](https://i.postimg.cc/6ppyqTJd/book1.png) | Главное окно программы |
-| [https://i.postimg.cc/kggBGD3y/scanner-book.png](https://i.postimg.cc/kggBGD3y/scanner-book.png) | Интерфейс сканера \- управление сканированием |
-| [https://i.postimg.cc/GmmHt9wx/settings-book.png](https://i.postimg.cc/GmmHt9wx/settings-book.png) | Окно настроек \- конфигурация |
-| [https://i.postimg.cc/Z55Cn0tc/reader-book.png](https://i.postimg.cc/Z55Cn0tc/reader-book.png) | Встроенная читалка FB2 |
+| ![https://i.postimg.cc/6ppyqTJd/book1.png](https://i.postimg.cc/6ppyqTJd/book1.png) | Главное окно программы |
+| ![https://i.postimg.cc/kggBGD3y/scanner-book.png](https://i.postimg.cc/kggBGD3y/scanner-book.png) | Интерфейс сканера \- управление сканированием |
+| ![https://i.postimg.cc/GmmHt9wx/settings-book.png](https://i.postimg.cc/GmmHt9wx/settings-book.png) | Окно настроек \- конфигурация |
+| ![https://i.postimg.cc/Z55Cn0tc/reader-book.png](https://i.postimg.cc/Z55Cn0tc/reader-book.png) | Встроенная читалка FB2 |
 
 ## **Что сделано:**
 **📌 Изменения в веб\-интерфейсе версии 1.13.1**
