@@ -22,7 +22,7 @@
 | :---- | :---- | :---- |
 | FB2 | FictionBook | ✅ Полный парсинг метаданных |
 | EPUB | Electronic Publication | ✅ Полный парсинг метаданных |
-| PDF | Portable Document Format | 🚧 В планах |
+| PDF | Portable Document Format | Частичный парсинг, считывание имени файла как наименования книги. |
 | MOBI | Mobipocket | 🚧 В планах |
 | TXT | Plain Text | 🚧 В планах |
 
