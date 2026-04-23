@@ -3,15 +3,15 @@
     <?php echo __('dashboard'); ?>
 </h1>
 
-<?php if (isset($_SESSION['admin_user'])) { ?>
+<?php if (isset($_SESSION['admin_user'])): ?>
     <div class="alert alert-success">
         <i class="fas fa-check-circle me-2"></i>
         <?php echo sprintf(__('admin_welcome'), htmlspecialchars($_SESSION['admin_user'])); ?>
     </div>
-<?php } ?>
+<?php endif; ?>
 
 <div class="row">
-    <?php foreach ($stats as $stat) { ?>
+    <?php foreach ($stats as $stat): ?>
     <div class="col-xl-3 col-md-6 mb-4">
         <div class="card border-left-<?php echo $stat['color'] ?? 'primary'; ?> shadow h-100 py-2">
             <div class="card-body">
@@ -31,7 +31,7 @@
             </div>
         </div>
     </div>
-    <?php } ?>
+    <?php endforeach; ?>
 </div>
 
 <div class="row">
@@ -44,12 +44,12 @@
             </div>
             <div class="card-body">
                 <table class="table table-sm">
-                    <?php foreach ($system as $key => $value) { ?>
+                    <?php foreach ($system as $key => $value): ?>
                     <tr>
                         <th style="width: 40%"><?php echo $key; ?>:</th>
                         <td><?php echo $value; ?></td>
                     </tr>
-                    <?php } ?>
+                    <?php endforeach; ?>
                 </table>
             </div>
         </div>
@@ -63,14 +63,14 @@
                 </h6>
             </div>
             <div class="card-body">
-                <?php if (empty($recent_books)) { ?>
+                <?php if (empty($recent_books)): ?>
                     <p class="text-muted text-center py-4">
                         <i class="fas fa-book-open fa-2x mb-2"></i><br>
                         <?php echo __('dashboard_no_books'); ?>
                     </p>
-                <?php } else { ?>
+                <?php else: ?>
                     <div class="list-group">
-                        <?php foreach ($recent_books as $book) { ?>
+                        <?php foreach ($recent_books as $book): ?>
                         <div class="list-group-item list-group-item-action">
                             <div class="d-flex w-100 justify-content-between">
                                 <h6 class="mb-1"><?php echo htmlspecialchars($book['title'] ?: __('book_untitled')); ?></h6>
@@ -80,9 +80,9 @@
                                 <?php echo htmlspecialchars($book['author'] ?: __('book_unknown_author')); ?>
                             </small>
                         </div>
-                        <?php } ?>
+                        <?php endforeach; ?>
                     </div>
-                <?php } ?>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -126,7 +126,7 @@
                 </h6>
             </div>
             <div class="card-body">
-                <?php if (!empty($cache_stats['apcu'])) { ?>
+                <?php if (!empty($cache_stats['apcu'])): ?>
                     <table class="table table-sm">
                         <tr>
                             <th><?php echo __('admin_cache_hits'); ?></th>
@@ -141,12 +141,12 @@
                             <td><?php echo $cache_stats['apcu']['effectiveness']; ?>%</td>
                         </tr>
                     </table>
-                <?php } else { ?>
+                <?php else: ?>
                     <p class="text-muted text-center py-4">
                         <i class="fas fa-ban fa-2x mb-2"></i><br>
                         <?php echo __('admin_cache_not_used'); ?>
                     </p>
-                <?php } ?>
+                <?php endif; ?>
             </div>
         </div>
     </div>

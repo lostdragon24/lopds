@@ -5,14 +5,14 @@
 class SessionManager
 {
     private static $started = false;
-    private static $csrfToken;
+    private static $csrfToken = null;
 
     /**
-     * Запустить сессию, если она еще не запущена.
+     * Запустить сессию, если она еще не запущена
      */
     public static function start()
     {
-        if (self::$started || PHP_SESSION_NONE !== session_status()) {
+        if (self::$started || session_status() !== PHP_SESSION_NONE) {
             return;
         }
 
@@ -29,34 +29,48 @@ class SessionManager
     }
 
     /**
-     * Получить CSRF токен (создать если нет).
+     * Получить CSRF токен (создать если нет)
      */
     public static function getCsrfToken()
     {
         self::start();
-
-        if (null === self::$csrfToken) {
-            if (empty($_SESSION['csrf_token'])) {
-                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-            }
-            self::$csrfToken = $_SESSION['csrf_token'];
+	
+	 if (empty($_SESSION['csrf_token'])) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         }
 
-        return self::$csrfToken;
+        return $_SESSION['csrf_token'];
+
     }
 
+
     /**
-     * Получить значение из сессии.
+     * Проверить CSRF токен.
+     */
+    public static function validateCsrfToken($token)
+    {
+        self::start();
+
+        if (empty($token) || empty($_SESSION['csrf_token'])) {
+            return false;
+        }
+
+        return hash_equals($_SESSION['csrf_token'], $token);
+    }
+
+
+
+     /**
+     * Получить значение из сессии
      */
     public static function get($key, $default = null)
     {
         self::start();
-
         return $_SESSION[$key] ?? $default;
     }
 
     /**
-     * Установить значение в сессию.
+     * Установить значение в сессию
      */
     public static function set($key, $value)
     {
@@ -65,7 +79,7 @@ class SessionManager
     }
 
     /**
-     * Удалить значение из сессии.
+     * Удалить значение из сессии
      */
     public static function delete($key)
     {
@@ -74,7 +88,7 @@ class SessionManager
     }
 
     /**
-     * Очистить сессию.
+     * Очистить сессию
      */
     public static function destroy()
     {

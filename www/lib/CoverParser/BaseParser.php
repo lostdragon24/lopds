@@ -1,7 +1,7 @@
 <?php
 
-require_once __DIR__.'/Interface.php';
-require_once __DIR__.'/../Cache.php';
+require_once __DIR__ . '/Interface.php';
+require_once __DIR__ . '/../Cache.php';
 
 abstract class BaseCoverParser implements CoverParserInterface
 {
@@ -13,7 +13,7 @@ abstract class BaseCoverParser implements CoverParserInterface
     }
 
     /**
-     * Получить путь к файлу книги (с поддержкой архивов).
+     * Получить путь к файлу книги (с поддержкой архивов)
      */
     protected function getBookContent($book)
     {
@@ -21,30 +21,25 @@ abstract class BaseCoverParser implements CoverParserInterface
         if (!empty($book['archive_path']) && !empty($book['archive_internal_path'])) {
             // Проверяем существование архива
             if (!file_exists($book['archive_path'])) {
-                error_log('Archive not found: '.$book['archive_path']);
-
+                error_log("Archive not found: " . $book['archive_path']);
                 return false;
             }
 
             $zip = new ZipArchive();
-            if (true === $zip->open($book['archive_path'])) {
+            if ($zip->open($book['archive_path']) === true) {
                 $content = $zip->getFromName($book['archive_internal_path']);
                 $zip->close();
-
                 return $content;
             }
-
             return false;
         }
 
         // Если книга не в архиве (обычный файл)
         if (!empty($book['file_path'])) {
             if (!file_exists($book['file_path'])) {
-                error_log('File not found: '.$book['file_path']);
-
+                error_log("File not found: " . $book['file_path']);
                 return false;
             }
-
             return @file_get_contents($book['file_path']);
         }
 
@@ -52,7 +47,7 @@ abstract class BaseCoverParser implements CoverParserInterface
     }
 
     /**
-     * Сохранить в кэш.
+     * Сохранить в кэш
      */
     protected function saveToCache($bookId, $data, $thumb = false)
     {
@@ -61,7 +56,7 @@ abstract class BaseCoverParser implements CoverParserInterface
             mkdir($cacheDir, 0755, true);
         }
 
-        $filename = $cacheDir.'/'.$bookId.($thumb ? '_thumb.jpg' : '.jpg');
+        $filename = $cacheDir . '/' . $bookId . ($thumb ? '_thumb.jpg' : '.jpg');
 
         if ($thumb && $data) {
             $data = $this->createThumbnail($data);
@@ -71,7 +66,7 @@ abstract class BaseCoverParser implements CoverParserInterface
             file_put_contents($filename, $data);
 
             if ($this->config['enable_apcu_cache']) {
-                Cache::set('cover_'.$bookId.($thumb ? '_thumb' : ''), $data, $this->config['apcu_ttl']);
+                Cache::set('cover_' . $bookId . ($thumb ? '_thumb' : ''), $data, $this->config['apcu_ttl']);
             }
 
             return true;
@@ -81,27 +76,27 @@ abstract class BaseCoverParser implements CoverParserInterface
     }
 
     /**
-     * Загрузить из кэша.
+     * Загрузить из кэша
      */
     protected function loadFromCache($bookId, $thumb = false)
     {
         // Проверяем APCu
         if ($this->config['enable_apcu_cache']) {
-            $cached = Cache::get('cover_'.$bookId.($thumb ? '_thumb' : ''));
-            if (null !== $cached) {
+            $cached = Cache::get('cover_' . $bookId . ($thumb ? '_thumb' : ''));
+            if ($cached !== null) {
                 return $cached;
             }
         }
 
         // Проверяем файловый кэш
         if ($this->config['enable_file_cache']) {
-            $filename = Config::getCoverCacheDir().'/'.$bookId.($thumb ? '_thumb.jpg' : '.jpg');
+            $filename = Config::getCoverCacheDir() . '/' . $bookId . ($thumb ? '_thumb.jpg' : '.jpg');
             if (file_exists($filename)) {
                 $data = file_get_contents($filename);
 
                 // Кэшируем в APCu для будущих запросов
                 if ($this->config['enable_apcu_cache']) {
-                    Cache::set('cover_'.$bookId.($thumb ? '_thumb' : ''), $data, $this->config['apcu_ttl']);
+                    Cache::set('cover_' . $bookId . ($thumb ? '_thumb' : ''), $data, $this->config['apcu_ttl']);
                 }
 
                 return $data;
@@ -112,18 +107,18 @@ abstract class BaseCoverParser implements CoverParserInterface
     }
 
     /**
-     * Проверить наличие в кэше.
+     * Проверить наличие в кэше
      */
     protected function hasCache($bookId, $thumb = false): bool
     {
         if ($this->config['enable_apcu_cache']) {
-            if (Cache::exists('cover_'.$bookId.($thumb ? '_thumb' : ''))) {
+            if (Cache::exists('cover_' . $bookId . ($thumb ? '_thumb' : ''))) {
                 return true;
             }
         }
 
         if ($this->config['enable_file_cache']) {
-            $filename = Config::getCoverCacheDir().'/'.$bookId.($thumb ? '_thumb.jpg' : '.jpg');
+            $filename = Config::getCoverCacheDir() . '/' . $bookId . ($thumb ? '_thumb.jpg' : '.jpg');
             if (file_exists($filename)) {
                 return true;
             }
@@ -133,7 +128,7 @@ abstract class BaseCoverParser implements CoverParserInterface
     }
 
     /**
-     * Создать миниатюру.
+     * Создать миниатюру
      */
     protected function createThumbnail($imageData)
     {
@@ -147,7 +142,6 @@ abstract class BaseCoverParser implements CoverParserInterface
         $imageInfo = getimagesize($tempFile);
         if (!$imageInfo) {
             unlink($tempFile);
-
             return false;
         }
 
@@ -156,7 +150,6 @@ abstract class BaseCoverParser implements CoverParserInterface
         $source = $this->createImageFromType($tempFile, $type);
         if (!$source) {
             unlink($tempFile);
-
             return false;
         }
 
@@ -164,12 +157,12 @@ abstract class BaseCoverParser implements CoverParserInterface
         $maxHeight = $this->config['max_height'] ?? 300;
 
         $ratio = min($maxWidth / $width, $maxHeight / $height);
-        $newWidth = (int) ($width * $ratio);
-        $newHeight = (int) ($height * $ratio);
+        $newWidth = (int)($width * $ratio);
+        $newHeight = (int)($height * $ratio);
 
         $thumb = imagecreatetruecolor($newWidth, $newHeight);
 
-        if (IMAGETYPE_PNG == $type || IMAGETYPE_GIF == $type) {
+        if ($type == IMAGETYPE_PNG || $type == IMAGETYPE_GIF) {
             imagecolortransparent($thumb, imagecolorallocatealpha($thumb, 0, 0, 0, 127));
             imagealphablending($thumb, false);
             imagesavealpha($thumb, true);
@@ -189,7 +182,7 @@ abstract class BaseCoverParser implements CoverParserInterface
     }
 
     /**
-     * Создать ресурс изображения из файла.
+     * Создать ресурс изображения из файла
      */
     private function createImageFromType($filename, $type)
     {
@@ -216,24 +209,24 @@ abstract class BaseCoverParser implements CoverParserInterface
         $info = getimagesize($tempFile);
         unlink($tempFile);
 
-        return false !== $info;
+        return $info !== false;
     }
 
     /**
-     * Очистить кэш для книги.
+     * Очистить кэш для книги
      */
     public function clearCache($bookId): bool
     {
         if ($this->config['enable_apcu_cache']) {
-            Cache::delete('cover_'.$bookId);
-            Cache::delete('cover_'.$bookId.'_thumb');
-            Cache::delete('has_cover_'.$bookId);
+            Cache::delete('cover_' . $bookId);
+            Cache::delete('cover_' . $bookId . '_thumb');
+            Cache::delete('has_cover_' . $bookId);
         }
 
         if ($this->config['enable_file_cache']) {
             $files = [
-                Config::getCoverCacheDir().'/'.$bookId.'.jpg',
-                Config::getCoverCacheDir().'/'.$bookId.'_thumb.jpg',
+                Config::getCoverCacheDir() . '/' . $bookId . '.jpg',
+                Config::getCoverCacheDir() . '/' . $bookId . '_thumb.jpg'
             ];
 
             foreach ($files as $file) {

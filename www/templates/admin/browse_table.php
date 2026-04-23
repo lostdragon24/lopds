@@ -12,18 +12,18 @@ $csrf_token = $csrf_token ?? '';
 $debug = $debug ?? [];
 
 // Отладка в консоль браузера
-echo '<script>';
-echo "console.log('Browse Table Debug:', ".json_encode([
+echo "<script>";
+echo "console.log('Browse Table Debug:', " . json_encode([
     'table' => $table_name,
     'total' => $total,
     'rows_count' => count($rows),
     'columns' => $columns,
-    'has_rows' => !empty($rows),
-]).');';
+    'has_rows' => !empty($rows)
+]) . ");";
 if (!empty($rows)) {
-    echo "console.log('First row:', ".json_encode($rows[0]).');';
+    echo "console.log('First row:', " . json_encode($rows[0]) . ");";
 }
-echo '</script>';
+echo "</script>";
 ?>
 
 <h1 class="mb-4">
@@ -38,11 +38,11 @@ echo '</script>';
     </a>
     <span class="ms-3 text-muted">
         <?php echo __('admin_db_total_records'); ?>: <strong><?php echo number_format($total); ?></strong>
-        <?php if ($total > 0) { ?>
+        <?php if ($total > 0): ?>
             (<?php echo __('admin_db_showing'); ?> 
             <?php echo min(($page - 1) * $perPage + 1, $total); ?> - 
             <?php echo min($page * $perPage, $total); ?>)
-        <?php } ?>
+        <?php endif; ?>
     </span>
 </div>
 
@@ -52,20 +52,20 @@ echo '</script>';
             <table class="table table-hover table-striped mb-0">
                 <thead class="table-light">
                     <tr>
-                        <?php if (empty($columns)) { ?>
+                        <?php if (empty($columns)): ?>
                             <th><?php echo __('admin_db_no_data'); ?></th>
-                        <?php } else { ?>
-                            <?php foreach ($columns as $col) { ?>
+                        <?php else: ?>
+                            <?php foreach ($columns as $col): ?>
                                 <th><?php echo htmlspecialchars($col); ?></th>
-                            <?php } ?>
-                        <?php } ?>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (empty($rows)) { ?>
+                    <?php if (empty($rows)): ?>
                         <tr>
                             <td colspan="<?php echo max(1, count($columns)); ?>" class="text-center text-muted py-4">
-                                <?php if ($total > 0) { ?>
+                                <?php if ($total > 0): ?>
                                     <i class="fas fa-exclamation-triangle text-warning me-2 fa-2x mb-2 d-block"></i>
                                     <?php echo __('admin_db_load_error'); ?>
                                     <div class="mt-2">
@@ -74,16 +74,16 @@ echo '</script>';
                                             <?php echo __('refresh'); ?>
                                         </button>
                                     </div>
-                                <?php } else { ?>
+                                <?php else: ?>
                                     <i class="fas fa-database me-2 fa-2x mb-2 d-block"></i>
                                     <?php echo __('admin_db_table_empty'); ?>
-                                <?php } ?>
+                                <?php endif; ?>
                             </td>
                         </tr>
-                    <?php } else { ?>
-                        <?php foreach ($rows as $rowIndex => $row) { ?>
+                    <?php else: ?>
+                        <?php foreach ($rows as $rowIndex => $row): ?>
                             <tr class="table-row-<?php echo $rowIndex; ?>">
-                                <?php foreach ($columns as $col) { ?>
+                                <?php foreach ($columns as $col): ?>
                                     <td class="table-cell" data-column="<?php echo htmlspecialchars($col); ?>">
                                         <?php
                                         $value = $row[$col] ?? null;
@@ -92,42 +92,42 @@ echo '</script>';
                                     } elseif (is_bool($value)) {
                                         echo $value ? '<span class="badge bg-success">true</span>' : '<span class="badge bg-secondary">false</span>';
                                     } elseif (is_numeric($value)) {
-                                        echo '<span class="font-monospace">'.number_format($value).'</span>';
+                                        echo '<span class="font-monospace">' . number_format($value) . '</span>';
                                     } elseif (is_string($value)) {
                                         if (empty($value)) {
-                                            echo '<span class="badge bg-light text-muted border">'.__('admin_db_empty').'</span>';
+                                            echo '<span class="badge bg-light text-muted border">' . __('admin_db_empty') . '</span>';
                                         } elseif (strlen($value) > 100) {
                                             $preview = htmlspecialchars(substr($value, 0, 100));
                                             $full = htmlspecialchars($value);
-                                            echo '<span class="text-truncate d-inline-block" style="max-width: 300px;" title="'.$full.'">';
-                                            echo $preview.'…';
+                                            echo '<span class="text-truncate d-inline-block" style="max-width: 300px;" title="' . $full . '">';
+                                            echo $preview . '…';
                                             echo '</span>';
-                                            echo ' <button class="btn btn-sm btn-link p-0 ms-1" onclick="showFullValue(\''.addslashes($full).'\')" title="'.__('admin_db_show_full').'">';
+                                            echo ' <button class="btn btn-sm btn-link p-0 ms-1" onclick="showFullValue(\'' . addslashes($full) . '\')" title="' . __('admin_db_show_full') . '">';
                                             echo '<i class="fas fa-expand-alt text-muted"></i>';
                                             echo '</button>';
                                         } else {
                                             echo htmlspecialchars($value);
                                         }
                                     } else {
-                                        echo '<pre class="mb-0 small"><code>'.htmlspecialchars(print_r($value, true)).'</code></pre>';
+                                        echo '<pre class="mb-0 small"><code>' . htmlspecialchars(print_r($value, true)) . '</code></pre>';
                                     }
                                     ?>
                                     </td>
-                                <?php } ?>
+                                <?php endforeach; ?>
                             </tr>
-                        <?php } ?>
-                    <?php } ?>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
     
     <!-- Пагинация -->
-    <?php if ($totalPages > 1) { ?>
+    <?php if ($totalPages > 1): ?>
         <div class="card-footer">
             <nav aria-label="<?php echo __('pagination'); ?>">
                 <ul class="pagination justify-content-center mb-0">
-                    <?php if ($page > 1) { ?>
+                    <?php if ($page > 1): ?>
                         <li class="page-item">
                             <a class="page-link" href="?action=browse_table&table=<?php echo urlencode($table_name); ?>&page=1" 
                                title="<?php echo __('admin_db_first_page'); ?>">
@@ -140,41 +140,41 @@ echo '</script>';
                                 <i class="fas fa-angle-left"></i>
                             </a>
                         </li>
-                    <?php } ?>
+                    <?php endif; ?>
                     
                     <?php
                     $startPage = max(1, $page - 2);
         $endPage = min($totalPages, $page + 2);
 
-        if ($startPage > 1) { ?>
+        if ($startPage > 1): ?>
                         <li class="page-item">
                             <a class="page-link" href="?action=browse_table&table=<?php echo urlencode($table_name); ?>&page=1">1</a>
                         </li>
-                        <?php if ($startPage > 2) { ?>
+                        <?php if ($startPage > 2): ?>
                             <li class="page-item disabled"><span class="page-link">...</span></li>
-                        <?php } ?>
-                    <?php }
+                        <?php endif; ?>
+                    <?php endif;
 
-        for ($i = $startPage; $i <= $endPage; ++$i) { ?>
+        for ($i = $startPage; $i <= $endPage; $i++): ?>
                         <li class="page-item <?php echo $i == $page ? 'active' : ''; ?>">
                             <a class="page-link" href="?action=browse_table&table=<?php echo urlencode($table_name); ?>&page=<?php echo $i; ?>">
                                 <?php echo $i; ?>
                             </a>
                         </li>
-                    <?php }
+                    <?php endfor;
 
-        if ($endPage < $totalPages) { ?>
-                        <?php if ($endPage < $totalPages - 1) { ?>
+        if ($endPage < $totalPages): ?>
+                        <?php if ($endPage < $totalPages - 1): ?>
                             <li class="page-item disabled"><span class="page-link">...</span></li>
-                        <?php } ?>
+                        <?php endif; ?>
                         <li class="page-item">
                             <a class="page-link" href="?action=browse_table&table=<?php echo urlencode($table_name); ?>&page=<?php echo $totalPages; ?>">
                                 <?php echo $totalPages; ?>
                             </a>
                         </li>
-                    <?php } ?>
+                    <?php endif; ?>
                     
-                    <?php if ($page < $totalPages) { ?>
+                    <?php if ($page < $totalPages): ?>
                         <li class="page-item">
                             <a class="page-link" href="?action=browse_table&table=<?php echo urlencode($table_name); ?>&page=<?php echo $page + 1; ?>"
                                title="<?php echo __('admin_db_next_page'); ?>">
@@ -187,18 +187,18 @@ echo '</script>';
                                 <i class="fas fa-angle-double-right"></i>
                             </a>
                         </li>
-                    <?php } ?>
+                    <?php endif; ?>
                 </ul>
             </nav>
             
             <div class="text-center mt-2 text-muted small">
                 <?php echo sprintf(__('admin_db_page_info'), $page, $totalPages); ?>
-                <?php if ($total > 0) { ?>
+                <?php if ($total > 0): ?>
                     | <?php echo sprintf(__('admin_db_records_per_page'), $perPage); ?>
-                <?php } ?>
+                <?php endif; ?>
             </div>
         </div>
-    <?php } ?>
+    <?php endif; ?>
 </div>
 
 <!-- Модальное окно для просмотра полного значения -->
@@ -230,7 +230,7 @@ echo '</script>';
 </div>
 
 <!-- Отладочная информация (только для администратора) -->
-<?php if (isset($_GET['debug']) && ($_SESSION['admin_logged_in'] ?? false)) { ?>
+<?php if (isset($_GET['debug']) && ($_SESSION['admin_logged_in'] ?? false)): ?>
     <div class="card mt-4">
         <div class="card-header bg-warning">
             <h5 class="mb-0">
@@ -240,15 +240,15 @@ echo '</script>';
         </div>
         <div class="card-body">
             <pre><?php
-            echo '=== '.__('admin_db_debug_table')." ===\n";
+            echo "=== " . __('admin_db_debug_table') . " ===\n";
     echo "Table: $table_name\n";
     echo "Total rows: $total\n";
     echo "Page: $page\n";
     echo "Per page: $perPage\n";
-    echo 'Rows in this page: '.count($rows)."\n";
-    echo 'Columns: '.implode(', ', $columns)."\n";
-    echo 'Columns count: '.count($columns)."\n";
-    echo "\n=== ".__('admin_db_debug_rows')." ===\n";
+    echo "Rows in this page: " . count($rows) . "\n";
+    echo "Columns: " . implode(', ', $columns) . "\n";
+    echo "Columns count: " . count($columns) . "\n";
+    echo "\n=== " . __('admin_db_debug_rows') . " ===\n";
     if (empty($rows)) {
         echo "No rows data\n";
     } else {
@@ -257,10 +257,10 @@ echo '</script>';
             print_r($row);
         }
     }
-    ?></pre>
+?></pre>
         </div>
     </div>
-<?php } ?>
+<?php endif; ?>
 
 <script>
 let currentFullValue = '';

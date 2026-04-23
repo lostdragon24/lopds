@@ -22,52 +22,52 @@ $activeTab = $_GET['tab'] ?? 'system';
 <!-- Вкладки логов -->
 <ul class="nav nav-tabs mb-4" id="logsTabs" role="tablist">
     <li class="nav-item" role="presentation">
-        <button class="nav-link <?php echo 'system' === $activeTab ? 'active' : ''; ?>" 
+        <button class="nav-link <?php echo $activeTab === 'system' ? 'active' : ''; ?>" 
                 id="system-tab" 
                 data-bs-toggle="tab" 
                 data-bs-target="#system-log" 
                 type="button" role="tab">
             <i class="fas fa-server me-2"></i>
             <?php echo __('log_type_system'); ?>
-            <?php if (!empty($systemLogData['lines'])) { ?>
+            <?php if (!empty($systemLogData['lines'])): ?>
                 <span class="badge bg-secondary ms-1"><?php echo count($systemLogData['lines']); ?></span>
-            <?php } ?>
+            <?php endif; ?>
         </button>
     </li>
     <li class="nav-item" role="presentation">
-        <button class="nav-link <?php echo 'scanner' === $activeTab ? 'active' : ''; ?>" 
+        <button class="nav-link <?php echo $activeTab === 'scanner' ? 'active' : ''; ?>" 
                 id="scanner-tab" 
                 data-bs-toggle="tab" 
                 data-bs-target="#scanner-log" 
                 type="button" role="tab">
             <i class="fas fa-robot me-2"></i>
             <?php echo __('log_type_scanner'); ?>
-            <?php if (!empty($scannerLogData['lines'])) { ?>
+            <?php if (!empty($scannerLogData['lines'])): ?>
                 <span class="badge bg-secondary ms-1"><?php echo count($scannerLogData['lines']); ?></span>
-            <?php } ?>
-            <?php if (($scannerLogData['stats']['errors'] ?? 0) > 0) { ?>
+            <?php endif; ?>
+            <?php if (($scannerLogData['stats']['errors'] ?? 0) > 0): ?>
                 <span class="badge bg-danger ms-1"><?php echo $scannerLogData['stats']['errors']; ?> err</span>
-            <?php } ?>
+            <?php endif; ?>
         </button>
     </li>
     <li class="nav-item" role="presentation">
-        <button class="nav-link <?php echo 'php' === $activeTab ? 'active' : ''; ?>" 
+        <button class="nav-link <?php echo $activeTab === 'php' ? 'active' : ''; ?>" 
                 id="php-tab" 
                 data-bs-toggle="tab" 
                 data-bs-target="#php-log" 
                 type="button" role="tab">
             <i class="fab fa-php me-2"></i>
             <?php echo __('log_type_php'); ?>
-            <?php if (!empty($phpLogData['lines'])) { ?>
+            <?php if (!empty($phpLogData['lines'])): ?>
                 <span class="badge bg-secondary ms-1"><?php echo count($phpLogData['lines']); ?></span>
-            <?php } ?>
+            <?php endif; ?>
         </button>
     </li>
 </ul>
 
 <div class="tab-content" id="logsTabsContent">
     <!-- Системный лог -->
-    <div class="tab-pane fade <?php echo 'system' === $activeTab ? 'show active' : ''; ?>" 
+    <div class="tab-pane fade <?php echo $activeTab === 'system' ? 'show active' : ''; ?>" 
          id="system-log" 
          role="tabpanel">
         <div class="card">
@@ -77,7 +77,7 @@ $activeTab = $_GET['tab'] ?? 'system';
                     <?php echo __('log_type_system'); ?>
                 </span>
                 <div>
-                    <?php if ($systemLogData['exists']) { ?>
+                    <?php if ($systemLogData['exists']): ?>
                         <span class="badge bg-info me-2">
                             <i class="fas fa-database me-1"></i>
                             <?php echo $systemLogData['size_formatted']; ?>
@@ -86,46 +86,46 @@ $activeTab = $_GET['tab'] ?? 'system';
                             <i class="fas fa-clock me-1"></i>
                             <?php echo $systemLogData['last_modified_formatted'] ?? __('admin_logs_unknown'); ?>
                         </span>
-                    <?php } ?>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="card-body p-0">
-                <?php if (!$systemLogData['exists']) { ?>
+                <?php if (!$systemLogData['exists']): ?>
                     <div class="text-center text-muted py-5">
                         <i class="fas fa-file-alt fa-3x mb-3 d-block"></i>
                         <h5><?php echo __('admin_logs_empty'); ?></h5>
                         <p class="mb-0"><?php echo __('admin_logs_file_not_found'); ?></p>
                         <p class="small"><?php echo htmlspecialchars($systemLogData['file'] ?? ''); ?></p>
                     </div>
-                <?php } elseif (empty($systemLogData['lines'])) { ?>
+                <?php elseif (empty($systemLogData['lines'])): ?>
                     <div class="text-center text-muted py-5">
                         <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
                         <h5><?php echo __('admin_logs_empty'); ?></h5>
                     </div>
-                <?php } else { ?>
+                <?php else: ?>
                     <div class="log-container">
                         <table class="table table-sm table-hover mb-0">
                             <tbody>
-                                <?php foreach ($systemLogData['lines'] as $line) { ?>
+                                <?php foreach ($systemLogData['lines'] as $line): ?>
                                     <tr class="log-line log-level-<?php echo is_array($line) ? $line['class'] : 'secondary'; ?>">
                                         <td class="font-monospace small">
-                                            <?php if (is_array($line)) { ?>
+                                            <?php if (is_array($line)): ?>
                                                 <span class="log-level-badge badge bg-<?php echo $line['class']; ?> me-2">
                                                     <?php echo $line['level']; ?>
                                                 </span>
                                                 <?php echo $line['text']; ?>
-                                            <?php } else { ?>
+                                            <?php else: ?>
                                                 <?php echo $line; ?>
-                                            <?php } ?>
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
-                                <?php } ?>
+                                <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>
-                <?php } ?>
+                <?php endif; ?>
             </div>
-            <?php if ($systemLogData['exists'] && !empty($systemLogData['lines'])) { ?>
+            <?php if ($systemLogData['exists'] && !empty($systemLogData['lines'])): ?>
                 <div class="card-footer">
                     <div class="d-flex justify-content-between align-items-center">
                         <small class="text-muted">
@@ -148,12 +148,12 @@ $activeTab = $_GET['tab'] ?? 'system';
                         </div>
                     </div>
                 </div>
-            <?php } ?>
+            <?php endif; ?>
         </div>
     </div>
     
     <!-- Лог сканера -->
-    <div class="tab-pane fade <?php echo 'scanner' === $activeTab ? 'show active' : ''; ?>" 
+    <div class="tab-pane fade <?php echo $activeTab === 'scanner' ? 'show active' : ''; ?>" 
          id="scanner-log" 
          role="tabpanel">
         <div class="card">
@@ -163,7 +163,7 @@ $activeTab = $_GET['tab'] ?? 'system';
                     <?php echo __('log_type_scanner'); ?>
                 </span>
                 <div>
-                    <?php if ($scannerLogData['exists']) { ?>
+                    <?php if ($scannerLogData['exists']): ?>
                         <span class="badge bg-info me-2">
                             <i class="fas fa-database me-1"></i>
                             <?php echo $scannerLogData['size_formatted']; ?>
@@ -172,10 +172,10 @@ $activeTab = $_GET['tab'] ?? 'system';
                             <i class="fas fa-clock me-1"></i>
                             <?php echo $scannerLogData['last_modified_formatted'] ?? __('admin_logs_unknown'); ?>
                         </span>
-                    <?php } ?>
+                    <?php endif; ?>
                 </div>
             </div>
-            <?php if ($scannerLogData['exists'] && !empty($scannerLogData['stats'])) { ?>
+            <?php if ($scannerLogData['exists'] && !empty($scannerLogData['stats'])): ?>
                 <div class="card-header bg-light">
                     <div class="row text-center">
                         <div class="col-3">
@@ -196,44 +196,44 @@ $activeTab = $_GET['tab'] ?? 'system';
                         </div>
                     </div>
                 </div>
-            <?php } ?>
+            <?php endif; ?>
             <div class="card-body p-0">
-                <?php if (!$scannerLogData['exists']) { ?>
+                <?php if (!$scannerLogData['exists']): ?>
                     <div class="text-center text-muted py-5">
                         <i class="fas fa-file-alt fa-3x mb-3 d-block"></i>
                         <h5><?php echo __('admin_logs_empty'); ?></h5>
                         <p class="mb-0"><?php echo __('admin_logs_file_not_found'); ?></p>
                         <p class="small"><?php echo htmlspecialchars($scannerLogData['file'] ?? ''); ?></p>
                     </div>
-                <?php } elseif (empty($scannerLogData['lines'])) { ?>
+                <?php elseif (empty($scannerLogData['lines'])): ?>
                     <div class="text-center text-muted py-5">
                         <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
                         <h5><?php echo __('admin_logs_empty'); ?></h5>
                     </div>
-                <?php } else { ?>
+                <?php else: ?>
                     <div class="log-container scanner-log-container">
                         <table class="table table-sm table-hover mb-0">
                             <tbody>
-                                <?php foreach ($scannerLogData['lines'] as $line) { ?>
+                                <?php foreach ($scannerLogData['lines'] as $line): ?>
                                     <tr class="log-line log-level-<?php echo is_array($line) ? $line['class'] : 'secondary'; ?>">
                                         <td class="font-monospace small">
-                                            <?php if (is_array($line)) { ?>
+                                            <?php if (is_array($line)): ?>
                                                 <span class="log-level-badge badge bg-<?php echo $line['class']; ?> me-2">
                                                     <?php echo $line['level']; ?>
                                                 </span>
                                                 <?php echo $line['text']; ?>
-                                            <?php } else { ?>
+                                            <?php else: ?>
                                                 <?php echo $line; ?>
-                                            <?php } ?>
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
-                                <?php } ?>
+                                <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>
-                <?php } ?>
+                <?php endif; ?>
             </div>
-            <?php if ($scannerLogData['exists'] && !empty($scannerLogData['lines'])) { ?>
+            <?php if ($scannerLogData['exists'] && !empty($scannerLogData['lines'])): ?>
                 <div class="card-footer">
                     <div class="d-flex justify-content-between align-items-center">
                         <small class="text-muted">
@@ -256,12 +256,12 @@ $activeTab = $_GET['tab'] ?? 'system';
                         </div>
                     </div>
                 </div>
-            <?php } ?>
+            <?php endif; ?>
         </div>
     </div>
     
     <!-- PHP лог -->
-    <div class="tab-pane fade <?php echo 'php' === $activeTab ? 'show active' : ''; ?>" 
+    <div class="tab-pane fade <?php echo $activeTab === 'php' ? 'show active' : ''; ?>" 
          id="php-log" 
          role="tabpanel">
         <div class="card">
@@ -271,7 +271,7 @@ $activeTab = $_GET['tab'] ?? 'system';
                     <?php echo __('log_type_php'); ?>
                 </span>
                 <div>
-                    <?php if ($phpLogData['exists']) { ?>
+                    <?php if ($phpLogData['exists']): ?>
                         <span class="badge bg-info me-2">
                             <i class="fas fa-database me-1"></i>
                             <?php echo $phpLogData['size_formatted']; ?>
@@ -280,46 +280,46 @@ $activeTab = $_GET['tab'] ?? 'system';
                             <i class="fas fa-clock me-1"></i>
                             <?php echo $phpLogData['last_modified_formatted'] ?? __('admin_logs_unknown'); ?>
                         </span>
-                    <?php } ?>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="card-body p-0">
-                <?php if (!$phpLogData['exists']) { ?>
+                <?php if (!$phpLogData['exists']): ?>
                     <div class="text-center text-muted py-5">
                         <i class="fas fa-file-alt fa-3x mb-3 d-block"></i>
                         <h5><?php echo __('admin_logs_empty'); ?></h5>
                         <p class="mb-0"><?php echo __('admin_logs_file_not_found'); ?></p>
                         <p class="small"><?php echo htmlspecialchars($phpLogData['file'] ?? ''); ?></p>
                     </div>
-                <?php } elseif (empty($phpLogData['lines'])) { ?>
+                <?php elseif (empty($phpLogData['lines'])): ?>
                     <div class="text-center text-muted py-5">
                         <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
                         <h5><?php echo __('admin_logs_empty'); ?></h5>
                     </div>
-                <?php } else { ?>
+                <?php else: ?>
                     <div class="log-container php-log-container">
                         <table class="table table-sm table-hover mb-0">
                             <tbody>
-                                <?php foreach ($phpLogData['lines'] as $line) { ?>
+                                <?php foreach ($phpLogData['lines'] as $line): ?>
                                     <tr class="log-line log-level-<?php echo is_array($line) ? $line['class'] : 'secondary'; ?>">
                                         <td class="font-monospace small">
-                                            <?php if (is_array($line)) { ?>
+                                            <?php if (is_array($line)): ?>
                                                 <span class="log-level-badge badge bg-<?php echo $line['class']; ?> me-2">
                                                     <?php echo $line['level']; ?>
                                                 </span>
                                                 <?php echo $line['text']; ?>
-                                            <?php } else { ?>
+                                            <?php else: ?>
                                                 <?php echo $line; ?>
-                                            <?php } ?>
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
-                                <?php } ?>
+                                <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>
-                <?php } ?>
+                <?php endif; ?>
             </div>
-            <?php if ($phpLogData['exists'] && !empty($phpLogData['lines'])) { ?>
+            <?php if ($phpLogData['exists'] && !empty($phpLogData['lines'])): ?>
                 <div class="card-footer">
                     <div class="d-flex justify-content-between align-items-center">
                         <small class="text-muted">
@@ -342,7 +342,7 @@ $activeTab = $_GET['tab'] ?? 'system';
                         </div>
                     </div>
                 </div>
-            <?php } ?>
+            <?php endif; ?>
         </div>
     </div>
 </div>

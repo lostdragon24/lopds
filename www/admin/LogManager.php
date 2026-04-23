@@ -11,8 +11,8 @@ class LogManager
     public function __construct()
     {
         $this->phpLogFile = ini_get('error_log') ?: '/var/log/apache2/error.log';
-        $this->scannerLogFile = Config::getCacheDir().'/scanner.log';
-        $this->systemLogFile = Config::getCacheDir().'/system.log';
+        $this->scannerLogFile = Config::getCacheDir() . '/scanner.log';
+        $this->systemLogFile = Config::getCacheDir() . '/system.log';
 
         // Создаём системный лог-файл если не существует
         if (!file_exists($this->systemLogFile)) {
@@ -21,7 +21,7 @@ class LogManager
     }
 
     /**
-     * Получить PHP лог.
+     * Получить PHP лог
      */
     public function getPhpLog($lines = 100)
     {
@@ -37,12 +37,12 @@ class LogManager
             'size' => $info['size'],
             'size_formatted' => $info['size_formatted'],
             'writable' => $info['writable'],
-            'readable' => $info['readable'],
+            'readable' => $info['readable']
         ];
     }
 
     /**
-     * Получить лог сканера.
+     * Получить лог сканера
      */
     public function getScannerLog($lines = 100)
     {
@@ -62,12 +62,12 @@ class LogManager
             'size_formatted' => $info['size_formatted'],
             'writable' => $info['writable'],
             'readable' => $info['readable'],
-            'stats' => $stats,
+            'stats' => $stats
         ];
     }
 
     /**
-     * Получить системный лог.
+     * Получить системный лог
      */
     public function getSystemLog($lines = 100)
     {
@@ -83,12 +83,12 @@ class LogManager
             'size' => $info['size'],
             'size_formatted' => $info['size_formatted'],
             'writable' => $info['writable'],
-            'readable' => $info['readable'],
+            'readable' => $info['readable']
         ];
     }
 
     /**
-     * Получить все логи для дашборда (краткая информация).
+     * Получить все логи для дашборда (краткая информация)
      */
     public function getLogsSummary()
     {
@@ -97,7 +97,7 @@ class LogManager
         $logs = [
             'php' => $this->phpLogFile,
             'scanner' => $this->scannerLogFile,
-            'system' => $this->systemLogFile,
+            'system' => $this->systemLogFile
         ];
 
         foreach ($logs as $name => $file) {
@@ -109,7 +109,7 @@ class LogManager
                 'size' => $info['size_formatted'],
                 'last_modified' => $info['last_modified'],
                 'last_modified_formatted' => $info['last_modified_formatted'],
-                'has_errors' => 'php' === $name ? $this->hasPhpErrors() : false,
+                'has_errors' => $name === 'php' ? $this->hasPhpErrors() : false
             ];
         }
 
@@ -117,7 +117,7 @@ class LogManager
     }
 
     /**
-     * Получить количество ошибок в PHP логе.
+     * Получить количество ошибок в PHP логе
      */
     public function getPhpErrorCount($hours = 24)
     {
@@ -135,25 +135,25 @@ class LogManager
                     // Ищем строки с ошибками
                     if (preg_match('/\[(.*?)\]/', $line, $matches)) {
                         $logTime = strtotime($matches[1]);
-                        if ($logTime >= $cutoff
-                            && (false !== stripos($line, 'error')
-                             || false !== stripos($line, 'warning')
-                             || false !== stripos($line, 'notice'))) {
-                            ++$errorCount;
+                        if ($logTime >= $cutoff &&
+                            (stripos($line, 'error') !== false ||
+                             stripos($line, 'warning') !== false ||
+                             stripos($line, 'notice') !== false)) {
+                            $errorCount++;
                         }
                     }
                 }
                 fclose($handle);
             }
         } catch (Exception $e) {
-            error_log('Error counting PHP errors: '.$e->getMessage());
+            error_log("Error counting PHP errors: " . $e->getMessage());
         }
 
         return $errorCount;
     }
 
     /**
-     * Записать сообщение в системный лог.
+     * Записать сообщение в системный лог
      */
     public function writeSystemLog($message, $level = 'INFO')
     {
@@ -174,7 +174,7 @@ class LogManager
     }
 
     /**
-     * Очистить лог-файл.
+     * Очистить лог-файл
      */
     public function clearLog($logType)
     {
@@ -188,7 +188,6 @@ class LogManager
             // Файл не существует - создаём пустой
             file_put_contents($logFile, '');
             chmod($logFile, 0644);
-
             return true;
         }
 
@@ -207,7 +206,6 @@ class LogManager
             );
             file_put_contents($logFile, $header);
             chmod($logFile, 0644);
-
             return true;
         }
 
@@ -215,7 +213,7 @@ class LogManager
     }
 
     /**
-     * Скачать лог-файл.
+     * Скачать лог-файл
      */
     public function downloadLog($logType)
     {
@@ -233,8 +231,8 @@ class LogManager
         $size = filesize($logFile);
 
         header('Content-Type: text/plain');
-        header('Content-Disposition: attachment; filename="'.$filename.'_'.date('Y-m-d').'.log"');
-        header('Content-Length: '.$size);
+        header('Content-Disposition: attachment; filename="' . $filename . '_' . date('Y-m-d') . '.log"');
+        header('Content-Length: ' . $size);
         header('Cache-Control: private, max-age=0, must-revalidate');
 
         readfile($logFile);
@@ -242,7 +240,7 @@ class LogManager
     }
 
     /**
-     * Ротация системного лога (создание бэкапа).
+     * Ротация системного лога (создание бэкапа)
      */
     private function rotateSystemLog()
     {
@@ -250,11 +248,11 @@ class LogManager
             return;
         }
 
-        $backupFile = $this->systemLogFile.'.backup.'.date('Ymd_His');
+        $backupFile = $this->systemLogFile . '.backup.' . date('Ymd_His');
         rename($this->systemLogFile, $backupFile);
 
         // Оставляем только последние 5 бэкапов
-        $backups = glob($this->systemLogFile.'.backup.*');
+        $backups = glob($this->systemLogFile . '.backup.*');
         if (count($backups) > 5) {
             usort($backups, function ($a, $b) {
                 return filemtime($a) - filemtime($b);
@@ -273,7 +271,7 @@ class LogManager
     }
 
     /**
-     * Прочитать последние N строк из файла.
+     * Прочитать последние N строк из файла
      */
     private function readLastLines($file, $lines)
     {
@@ -291,7 +289,7 @@ class LogManager
                 // Читаем построчно
                 while (!feof($handle)) {
                     $line = fgets($handle);
-                    if (false !== $line) {
+                    if ($line !== false) {
                         $data[] = rtrim($line);
                         if (count($data) > $lines) {
                             array_shift($data);
@@ -301,7 +299,7 @@ class LogManager
                 fclose($handle);
             }
         } catch (Exception $e) {
-            error_log('Error reading log file: '.$e->getMessage());
+            error_log("Error reading log file: " . $e->getMessage());
         }
 
         // Обрабатываем каждую строку для форматирования
@@ -313,7 +311,7 @@ class LogManager
     }
 
     /**
-     * Форматировать строку лога для отображения.
+     * Форматировать строку лога для отображения
      */
     private function formatLogLine($line)
     {
@@ -324,15 +322,15 @@ class LogManager
             'NOTICE' => 'info',
             'INFO' => 'secondary',
             'SUCCESS' => 'success',
-            'DEBUG' => 'light',
+            'DEBUG' => 'light'
         ];
 
         foreach ($levels as $level => $class) {
-            if (false !== stripos($line, $level)) {
+            if (stripos($line, $level) !== false) {
                 $line = [
                     'text' => htmlspecialchars($line),
                     'level' => $level,
-                    'class' => $class,
+                    'class' => $class
                 ];
                 break;
             }
@@ -342,7 +340,7 @@ class LogManager
             $line = [
                 'text' => htmlspecialchars($line),
                 'level' => 'INFO',
-                'class' => 'secondary',
+                'class' => 'secondary'
             ];
         }
 
@@ -350,7 +348,7 @@ class LogManager
     }
 
     /**
-     * Получить информацию о лог-файле.
+     * Получить информацию о лог-файле
      */
     private function getLogFileInfo($file)
     {
@@ -361,7 +359,7 @@ class LogManager
             'writable' => false,
             'readable' => false,
             'last_modified' => 0,
-            'last_modified_formatted' => '',
+            'last_modified_formatted' => ''
         ];
 
         if (file_exists($file)) {
@@ -378,7 +376,7 @@ class LogManager
     }
 
     /**
-     * Получить лог-файл по типу.
+     * Получить лог-файл по типу
      */
     private function getLogFileByType($type)
     {
@@ -395,21 +393,21 @@ class LogManager
     }
 
     /**
-     * Получить название типа лога.
+     * Получить название типа лога
      */
     private function getLogTypeName($type)
     {
         $names = [
             'php' => __('log_type_php'),
             'scanner' => __('log_type_scanner'),
-            'system' => __('log_type_system'),
+            'system' => __('log_type_system')
         ];
 
         return $names[$type] ?? $type;
     }
 
     /**
-     * Проверить наличие ошибок в PHP логе.
+     * Проверить наличие ошибок в PHP логе
      */
     private function hasPhpErrors()
     {
@@ -418,12 +416,11 @@ class LogManager
         }
 
         $content = file_get_contents($this->phpLogFile, false, null, -1, 10240);
-
-        return false !== stripos($content, 'error') || false !== stripos($content, 'warning');
+        return stripos($content, 'error') !== false || stripos($content, 'warning') !== false;
     }
 
     /**
-     * Анализировать лог сканера.
+     * Анализировать лог сканера
      */
     private function analyzeScannerLog($logLines)
     {
@@ -432,22 +429,22 @@ class LogManager
             'errors' => 0,
             'warnings' => 0,
             'success' => 0,
-            'last_scan' => null,
+            'last_scan' => null
         ];
 
         foreach ($logLines as $line) {
             $text = is_array($line) ? $line['text'] : $line;
 
-            if (false !== stripos($text, 'error')) {
-                ++$stats['errors'];
+            if (stripos($text, 'error') !== false) {
+                $stats['errors']++;
             }
-            if (false !== stripos($text, 'warning')) {
-                ++$stats['warnings'];
+            if (stripos($text, 'warning') !== false) {
+                $stats['warnings']++;
             }
-            if (false !== stripos($text, 'success') || false !== stripos($text, 'completed')) {
-                ++$stats['success'];
+            if (stripos($text, 'success') !== false || stripos($text, 'completed') !== false) {
+                $stats['success']++;
             }
-            if (false !== stripos($text, 'scan started') && !$stats['last_scan']) {
+            if (stripos($text, 'scan started') !== false && !$stats['last_scan']) {
                 $stats['last_scan'] = $text;
             }
         }
@@ -456,7 +453,7 @@ class LogManager
     }
 
     /**
-     * Форматировать байты.
+     * Форматировать байты
      */
     private function formatBytes($bytes, $precision = 2)
     {
@@ -468,6 +465,6 @@ class LogManager
 
         $bytes /= pow(1024, $pow);
 
-        return round($bytes, $precision).' '.$units[$pow];
+        return round($bytes, $precision) . ' ' . $units[$pow];
     }
 }

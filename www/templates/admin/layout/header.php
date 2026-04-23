@@ -15,7 +15,7 @@ $availableLangs = $detector->getAvailableLanguages();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo __('admin_panel'); ?> | <?php echo Config::SITE_TITLE; ?></title>
+    <title><?php echo __('admin_panel'); ?> | <?php echo Config::getSiteTitle(); ?></title>
     
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="<?php echo $basePath; ?>/css/css/bootstrap.min.css">
@@ -131,43 +131,43 @@ $availableLangs = $detector->getAvailableLanguages();
         </div>
         
         <nav class="nav flex-column">
-            <a class="nav-link <?php echo 'dashboard' === $currentAction ? 'active' : ''; ?>" 
+            <a class="nav-link <?php echo $currentAction === 'dashboard' ? 'active' : ''; ?>" 
                href="?action=dashboard">
                 <i class="fas fa-tachometer-alt"></i>
                 <?php echo __('admin_dashboard'); ?>
             </a>
             
-            <a class="nav-link <?php echo 'books' === $currentAction ? 'active' : ''; ?>" 
+            <a class="nav-link <?php echo $currentAction === 'books' ? 'active' : ''; ?>" 
                href="?action=books">
                 <i class="fas fa-book"></i>
                 <?php echo __('admin_books'); ?>
             </a>
             
-            <a class="nav-link <?php echo 'scanner' === $currentAction ? 'active' : ''; ?>" 
+            <a class="nav-link <?php echo $currentAction === 'scanner' ? 'active' : ''; ?>" 
                href="?action=scanner">
                 <i class="fas fa-robot"></i>
                 <?php echo __('admin_scanner'); ?>
             </a>
             
-            <a class="nav-link <?php echo 'database' === $currentAction ? 'active' : ''; ?>" 
+            <a class="nav-link <?php echo $currentAction === 'database' ? 'active' : ''; ?>" 
                href="?action=database">
                 <i class="fas fa-database"></i>
                 <?php echo __('admin_database'); ?>
             </a>
             
-            <a class="nav-link <?php echo 'settings' === $currentAction ? 'active' : ''; ?>" 
+            <a class="nav-link <?php echo $currentAction === 'settings' ? 'active' : ''; ?>" 
                href="?action=settings">
                 <i class="fas fa-sliders-h"></i>
                 <?php echo __('admin_settings'); ?>
             </a>
             
-            <a class="nav-link <?php echo 'logs' === $currentAction ? 'active' : ''; ?>" 
+            <a class="nav-link <?php echo $currentAction === 'logs' ? 'active' : ''; ?>" 
                href="?action=logs">
                 <i class="fas fa-history"></i>
                 <?php echo __('admin_logs'); ?>
             </a>
 
-         <a class="nav-link <?php echo 'library_backup' === $currentAction ? 'active' : ''; ?>" 
+         <a class="nav-link <?php echo $currentAction === 'library_backup' ? 'active' : ''; ?>" 
 	    href="?action=library_backup">
 	    <i class="fas fa-archive"></i>
 	    <?php echo __('admin_library_backup'); ?>
@@ -198,7 +198,7 @@ $availableLangs = $detector->getAvailableLanguages();
                     'scanner' => __('admin_scanner'),
                     'database' => __('admin_database'),
                     'settings' => __('admin_settings'),
-                    'logs' => __('admin_logs'),
+                    'logs' => __('admin_logs')
                 ];
 echo $titles[$currentAction] ?? __('admin_panel');
 ?>
@@ -214,14 +214,14 @@ echo $titles[$currentAction] ?? __('admin_panel');
                 </span>
                 
                 <!-- Переключатель языка -->
-                <?php if (count($availableLangs) > 1) { ?>
+                <?php if (count($availableLangs) > 1): ?>
                 <div class="dropdown d-inline-block ms-2">
                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" 
                             data-bs-toggle="dropdown" aria-expanded="false">
-                        <?php echo $detector->getLanguageFlag().' '.$detector->getLanguageName(); ?>
+                        <?php echo $detector->getLanguageFlag() . ' ' . $detector->getLanguageName(); ?>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
-                        <?php foreach ($availableLangs as $lang) {
+                        <?php foreach ($availableLangs as $lang):
                             $langFlag = $detector->getLanguageFlag($lang);
                             $langName = $detector->getLanguageName($lang);
                             ?>
@@ -229,12 +229,12 @@ echo $titles[$currentAction] ?? __('admin_panel');
                             <a class="dropdown-item <?php echo $lang === $currentLang ? 'active' : ''; ?>" 
                                href="#" 
                                data-lang="<?php echo $lang; ?>">
-                                <?php echo $langFlag.' '.$langName; ?>
+                                <?php echo $langFlag . ' ' . $langName; ?>
                             </a>
                         </li>
-                        <?php } ?>
+                        <?php endforeach; ?>
                     </ul>
                 </div>
-                <?php } ?>
+                <?php endif; ?>
             </div>
         </div>

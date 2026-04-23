@@ -42,7 +42,7 @@ $csrf_token = $csrf_token ?? '';
                 <label class="form-label"><?php echo __('admin_filter_genre'); ?></label>
                 <select class="form-select" name="filter[genre]">
                     <option value=""><?php echo __('admin_filter_genre_all'); ?></option>
-                    <?php foreach ($genresList as $g) { ?>
+                    <?php foreach ($genresList as $g): ?>
                         <option value="<?php echo htmlspecialchars($g['genre']); ?>" 
                             <?php echo ($filter['genre'] ?? '') === $g['genre'] ? 'selected' : ''; ?>>
                             <?php
@@ -50,7 +50,7 @@ $csrf_token = $csrf_token ?? '';
                         echo htmlspecialchars($readable ?: $g['genre']);
                         ?>
                         </option>
-                    <?php } ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
             
@@ -58,12 +58,12 @@ $csrf_token = $csrf_token ?? '';
                 <label class="form-label"><?php echo __('admin_filter_format'); ?></label>
                 <select class="form-select" name="filter[file_type]">
                     <option value=""><?php echo __('admin_filter_format_all'); ?></option>
-                    <?php foreach ($fileTypesList as $ft) { ?>
+                    <?php foreach ($fileTypesList as $ft): ?>
                         <option value="<?php echo htmlspecialchars($ft['file_type']); ?>"
                             <?php echo ($filter['file_type'] ?? '') === $ft['file_type'] ? 'selected' : ''; ?>>
                             <?php echo strtoupper($ft['file_type']); ?>
                         </option>
-                    <?php } ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
             
@@ -71,12 +71,12 @@ $csrf_token = $csrf_token ?? '';
                 <label class="form-label"><?php echo __('admin_filter_author'); ?></label>
                 <select class="form-select" name="filter[author]">
                     <option value=""><?php echo __('admin_filter_author_all'); ?></option>
-                    <?php foreach ($authorsList as $a) { ?>
+                    <?php foreach ($authorsList as $a): ?>
                         <option value="<?php echo htmlspecialchars($a['author']); ?>"
                             <?php echo ($filter['author'] ?? '') === $a['author'] ? 'selected' : ''; ?>>
                             <?php echo htmlspecialchars(mb_substr($a['author'], 0, 40)); ?>
                         </option>
-                    <?php } ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
             
@@ -139,14 +139,14 @@ $csrf_token = $csrf_token ?? '';
                 <div class="col-md-3" id="bulkGenreField" style="display: none;">
                     <select class="form-select" name="bulk_genre">
                         <option value=""><?php echo __('admin_bulk_genre_select'); ?></option>
-                        <?php foreach ($genresList as $g) { ?>
+                        <?php foreach ($genresList as $g): ?>
                             <option value="<?php echo htmlspecialchars($g['genre']); ?>">
                                 <?php
                             $readable = GenreManager::getReadableName($g['genre']);
                             echo htmlspecialchars($readable ?: $g['genre']);
                             ?>
                             </option>
-                        <?php } ?>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 
@@ -206,15 +206,15 @@ $csrf_token = $csrf_token ?? '';
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (empty($books)) { ?>
+                    <?php if (empty($books)): ?>
                         <tr>
                             <td colspan="11" class="text-center text-muted py-4">
                                 <i class="fas fa-book-open fa-3x mb-2"></i><br>
                                 <?php echo __('admin_books_empty'); ?>
                             </td>
                         </tr>
-                    <?php } else { ?>
-                        <?php foreach ($books as $book) { ?>
+                    <?php else: ?>
+                        <?php foreach ($books as $book): ?>
                         <tr id="book-row-<?php echo $book['id']; ?>">
                             <td>
                                 <input type="checkbox" name="book_ids[]" value="<?php echo $book['id']; ?>" 
@@ -226,15 +226,15 @@ $csrf_token = $csrf_token ?? '';
                                    target="_blank"
                                    title="<?php echo __('admin_book_view'); ?>">
                                     <?php echo htmlspecialchars(mb_substr($book['title'] ?: __('book_untitled'), 0, 50)); ?>
-                                    <?php if (mb_strlen($book['title'] ?? '') > 50) { ?>...<?php } ?>
+                                    <?php if (mb_strlen($book['title'] ?? '') > 50): ?>...<?php endif; ?>
                                 </a>
                             </td>
                             <td>
-                                <?php if (!empty($book['author'])) { ?>
+                                <?php if (!empty($book['author'])): ?>
                                     <?php echo htmlspecialchars(mb_substr($book['author'], 0, 35)); ?>
-                                <?php } else { ?>
+                                <?php else: ?>
                                     <span class="text-muted">—</span>
-                                <?php } ?>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <?php
@@ -243,36 +243,36 @@ $csrf_token = $csrf_token ?? '';
                             ?>
                             </td>
                             <td>
-                                <?php if ($book['series']) { ?>
+                                <?php if ($book['series']): ?>
                                     <span title="<?php echo htmlspecialchars($book['series']); ?>">
                                         <?php echo htmlspecialchars(mb_substr($book['series'], 0, 25)); ?>
-                                        <?php if (mb_strlen($book['series']) > 25) { ?>...<?php } ?>
+                                        <?php if (mb_strlen($book['series']) > 25): ?>...<?php endif; ?>
                                     </span>
-                                    <?php if ($book['series_number']) { ?>
+                                    <?php if ($book['series_number']): ?>
                                         <span class="badge bg-secondary ms-1">#<?php echo $book['series_number']; ?></span>
-                                    <?php } ?>
-                                <?php } else { ?>
+                                    <?php endif; ?>
+                                <?php else: ?>
                                     <span class="text-muted">—</span>
-                                <?php } ?>
+                                <?php endif; ?>
                             </td>
                             <td><?php echo $book['year'] ?: '—'; ?></td>
                             <td>
                                 <span class="badge bg-info"><?php echo strtoupper($book['file_type'] ?: '?'); ?></span>
-                                <?php if ($book['archive_path']) { ?>
+                                <?php if ($book['archive_path']): ?>
                                     <span class="badge bg-secondary" title="<?php echo __('book_in_archive'); ?>">
                                         <i class="fas fa-archive"></i>
                                     </span>
-                                <?php } ?>
+                                <?php endif; ?>
                             </td>
                             <td class="text-center">
-                                <?php if (($book['votes'] ?? 0) > 0) { ?>
+                                <?php if (($book['votes'] ?? 0) > 0): ?>
                                     <div class="d-flex flex-column align-items-center">
                                         <span class="text-warning fw-bold"><?php echo number_format($book['avg_rating'] ?? 0, 1); ?></span>
                                         <small class="text-muted">(<?php echo $book['votes']; ?>)</small>
                                     </div>
-                                <?php } else { ?>
+                                <?php else: ?>
                                     <small class="text-muted">—</small>
-                                <?php } ?>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <small class="text-muted">
@@ -300,15 +300,15 @@ $csrf_token = $csrf_token ?? '';
                                 </div>
                             </td>
                         </tr>
-                        <?php } ?>
-                    <?php } ?>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
     
     <!-- Пагинация -->
-    <?php if ($total > 20) { ?>
+    <?php if ($total > 20): ?>
     <div class="card-footer">
         <nav aria-label="<?php echo __('pagination'); ?>">
             <ul class="pagination justify-content-center mb-0">
@@ -317,58 +317,58 @@ $csrf_token = $csrf_token ?? '';
         $currentPage = $page;
         $queryParams = buildFilterQuery($filter);
 
-        if ($currentPage > 1) { ?>
+        if ($currentPage > 1): ?>
                     <li class="page-item">
                         <a class="page-link" href="?action=books&page=<?php echo $currentPage - 1; ?><?php echo $queryParams; ?>">
                             <i class="fas fa-chevron-left"></i>
                             <span class="visually-hidden"><?php echo __('previous'); ?></span>
                         </a>
                     </li>
-                <?php }
+                <?php endif;
 
         $start = max(1, $currentPage - 2);
         $end = min($totalPages, $currentPage + 2);
 
-        if ($start > 1) { ?>
+        if ($start > 1): ?>
                     <li class="page-item">
                         <a class="page-link" href="?action=books&page=1<?php echo $queryParams; ?>">1</a>
                     </li>
-                    <?php if ($start > 2) { ?>
+                    <?php if ($start > 2): ?>
                         <li class="page-item disabled"><span class="page-link">...</span></li>
-                    <?php } ?>
-                <?php }
+                    <?php endif; ?>
+                <?php endif;
 
-        for ($i = $start; $i <= $end; ++$i) { ?>
+        for ($i = $start; $i <= $end; $i++): ?>
                     <li class="page-item <?php echo $i == $currentPage ? 'active' : ''; ?>">
                         <a class="page-link" href="?action=books&page=<?php echo $i; ?><?php echo $queryParams; ?>">
                             <?php echo $i; ?>
                         </a>
                     </li>
-                <?php }
+                <?php endfor;
 
-        if ($end < $totalPages) { ?>
-                    <?php if ($end < $totalPages - 1) { ?>
+        if ($end < $totalPages): ?>
+                    <?php if ($end < $totalPages - 1): ?>
                         <li class="page-item disabled"><span class="page-link">...</span></li>
-                    <?php } ?>
+                    <?php endif; ?>
                     <li class="page-item">
                         <a class="page-link" href="?action=books&page=<?php echo $totalPages; ?><?php echo $queryParams; ?>">
                             <?php echo $totalPages; ?>
                         </a>
                     </li>
-                <?php }
+                <?php endif;
 
-        if ($currentPage < $totalPages) { ?>
+        if ($currentPage < $totalPages): ?>
                     <li class="page-item">
                         <a class="page-link" href="?action=books&page=<?php echo $currentPage + 1; ?><?php echo $queryParams; ?>">
                             <i class="fas fa-chevron-right"></i>
                             <span class="visually-hidden"><?php echo __('next'); ?></span>
                         </a>
                     </li>
-                <?php } ?>
+                <?php endif; ?>
             </ul>
         </nav>
     </div>
-    <?php } ?>
+    <?php endif; ?>
 </div>
 
 <!-- Форма удаления (скрытая) -->
@@ -482,12 +482,11 @@ function buildFilterQuery($filter)
     }
     $parts = [];
     foreach ($filter as $key => $value) {
-        if ('' !== $value) {
-            $parts[] = "filter[$key]=".urlencode($value);
+        if ($value !== '') {
+            $parts[] = "filter[$key]=" . urlencode($value);
         }
     }
-
-    return $parts ? '&'.implode('&', $parts) : '';
+    return $parts ? '&' . implode('&', $parts) : '';
 }
 ?>
 

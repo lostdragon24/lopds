@@ -17,14 +17,14 @@ $scanner = new ScannerManager();
         <i class="fas fa-robot fa-2x me-3"></i>
         <div>
             <strong><?php echo __('install_scanner'); ?></strong><br>
-            <?php if ($scanner->isAvailable()) { ?>
+            <?php if ($scanner->isAvailable()): ?>
                 <?php echo sprintf(__('install_scanner_available'), $scanner->getVersion() ?: __('install_scanner_version_unknown')); ?><br>
                 <small class="text-muted"><?php echo sprintf(__('install_scanner_path'), Config::getScannerPath()); ?></small>
-            <?php } else { ?>
+            <?php else: ?>
                 <?php echo __('install_scanner_not_available'); ?><br>
                 <small class="text-muted"><?php echo sprintf(__('install_scanner_path'), Config::getScannerPath()); ?></small>
                 <span class="badge bg-info ms-2"><?php echo __('install_scanner_later'); ?></span>
-            <?php } ?>
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -40,7 +40,7 @@ $scanner = new ScannerManager();
         </tr>
     </thead>
     <tbody>
-        <?php foreach ($dirs as $key => $dir) { ?>
+        <?php foreach ($dirs as $key => $dir): ?>
         <tr>
             <td>
                 <strong><?php echo ucfirst($key); ?></strong><br>
@@ -48,31 +48,31 @@ $scanner = new ScannerManager();
             </td>
             <td><small><?php echo $dir['path']; ?></small></td>
             <td>
-                <?php if (!$dir['exists']) { ?>
+                <?php if (!$dir['exists']): ?>
                     <span class="badge bg-warning"><?php echo __('install_not_exists'); ?></span>
-                <?php } elseif (!$dir['writable']) { ?>
+                <?php elseif (!$dir['writable']): ?>
                     <span class="badge bg-danger"><?php echo __('install_not_writable'); ?></span>
-                <?php } else { ?>
+                <?php else: ?>
                     <span class="badge bg-success"><?php echo __('install_ok'); ?></span>
-                <?php } ?>
+                <?php endif; ?>
             </td>
             <td>
-                <?php if ($dir['exists']) { ?>
+                <?php if ($dir['exists']): ?>
                     <code><?php echo $dir['perms']; ?></code>
                     <small class="text-muted">(<?php echo $dir['owner']; ?>)</small>
-                <?php } else { ?>
+                <?php else: ?>
                     <span class="text-muted">—</span>
-                <?php } ?>
+                <?php endif; ?>
             </td>
         </tr>
-        <?php } ?>
+        <?php endforeach; ?>
     </tbody>
 </table>
 
 <!-- Кнопки действий -->
 <div class="d-flex justify-content-between mt-4">
     <div>
-        <?php if (!$dirs['data']['exists'] || !$dirs['cache']['exists'] || !$dirs['books']['exists']) { ?>
+        <?php if (!$dirs['data']['exists'] || !$dirs['cache']['exists'] || !$dirs['books']['exists']): ?>
             <form method="post" class="d-inline">
                 <input type="hidden" name="action" value="create_directories">
                 <button type="submit" class="btn btn-success">
@@ -80,11 +80,11 @@ $scanner = new ScannerManager();
                     <?php echo __('install_create_dirs'); ?>
                 </button>
             </form>
-        <?php } ?>
+        <?php endif; ?>
         
-        <?php if (($dirs['data']['exists'] && !$dirs['data']['writable'])
-                  || ($dirs['cache']['exists'] && !$dirs['cache']['writable'])
-                  || ($dirs['books']['exists'] && !$dirs['books']['writable'])) { ?>
+        <?php if (($dirs['data']['exists'] && !$dirs['data']['writable']) ||
+                  ($dirs['cache']['exists'] && !$dirs['cache']['writable']) ||
+                  ($dirs['books']['exists'] && !$dirs['books']['writable'])): ?>
             <form method="post" class="d-inline ms-2">
                 <input type="hidden" name="action" value="fix_permissions">
                 <button type="submit" class="btn btn-warning">
@@ -92,7 +92,7 @@ $scanner = new ScannerManager();
                     <?php echo __('install_fix_perms'); ?>
                 </button>
             </form>
-        <?php } ?>
+        <?php endif; ?>
     </div>
     
     <a href="?step=2" class="btn btn-primary">

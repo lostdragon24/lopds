@@ -9,14 +9,13 @@ if (!defined('INSTALL_MODE') || INSTALL_MODE !== true) {
 if (!class_exists('Database', false)) {
     class Database
     {
-        private static $instance;
+        private static $instance = null;
 
         public static function getInstance()
         {
-            if (null === self::$instance) {
+            if (self::$instance === null) {
                 self::$instance = new self();
             }
-
             return self::$instance;
         }
 

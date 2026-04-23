@@ -2,7 +2,7 @@
 
 // lib/BackupManager.php
 
-require_once __DIR__.'/../init.php';
+require_once __DIR__ . '/../init.php';
 
 class BackupManager
 {
@@ -10,8 +10,8 @@ class BackupManager
 
     public function __construct($backupDir = null)
     {
-        if (null === $backupDir) {
-            $backupDir = __DIR__.'/../backups/config';
+        if ($backupDir === null) {
+            $backupDir = __DIR__ . '/../backups/config';
         }
         $this->backupDir = $backupDir;
 
@@ -23,11 +23,11 @@ class BackupManager
     }
 
     /**
-     * Получить список бэкапов.
+     * Получить список бэкапов
      */
     public function getBackups()
     {
-        $files = glob($this->backupDir.'/env.backup.*');
+        $files = glob($this->backupDir . '/env.backup.*');
         $backups = [];
 
         foreach ($files as $file) {
@@ -37,7 +37,7 @@ class BackupManager
                 'size_formatted' => $this->formatBytes(filesize($file)),
                 'date' => date('Y-m-d H:i:s', filemtime($file)),
                 'timestamp' => filemtime($file),
-                'path' => $file,
+                'path' => $file
             ];
         }
 
@@ -50,11 +50,11 @@ class BackupManager
     }
 
     /**
-     * Восстановить из бэкапа.
+     * Восстановить из бэкапа
      */
     public function restore($filename, $targetFile)
     {
-        $backupFile = $this->backupDir.'/'.basename($filename);
+        $backupFile = $this->backupDir . '/' . basename($filename);
 
         if (!file_exists($backupFile)) {
             throw new Exception(sprintf(__('backup_error_not_found'), $filename));
@@ -79,27 +79,24 @@ class BackupManager
     }
 
     /**
-     * Создать бэкап файла.
+     * Создать бэкап файла
      */
     public function createBackup($sourceFile)
     {
         if (!file_exists($sourceFile)) {
             error_log(sprintf(__('backup_error_source_not_found'), $sourceFile));
-
             return false;
         }
 
         if (!is_readable($sourceFile)) {
             error_log(sprintf(__('backup_error_source_not_readable'), $sourceFile));
-
             return false;
         }
 
-        $backupFile = $this->backupDir.'/env.backup.'.date('Ymd_His');
+        $backupFile = $this->backupDir . '/env.backup.' . date('Ymd_His');
 
         if (!copy($sourceFile, $backupFile)) {
             error_log(sprintf(__('backup_error_copy_failed'), $sourceFile, $backupFile));
-
             return false;
         }
 
@@ -114,7 +111,7 @@ class BackupManager
     }
 
     /**
-     * Очистить старые бэкапы.
+     * Очистить старые бэкапы
      */
     public function cleanup($keep = 10)
     {
@@ -127,9 +124,9 @@ class BackupManager
         $deleted = 0;
 
         foreach ($toDelete as $backup) {
-            $filePath = $this->backupDir.'/'.$backup['filename'];
+            $filePath = $this->backupDir . '/' . $backup['filename'];
             if (unlink($filePath)) {
-                ++$deleted;
+                $deleted++;
                 error_log(sprintf(__('backup_deleted'), $backup['filename']));
             } else {
                 error_log(sprintf(__('backup_error_delete'), $backup['filename']));
@@ -144,7 +141,7 @@ class BackupManager
     }
 
     /**
-     * Получить информацию о бэкапах (размер, количество).
+     * Получить информацию о бэкапах (размер, количество)
      */
     public function getBackupInfo()
     {
@@ -160,7 +157,7 @@ class BackupManager
             'total_size' => $totalSize,
             'total_size_formatted' => $this->formatBytes($totalSize),
             'oldest' => !empty($backups) ? end($backups)['date'] : null,
-            'newest' => !empty($backups) ? $backups[0]['date'] : null,
+            'newest' => !empty($backups) ? $backups[0]['date'] : null
         ];
     }
 
@@ -169,7 +166,7 @@ class BackupManager
      */
     public function deleteBackup($filename)
     {
-        $backupFile = $this->backupDir.'/'.basename($filename);
+        $backupFile = $this->backupDir . '/' . basename($filename);
 
         if (!file_exists($backupFile)) {
             throw new Exception(sprintf(__('backup_error_not_found'), $filename));
@@ -194,7 +191,7 @@ class BackupManager
         }
 
         $safeName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $name);
-        $backupFile = $this->backupDir.'/'.$safeName.'.backup.'.date('Ymd_His');
+        $backupFile = $this->backupDir . '/' . $safeName . '.backup.' . date('Ymd_His');
 
         if (!copy($sourceFile, $backupFile)) {
             throw new Exception(sprintf(__('backup_error_copy_failed'), $sourceFile, $backupFile));
@@ -206,7 +203,7 @@ class BackupManager
     }
 
     /**
-     * Форматировать байты.
+     * Форматировать байты
      */
     private function formatBytes($bytes, $precision = 2)
     {
@@ -218,19 +215,18 @@ class BackupManager
 
         $bytes /= pow(1024, $pow);
 
-        return round($bytes, $precision).' '.$units[$pow];
+        return round($bytes, $precision) . ' ' . $units[$pow];
     }
 
     /**
-     * Проверить, достаточно ли места для создания бэкапа.
+     * Проверить, достаточно ли места для создания бэкапа
      */
     public function hasEnoughSpace($requiredBytes)
     {
         $freeSpace = disk_free_space($this->backupDir);
 
-        if (false === $freeSpace) {
+        if ($freeSpace === false) {
             error_log(__('backup_error_cant_check_space'));
-
             return true; // Не можем проверить - предполагаем что хватит
         }
 
@@ -238,14 +234,14 @@ class BackupManager
     }
 
     /**
-     * Получить статистику использования диска для бэкапов.
+     * Получить статистику использования диска для бэкапов
      */
     public function getDiskStats()
     {
         $total = disk_total_space($this->backupDir);
         $free = disk_free_space($this->backupDir);
 
-        if (false === $total || false === $free) {
+        if ($total === false || $free === false) {
             return null;
         }
 
@@ -259,7 +255,7 @@ class BackupManager
             'used' => $used,
             'used_formatted' => $this->formatBytes($used),
             'percent_used' => round(($used / $total) * 100, 1),
-            'percent_free' => round(($free / $total) * 100, 1),
+            'percent_free' => round(($free / $total) * 100, 1)
         ];
     }
 }

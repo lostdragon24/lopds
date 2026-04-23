@@ -2,12 +2,12 @@
 
 // lib/SettingsValidator.php
 
-require_once __DIR__.'/../init.php';
+require_once __DIR__ . '/../init.php';
 
 class SettingsValidator
 {
     /**
-     * Валидировать настройки.
+     * Валидировать настройки
      */
     public function validate($data, $groups)
     {
@@ -73,7 +73,7 @@ class SettingsValidator
     }
 
     /**
-     * Проверить пути.
+     * Проверить пути
      */
     public function validatePaths($data)
     {
@@ -137,14 +137,14 @@ class SettingsValidator
     }
 
     /**
-     * Проверить подключение к БД.
+     * Проверить подключение к БД
      */
     public function testDatabaseConnection($settings)
     {
         try {
             $type = $settings['DB_TYPE'] ?? 'mysql';
 
-            if ('mysql' === $type) {
+            if ($type === 'mysql') {
                 $dsn = "mysql:host={$settings['DB_HOST']};charset=utf8mb4";
 
                 // Добавляем порт если указан
@@ -154,26 +154,27 @@ class SettingsValidator
 
                 $pdo = new PDO($dsn, $settings['DB_USER'], $settings['DB_PASS'] ?? '', [
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_TIMEOUT => 5,
+                    PDO::ATTR_TIMEOUT => 5
                 ]);
 
                 // Проверяем существование базы
-                $stmt = $pdo->query('SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA 
-                                      WHERE SCHEMA_NAME = '.$pdo->quote($settings['DB_NAME']));
-                $dbExists = false !== $stmt->fetch();
+                $stmt = $pdo->query("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA 
+                                      WHERE SCHEMA_NAME = " . $pdo->quote($settings['DB_NAME']));
+                $dbExists = $stmt->fetch() !== false;
 
                 return [
                     'success' => true,
-                    'message' => __('validator_db_connection_success').' '.
-                                ($dbExists ? __('validator_db_exists') : __('validator_db_will_be_created')),
+                    'message' => __('validator_db_connection_success') . ' ' .
+                                ($dbExists ? __('validator_db_exists') : __('validator_db_will_be_created'))
                 ];
-            } elseif ('sqlite' === $type) {
+
+            } elseif ($type === 'sqlite') {
                 $path = $settings['DB_PATH'];
 
                 // Проверяем, является ли путь абсолютным
-                if (0 !== strpos($path, '/') && 0 !== strpos($path, '\\') && !preg_match('/^[A-Za-z]:/', $path)) {
+                if (strpos($path, '/') !== 0 && strpos($path, '\\') !== 0 && !preg_match('/^[A-Za-z]:/', $path)) {
                     // Относительный путь - преобразуем в абсолютный
-                    $path = Config::getBasePath().'/'.ltrim($path, '/');
+                    $path = Config::getBasePath() . '/' . ltrim($path, '/');
                 }
 
                 $dir = dirname($path);
@@ -189,8 +190,8 @@ class SettingsValidator
                 }
 
                 // Пробуем создать тестовый файл
-                $testFile = $dir.'/test_write_'.uniqid().'.tmp';
-                if (false === file_put_contents($testFile, 'test')) {
+                $testFile = $dir . '/test_write_' . uniqid() . '.tmp';
+                if (file_put_contents($testFile, 'test') === false) {
                     throw new Exception(sprintf(__('validator_cannot_write'), $dir));
                 }
                 unlink($testFile);
@@ -198,33 +199,34 @@ class SettingsValidator
                 // Проверяем возможность открыть/создать базу данных
                 $pdo = new PDO("sqlite:$path", null, null, [
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_TIMEOUT => 5,
+                    PDO::ATTR_TIMEOUT => 5
                 ]);
 
                 // Проверяем возможность выполнить запрос
-                $pdo->exec('CREATE TABLE IF NOT EXISTS _test (id INTEGER)');
-                $pdo->exec('DROP TABLE _test');
+                $pdo->exec("CREATE TABLE IF NOT EXISTS _test (id INTEGER)");
+                $pdo->exec("DROP TABLE _test");
 
                 return [
                     'success' => true,
-                    'message' => __('validator_sqlite_success'),
+                    'message' => __('validator_sqlite_success')
                 ];
             }
 
             return [
                 'success' => false,
-                'message' => sprintf(__('validator_unsupported_db_type'), $type),
+                'message' => sprintf(__('validator_unsupported_db_type'), $type)
             ];
+
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => __('validator_db_connection_error').': '.$e->getMessage(),
+                'message' => __('validator_db_connection_error') . ': ' . $e->getMessage()
             ];
         }
     }
 
     /**
-     * Проверить формат IP адресов.
+     * Проверить формат IP адресов
      */
     public function validateIpList($ipList)
     {
@@ -252,13 +254,13 @@ class SettingsValidator
     }
 
     /**
-     * Санитизация значения.
+     * Санитизация значения
      */
     public function sanitize($value, $type = 'text')
     {
         switch ($type) {
             case 'number':
-                return (int) $value;
+                return (int)$value;
 
             case 'boolean':
                 return in_array($value, ['true', '1', 'on', true], true);
@@ -274,7 +276,6 @@ class SettingsValidator
                 $value = preg_replace('/[\/\\\\]+/', '/', $value);
                 $value = preg_replace('/\/\.\//', '/', $value);
                 $value = preg_replace('/\/+/', '/', $value);
-
                 return rtrim($value, '/');
 
             default:

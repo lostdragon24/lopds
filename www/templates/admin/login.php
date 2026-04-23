@@ -18,13 +18,13 @@ $default_hint = $default_hint ?? __('login_default');
                 </h4>
             </div>
             <div class="card-body p-4">
-                <?php if ($error) { ?>
+                <?php if ($error): ?>
                     <div class="alert alert-danger alert-dismissible fade show">
                         <i class="fas fa-exclamation-circle me-2"></i>
                         <?php echo htmlspecialchars($error); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
-                <?php } ?>
+                <?php endif; ?>
                 
                 <form method="post" action="index.php">
                     <input type="hidden" name="action" value="do_login">

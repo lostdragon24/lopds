@@ -1,15 +1,15 @@
 <?php
 
-require_once __DIR__.'/../config/config.php';
-require_once __DIR__.'/../lib/Database.php';
-require_once __DIR__.'/../lib/SecurityHelper.php';
-require_once __DIR__.'/../init.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../lib/Database.php';
+require_once __DIR__ . '/../lib/SecurityHelper.php';
+require_once __DIR__ . '/../init.php';
 
 $db = Database::getInstance();
 
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     http_response_code(400);
-    exit('Invalid book ID');
+    die('Invalid book ID');
 }
 
 $bookId = intval($_GET['id']);
@@ -17,7 +17,7 @@ $book = $db->getBook($bookId);
 
 if (!$book) {
     http_response_code(404);
-    exit('Book not found');
+    die('Book not found');
 }
 
 $scriptPath = $_SERVER['SCRIPT_NAME'];
@@ -27,7 +27,7 @@ $basePath = rtrim(dirname(dirname($scriptPath)), '/');
 $content = getBookContent($book);
 if (!$content) {
     http_response_code(500);
-    exit('Cannot read book file');
+    die('Cannot read book file');
 }
 
 // Получаем выбранную кодировку из GET или cookie
@@ -38,11 +38,11 @@ $availableEncodings = [
     'windows-1251' => 'Windows-1251',
     'koi8-r' => 'KOI8-R',
     'cp866' => 'CP866',
-    'iso-8859-5' => 'ISO-8859-5',
+    'iso-8859-5' => 'ISO-8859-5'
 ];
 
 // Применяем выбранную кодировку
-if ('auto' !== $selectedEncoding) {
+if ($selectedEncoding !== 'auto') {
     $converted = @iconv($selectedEncoding, 'UTF-8//IGNORE', $content);
     if ($converted) {
         $content = $converted;
@@ -50,7 +50,7 @@ if ('auto' !== $selectedEncoding) {
 } else {
     // Автоопределение
     $detected = mb_detect_encoding($content, ['UTF-8', 'Windows-1251', 'KOI8-R', 'CP866', 'ISO-8859-5'], true);
-    if ($detected && 'UTF-8' !== $detected) {
+    if ($detected && $detected !== 'UTF-8') {
         $content = mb_convert_encoding($content, 'UTF-8', $detected);
     }
 }
@@ -268,20 +268,20 @@ header('Content-Type: text/html; charset=utf-8');
 <body>
     <div class="reader-content">
         <!-- Заголовок книги -->
-        <?php if (1 == $page) { ?>
+        <?php if ($page == 1): ?>
         <div class="book-header">
             <div class="book-title"><?php echo htmlspecialchars($book['title'] ?: "<?php echo __('book_untitled'); ?>", ENT_QUOTES, 'UTF-8'); ?></div>
             <div class="book-author"><?php echo htmlspecialchars($book['author'] ?: "<?php echo __('book_unknown_author'); ?>", ENT_QUOTES, 'UTF-8'); ?></div>
         </div>
-        <?php } ?>
+        <?php endif; ?>
         
 <!-- Содержимое страницы -->
 <div class="fb2-body">
-<?php
+<?php 
 // Санитизация контента для защиты от XSS
-require_once __DIR__.'/../lib/SecurityHelper.php';
+require_once __DIR__ . '/../lib/SecurityHelper.php';
 $security = SecurityHelper::getInstance();
-echo $security->sanitizeBookContent($pages[$page - 1] ?? '');
+echo $security->sanitizeBookContent($pages[$page - 1] ?? ''); 
 ?>
 </div>
         
@@ -300,12 +300,12 @@ echo $security->sanitizeBookContent($pages[$page - 1] ?? '');
     <!-- Меню выбора кодировки -->
     <div class="encoding-menu" id="encodingMenu">
         <h6>Выберите кодировку:</h6>
-        <?php foreach ($availableEncodings as $enc => $name) { ?>
+        <?php foreach ($availableEncodings as $enc => $name): ?>
         <button onclick="changeEncoding('<?php echo $enc; ?>')" 
                 class="<?php echo $enc === $selectedEncoding ? 'active' : ''; ?>">
             <?php echo $name; ?>
         </button>
-        <?php } ?>
+        <?php endforeach; ?>
     </div>
     
     <script>
@@ -376,42 +376,37 @@ echo $security->sanitizeBookContent($pages[$page - 1] ?? '');
 exit;
 
 /**
- * Получить содержимое книги.
+ * Получить содержимое книги
  */
-function getBookContent($book)
-{
+function getBookContent($book) {
     if ($book['archive_path'] && $book['archive_internal_path']) {
         $zip = new ZipArchive();
-        if (true === $zip->open($book['archive_path'])) {
+        if ($zip->open($book['archive_path']) === TRUE) {
             $content = $zip->getFromName($book['archive_internal_path']);
             $zip->close();
-
             return $content;
         }
-
         return false;
     }
-
     return @file_get_contents($book['file_path']);
 }
 
 /**
- * Разбить FB2 на страницы.
+ * Разбить FB2 на страницы
  */
-function splitIntoPages($content)
-{
+function splitIntoPages($content) {
     $pages = [];
-
+    
     // Извлекаем тело книги
     if (preg_match('/<body>(.*?)<\/body>/is', $content, $matches)) {
         $body = $matches[1];
     } else {
         $body = $content;
     }
-
+    
     // Удаляем namespace префиксы
     $body = preg_replace('/<(\/?)[^:>]+:([^>]+)>/', '<$1$2>', $body);
-
+    
     // Конвертируем теги
     $body = preg_replace('/<title>/', '<h2>', $body);
     $body = preg_replace('/<\/title>/', '</h2>', $body);
@@ -420,18 +415,18 @@ function splitIntoPages($content)
     $body = preg_replace('/<p>/', '<p>', $body);
     $body = preg_replace('/<\/p>/', '</p>', $body);
     $body = preg_replace('/<empty-line\s*\/>/', '<div class="empty-line"></div>', $body);
-
+    
     // Разбиваем на абзацы
     $paragraphs = preg_split('/(<h[1-3]>.*?<\/h[1-3]>|<p>.*?<\/p>)/i', $body, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
-
+    
     $currentPage = '';
     $currentLength = 0;
     $targetLength = 3000;
-
+    
     foreach ($paragraphs as $para) {
         $cleanPara = strip_tags($para);
         $paraLength = mb_strlen($cleanPara, 'UTF-8');
-
+        
         if ($currentLength + $paraLength > $targetLength && !empty($currentPage)) {
             $pages[] = $currentPage;
             $currentPage = $para;
@@ -441,15 +436,15 @@ function splitIntoPages($content)
             $currentLength += $paraLength;
         }
     }
-
+    
     if (!empty($currentPage)) {
         $pages[] = $currentPage;
     }
-
+    
     if (empty($pages)) {
         $pages[] = $body;
     }
-
+    
     return $pages;
 }
 

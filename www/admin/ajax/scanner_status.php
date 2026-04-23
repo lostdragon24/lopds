@@ -2,18 +2,18 @@
 
 // admin/ajax/scanner_status.php
 
-require_once __DIR__.'/../../config/config.php';
-require_once __DIR__.'/../../lib/ScannerManager.php';
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../lib/ScannerManager.php';
 
 header('Content-Type: application/json');
 
 session_start();
-if (!isset($_SESSION['admin_logged_in']) || true !== $_SESSION['admin_logged_in']) {
+if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
     http_response_code(403);
     echo json_encode([
         'success' => false,
         'error' => __('admin_error_access_denied'),
-        'code' => 'unauthorized',
+        'code' => 'unauthorized'
     ]);
     exit;
 }
@@ -36,7 +36,7 @@ if ($status['running'] ?? false) {
     try {
         $stats = $scanner->getStats();
     } catch (Exception $e) {
-        error_log('Error getting scanner stats: '.$e->getMessage());
+        error_log("Error getting scanner stats: " . $e->getMessage());
     }
 }
 
@@ -57,17 +57,17 @@ echo json_encode([
         'total_books' => $stats['total_books'] ?? 0,
         'archives_count' => $stats['archives_count'] ?? 0,
         'last_scan' => $stats['last_scan'] ?? null,
-        'scans_count' => $stats['scans_count'] ?? 0,
+        'scans_count' => $stats['scans_count'] ?? 0
     ],
     'scanner_available' => $status['available'] ?? false,
     'scanner_version' => $status['version'] ?? null,
     'log_file' => $status['log_file'] ?? null,
     'log_size' => $status['log_file'] && file_exists($status['log_file']) ?
-        formatBytes(filesize($status['log_file'])) : null,
+        formatBytes(filesize($status['log_file'])) : null
 ]);
 
 /**
- * Форматировать строку лога для отображения.
+ * Форматировать строку лога для отображения
  */
 function formatLogLine($line)
 {
@@ -78,7 +78,7 @@ function formatLogLine($line)
         'NOTICE' => ['class' => 'info', 'icon' => 'fa-info-circle'],
         'INFO' => ['class' => 'secondary', 'icon' => 'fa-info-circle'],
         'SUCCESS' => ['class' => 'success', 'icon' => 'fa-check-circle'],
-        'DEBUG' => ['class' => 'light', 'icon' => 'fa-bug'],
+        'DEBUG' => ['class' => 'light', 'icon' => 'fa-bug']
     ];
 
     $level = 'INFO';
@@ -86,7 +86,7 @@ function formatLogLine($line)
     $icon = 'fa-info-circle';
 
     foreach ($levels as $lvl => $info) {
-        if (false !== stripos($line, $lvl)) {
+        if (stripos($line, $lvl) !== false) {
             $level = $lvl;
             $class = $info['class'];
             $icon = $info['icon'];
@@ -111,13 +111,13 @@ function formatLogLine($line)
         'class' => $class,
         'icon' => $icon,
         'time' => $time,
-        'has_error' => 'ERROR' === $level,
-        'has_warning' => 'WARNING' === $level,
+        'has_error' => $level === 'ERROR',
+        'has_warning' => $level === 'WARNING'
     ];
 }
 
 /**
- * Форматировать разницу во времени.
+ * Форматировать разницу во времени
  */
 function formatTimeDiff($timestamp)
 {
@@ -128,22 +128,20 @@ function formatTimeDiff($timestamp)
     } elseif ($diff < 3600) {
         $minutes = floor($diff / 60);
         $seconds = $diff % 60;
-
         return sprintf(__('time_minutes_seconds'), $minutes, $seconds);
     } elseif ($diff < 86400) {
         $hours = floor($diff / 3600);
         $minutes = floor(($diff % 3600) / 60);
-
         return sprintf(__('time_hours_minutes'), $hours, $minutes);
+    } else {
+        $days = floor($diff / 86400);
+        $hours = floor(($diff % 86400) / 3600);
+        return sprintf(__('time_days_hours'), $days, $hours);
     }
-    $days = floor($diff / 86400);
-    $hours = floor(($diff % 86400) / 3600);
-
-    return sprintf(__('time_days_hours'), $days, $hours);
 }
 
 /**
- * Форматировать байты.
+ * Форматировать байты
  */
 function formatBytes($bytes, $precision = 1)
 {
@@ -155,5 +153,5 @@ function formatBytes($bytes, $precision = 1)
 
     $bytes /= pow(1024, $pow);
 
-    return round($bytes, $precision).' '.$units[$pow];
+    return round($bytes, $precision) . ' ' . $units[$pow];
 }

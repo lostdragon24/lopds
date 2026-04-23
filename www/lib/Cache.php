@@ -28,9 +28,9 @@ class Cache
             return;
         }
 
-        self::$apcuEnabled = Config::USE_APCU && extension_loaded('apcu') && apcu_enabled();
+        self::$apcuEnabled = Config::isUseApcu() && extension_loaded('apcu') && apcu_enabled();
 
-        if (!self::$apcuEnabled && Config::ENABLE_CACHE) {
+        if (!self::$apcuEnabled && Config::isCacheEnabled()) {
             error_log(__('cache_warning_apcu_not_available'));
         }
 
@@ -42,7 +42,7 @@ class Cache
      */
     public static function get($key, $type = 'default')
     {
-        if (!Config::ENABLE_CACHE || !self::$apcuEnabled) {
+        if (!Config::isCacheEnabled() || !self::$apcuEnabled) {
             return null;
         }
 
@@ -63,14 +63,14 @@ class Cache
      */
     public static function set($key, $data, $type = 'default', $ttl = null)
     {
-        if (!Config::ENABLE_CACHE || !self::$apcuEnabled) {
+        if (!Config::isCacheEnabled() || !self::$apcuEnabled) {
             return false;
         }
 
         $prefixedKey = $type.'::'.$key;
 
         if (null === $ttl) {
-            $config = Config::CACHE_CONFIG[$type] ?? ['ttl' => Config::CACHE_TTL];
+            $config = Config::CACHE_CONFIG[$type] ?? ['ttl' => Config::isCacheTtl()];
             $ttl = $config['ttl'];
         }
 
@@ -198,7 +198,7 @@ class Cache
      */
     public static function exists($key)
     {
-        if (!Config::ENABLE_CACHE || !self::$apcuEnabled) {
+        if (!Config::isCacheEnabled() || !self::$apcuEnabled) {
             return false;
         }
 
@@ -210,7 +210,7 @@ class Cache
      */
     public static function getMultiple($keys)
     {
-        if (!Config::ENABLE_CACHE || !self::$apcuEnabled) {
+        if (!Config::isCacheEnabled() || !self::$apcuEnabled) {
             return [];
         }
 
@@ -222,12 +222,12 @@ class Cache
      */
     public static function setMultiple($values, $type = 'default', $ttl = null)
     {
-        if (!Config::ENABLE_CACHE || !self::$apcuEnabled) {
+        if (!Config::isCacheEnabled() || !self::$apcuEnabled) {
             return false;
         }
 
         if (null === $ttl) {
-            $config = Config::CACHE_CONFIG[$type] ?? ['ttl' => Config::CACHE_TTL];
+            $config = Config::CACHE_CONFIG[$type] ?? ['ttl' => Config::isCacheTtl()];
             $ttl = $config['ttl'];
         }
 
@@ -245,9 +245,9 @@ class Cache
     public static function getInfo()
     {
         $info = [
-            'enabled' => Config::ENABLE_CACHE,
+            'enabled' => Config::isCacheEnabled(),
             'apcu_available' => self::$apcuEnabled,
-            'cache_ttl' => Config::CACHE_TTL,
+            'cache_ttl' => Config::isCacheTtl(),
             'types' => array_keys(Config::CACHE_CONFIG),
         ];
 

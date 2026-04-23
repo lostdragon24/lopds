@@ -11,21 +11,21 @@
 <?php
 // Определяем активную вкладку
 $activeTab = 'sqlite';
-if (isset($_SESSION['db_config']) && 'mysql' == $_SESSION['db_config']['type']) {
+if (isset($_SESSION['db_config']) && $_SESSION['db_config']['type'] == 'mysql') {
     $activeTab = 'mysql';
 }
 ?>
 
 <ul class="nav nav-tabs mb-4" id="dbTabs" role="tablist">
     <li class="nav-item" role="presentation">
-        <button class="nav-link <?php echo 'sqlite' == $activeTab ? 'active' : ''; ?>" 
+        <button class="nav-link <?php echo $activeTab == 'sqlite' ? 'active' : ''; ?>" 
                 id="sqlite-tab" data-bs-toggle="tab" data-bs-target="#sqlite" 
                 type="button" role="tab">
             <i class="fas fa-file-database me-2"></i><?php echo __('install_db_sqlite'); ?>
         </button>
     </li>
     <li class="nav-item" role="presentation">
-        <button class="nav-link <?php echo 'mysql' == $activeTab ? 'active' : ''; ?>" 
+        <button class="nav-link <?php echo $activeTab == 'mysql' ? 'active' : ''; ?>" 
                 id="mysql-tab" data-bs-toggle="tab" data-bs-target="#mysql" 
                 type="button" role="tab">
             <i class="fas fa-server me-2"></i><?php echo __('install_db_mysql'); ?>
@@ -35,7 +35,7 @@ if (isset($_SESSION['db_config']) && 'mysql' == $_SESSION['db_config']['type']) 
 
 <div class="tab-content" id="dbTabsContent">
     <!-- SQLite форма -->
-    <div class="tab-pane fade <?php echo 'sqlite' == $activeTab ? 'show active' : ''; ?>" 
+    <div class="tab-pane fade <?php echo $activeTab == 'sqlite' ? 'show active' : ''; ?>" 
          id="sqlite" role="tabpanel">
         <form class="test-connection-form" method="POST">
             <input type="hidden" name="action" value="test_connection">
@@ -65,12 +65,12 @@ if (isset($_SESSION['db_config']) && 'mysql' == $_SESSION['db_config']['type']) 
                 </label>
             </div>
             
-            <?php if (isset($_SESSION['db_diagnostics']) && isset($_SESSION['db_config']['type']) && 'sqlite' == $_SESSION['db_config']['type']) { ?>
+            <?php if (isset($_SESSION['db_diagnostics']) && isset($_SESSION['db_config']['type']) && $_SESSION['db_config']['type'] == 'sqlite'): ?>
                 <div class="alert alert-info">
                     <h6><?php echo __('install_sqlite_diagnose'); ?></h6>
                     <pre class="mb-0 small"><?php print_r($_SESSION['db_diagnostics']); ?></pre>
                 </div>
-            <?php } ?>
+            <?php endif; ?>
             
             <div class="d-flex justify-content-between mt-4">
                 <a href="?step=2" class="btn btn-secondary">
@@ -84,7 +84,7 @@ if (isset($_SESSION['db_config']) && 'mysql' == $_SESSION['db_config']['type']) 
     </div>
     
     <!-- MySQL форма -->
-    <div class="tab-pane fade <?php echo 'mysql' == $activeTab ? 'show active' : ''; ?>" 
+    <div class="tab-pane fade <?php echo $activeTab == 'mysql' ? 'show active' : ''; ?>" 
          id="mysql" role="tabpanel">
         <form class="test-connection-form" method="POST">
             <input type="hidden" name="action" value="test_connection">
@@ -142,19 +142,19 @@ if (isset($_SESSION['db_config']) && 'mysql' == $_SESSION['db_config']['type']) 
     </div>
 </div>
 
-<?php if (isset($_SESSION['db_config'])) { ?>
+<?php if (isset($_SESSION['db_config'])): ?>
     <div class="text-center mt-4">
         <a href="?step=4" class="btn btn-success btn-lg">
             <i class="fas fa-arrow-right me-2"></i>
             <?php echo __('install_continue_configured'); ?>
         </a>
     </div>
-<?php } else { ?>
+<?php else: ?>
     <div class="alert alert-warning mt-4">
         <i class="fas fa-info-circle me-2"></i>
         <?php echo __('install_test_first'); ?>
     </div>
-<?php } ?>
+<?php endif; ?>
 
 <!-- Информация о поддерживаемых базах данных -->
 <div class="row mt-5">

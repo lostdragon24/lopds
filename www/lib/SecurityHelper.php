@@ -2,7 +2,7 @@
 
 class SecurityHelper
 {
-    private static $instance;
+    private static $instance = null;
     private $rateLimit = [];
 
     private function __construct()
@@ -12,27 +12,26 @@ class SecurityHelper
 
     public static function getInstance()
     {
-        if (null === self::$instance) {
+        if (self::$instance === null) {
             self::$instance = new self();
         }
-
         return self::$instance;
     }
 
     /**
-     * Добавление заголовков безопасности.
+     * Добавление заголовков безопасности
      */
     public function addSecurityHeaders()
     {
         // Базовые заголовки безопасности
-        header('X-XSS-Protection: 0'); // CSP заменяет этот заголовок
-        header('X-Content-Type-Options: nosniff');
-        header('X-Frame-Options: SAMEORIGIN');
-        header('Referrer-Policy: strict-origin-when-cross-origin');
-        header('Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()');
+        header("X-XSS-Protection: 0"); // CSP заменяет этот заголовок
+        header("X-Content-Type-Options: nosniff");
+        header("X-Frame-Options: SAMEORIGIN");
+        header("Referrer-Policy: strict-origin-when-cross-origin");
+        header("Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()");
 
-        if (isset($_SERVER['HTTPS']) && 'on' === $_SERVER['HTTPS']) {
-            header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
+        if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
+            header("Strict-Transport-Security: max-age=31536000; includeSubDomains; preload");
         }
 
         // ============================================
@@ -56,7 +55,7 @@ class SecurityHelper
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self'",
-            'upgrade-insecure-requests',
+            "upgrade-insecure-requests"
         ];
 
         $csp = implode('; ', $directives);
@@ -66,19 +65,18 @@ class SecurityHelper
     }
 
     /**
-     * Санитизация IP адреса.
+     * Санитизация IP адреса
      */
     public function sanitizeIp($ip)
     {
         if (filter_var($ip, FILTER_VALIDATE_IP)) {
             return $ip;
         }
-
         return '0.0.0.0';
     }
 
     /**
-     * Санитизация поискового запроса.
+     * Санитизация поискового запроса
      */
     public function sanitizeSearchQuery($query)
     {
@@ -94,39 +92,37 @@ class SecurityHelper
     }
 
     /**
-     * Санитизация поля поиска.
+     * Санитизация поля поиска
      */
     public function sanitizeSearchField($field)
     {
         $allowed = ['all', 'title', 'author', 'genre', 'series'];
-
         return in_array($field, $allowed, true) ? $field : 'all';
     }
 
     /**
-     * Санитизация имени файла.
+     * Санитизация имени файла
      */
     public function sanitizeFilename($filename)
     {
         $filename = basename($filename);
         $filename = preg_replace('/[^\w\-\.\s]/u', '', $filename);
         $filename = preg_replace('/\.{2,}/', '.', $filename);
-
         return mb_substr($filename, 0, 200);
     }
 
     /**
-     * Запуск сессии если не запущена.
+     * Запуск сессии если не запущена
      */
     public function startSession()
     {
-        if (PHP_SESSION_NONE === session_status()) {
+        if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
     }
 
     /**
-     * Генерация CSRF токена.
+     * Генерация CSRF токена
      */
     public function generateCsrfToken()
     {
@@ -134,12 +130,12 @@ class SecurityHelper
         if (!isset($_SESSION['csrf_token'])) {
             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         }
-
         return $_SESSION['csrf_token'];
     }
 
+
     /**
-     * Rate limiting.
+     * Rate limiting
      */
     public function checkRateLimit($key, $limit, $window)
     {
@@ -158,56 +154,9 @@ class SecurityHelper
         }
 
         $this->rateLimit[$key][] = $now;
-
         return true;
     }
 
-    /**
-     * Проверка Origin и Referer.
-     */
-    public function validateOrigin()
-    {
-        $allowedDomains = [$_SERVER['HTTP_HOST']];
-
-        $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-        $referer = $_SERVER['HTTP_REFERER'] ?? '';
-
-        if ($origin) {
-            $originHost = parse_url($origin, PHP_URL_HOST);
-            if (!in_array($originHost, $allowedDomains)) {
-                return false;
-            }
-        }
-
-        if ($referer) {
-            $refererHost = parse_url($referer, PHP_URL_HOST);
-            if (!in_array($refererHost, $allowedDomains)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Очистка FB2 контента.
-     */
-    public function sanitizeFb2Content($content)
-    {
-        if (empty($content)) {
-            return '';
-        }
-
-        $content = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $content);
-        $content = preg_replace('/on\w+="[^"]*"/i', '', $content);
-        $content = preg_replace('/javascript:/i', '', $content);
-
-        if (strlen($content) > 1000000) {
-            $content = substr($content, 0, 1000000);
-        }
-
-        return $content;
-    }
 
     public function sanitizeBookContent($content)
     {
@@ -217,36 +166,21 @@ class SecurityHelper
         // Удалить опасные атрибуты
         $content = preg_replace('/<(\w+)[^>]*?(on\w+)=["\'][^"\']*["\'][^>]*>/i', '<$1>', $content);
         $content = preg_replace('/javascript:/i', '', $content);
-
         return $content;
     }
 
-    /**
-     * Очистка HTML для безопасного вывода.
-     */
-    public function sanitizeHtml($html)
-    {
-        if (empty($html)) {
-            return '';
-        }
-
-        $html = strip_tags($html, '<p><br><h1><h2><h3><h4><h5><h6><strong><em><ul><ol><li><blockquote>');
-        $html = htmlspecialchars($html, ENT_QUOTES, 'UTF-8');
-
-        return $html;
-    }
 
     public function validateCsrfToken($token)
     {
         $this->startSession();
         if (empty($token) || empty($_SESSION['csrf_token'])) {
-            error_log('CSRF validate: empty token or session token');
-
+            error_log("CSRF validate: empty token or session token");
             return false;
         }
         $result = hash_equals($_SESSION['csrf_token'], $token);
-        error_log('CSRF validate: '.($result ? 'success' : 'failed'));
-
+        error_log("CSRF validate: " . ($result ? "success" : "failed"));
         return $result;
     }
+
+
 }

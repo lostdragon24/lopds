@@ -5,6 +5,7 @@ define('LOPDS_ROOT', __DIR__);
 
 require_once 'config/config.php';
 require_once 'lib/Cache.php';
+require_once 'lib/PageCache.php';
 require_once 'lib/Database.php';
 require_once 'init.php';
 
@@ -24,7 +25,7 @@ require 'templates/header.php';
     
     <div class="row">
         <!-- Статистика APCu -->
-        <?php if (isset($cacheStats['apcu'])) { ?>
+        <?php if (isset($cacheStats['apcu'])): ?>
         <div class="col-md-6 mb-4">
             <div class="card h-100 shadow-sm">
                 <div class="card-header bg-primary text-white">
@@ -81,10 +82,10 @@ require 'templates/header.php';
                 </div>
             </div>
         </div>
-        <?php } ?>
+        <?php endif; ?>
         
         <!-- Статистика кэша БД -->
-        <?php if (!empty($dbCacheStats)) { ?>
+        <?php if (!empty($dbCacheStats)): ?>
         <div class="col-md-6 mb-4">
             <div class="card h-100 shadow-sm">
                 <div class="card-header bg-success text-white">
@@ -133,7 +134,7 @@ require 'templates/header.php';
                 </div>
             </div>
         </div>
-        <?php } ?>
+        <?php endif; ?>
     </div>
     
     <!-- Информация о системе -->
@@ -157,11 +158,11 @@ require 'templates/header.php';
                                 <tr>
                                     <th><?php echo __('cache_apcu_enabled'); ?></th>
                                     <td>
-                                        <?php if (extension_loaded('apcu') && apcu_enabled()) { ?>
+                                        <?php if (extension_loaded('apcu') && apcu_enabled()): ?>
                                             <span class="badge bg-success"><?php echo __('yes'); ?></span>
-                                        <?php } else { ?>
+                                        <?php else: ?>
                                             <span class="badge bg-danger"><?php echo __('no'); ?></span>
-                                        <?php } ?>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             </table>
@@ -183,21 +184,21 @@ require 'templates/header.php';
                                 <tr>
                                     <th><?php echo __('cache_enabled'); ?></th>
                                     <td>
-                                        <?php if (Config::ENABLE_CACHE) { ?>
+                                        <?php if (Config::isCacheEnabled()): ?>
                                             <span class="badge bg-success"><?php echo __('yes'); ?></span>
-                                        <?php } else { ?>
+                                        <?php else: ?>
                                             <span class="badge bg-danger"><?php echo __('no'); ?></span>
-                                        <?php } ?>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                                 <tr>
                                     <th><?php echo __('cache_page_cache'); ?></th>
                                     <td>
-                                        <?php if (Config::PERFORMANCE['enable_page_cache']) { ?>
+                                        <?php if (Config::isPageCache()): ?>
                                             <span class="badge bg-success"><?php echo __('yes'); ?></span>
-                                        <?php } else { ?>
+                                        <?php else: ?>
                                             <span class="badge bg-danger"><?php echo __('no'); ?></span>
-                                        <?php } ?>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             </table>
@@ -243,7 +244,7 @@ require 'templates/header.php';
     </div>
     
     <?php
-    if (isset($_GET['action']) && 'clear_cache' === $_GET['action']) {
+    if (isset($_GET['action']) && $_GET['action'] === 'clear_cache') {
         Cache::clear();
         if (method_exists($db, 'clearCache')) {
             $db->clearCache();
@@ -258,7 +259,7 @@ require 'templates/header.php';
 </div>
 
 <!-- Дополнительная информация о кэше -->
-<?php if (isset($_GET['debug'])) { ?>
+<?php if (isset($_GET['debug'])): ?>
 <div class="container mt-4">
     <div class="card">
         <div class="card-header bg-warning">
@@ -276,15 +277,15 @@ require 'templates/header.php';
     echo "\n=== DB STATS ===\n";
     print_r($dbStats);
     echo "\n=== CONFIG ===\n";
-    echo 'ENABLE_CACHE: '.(Config::ENABLE_CACHE ? 'true' : 'false')."\n";
-    echo 'USE_APCU: '.(Config::USE_APCU ? 'true' : 'false')."\n";
-    echo 'CACHE_TTL: '.Config::CACHE_TTL."\n";
-    echo 'PAGE_CACHE_ENABLED: '.(Config::PERFORMANCE['enable_page_cache'] ? 'true' : 'false')."\n";
+    echo "isCacheEnabled(): " . (Config::isCacheEnabled() ? 'true' : 'false') . "\n";
+    echo "USE_APCU: " . (Config::isUseApcu() ? 'true' : 'false') . "\n";
+    echo "CACHE_TTL: " . Config::isCacheTtl() . "\n";
+    echo "PAGE_CACHE_ENABLED: " . (Config::isPageCache() ? 'true' : 'false') . "\n";
     ?></pre>
         </div>
     </div>
 </div>
-<?php } ?>
+<?php endif; ?>
 
 <style>
 .table th {

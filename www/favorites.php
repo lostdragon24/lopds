@@ -4,8 +4,8 @@
 define('LOPDS_ROOT', __DIR__);
 
 // Если это AJAX запрос, не используем кэш страниц
-if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])
-    && 'xmlhttprequest' == strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+    strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
     require_once 'config/config.php';
     require_once 'lib/Database.php';
 } else {
@@ -23,7 +23,7 @@ $perPage = Config::getItemsPerPage();
 
 // Кеширование только для обычных запросов
 if (!isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
-    $cacheKey = 'favorites_'.md5($userIp.'_'.date('Ymd').'_page_'.$page);
+    $cacheKey = 'favorites_' . md5($userIp . '_' . date('Ymd') . '_page_' . $page);
     PageCache::start($cacheKey);
 }
 
@@ -45,7 +45,7 @@ require 'templates/header.php';
         <?php echo __('favorites_title'); ?>
     </h1>
 
-    <?php if (empty($favorites)) { ?>
+    <?php if (empty($favorites)): ?>
         <div class="alert alert-info">
             <div class="d-flex align-items-center">
                 <div class="me-3">
@@ -62,7 +62,7 @@ require 'templates/header.php';
                 </div>
             </div>
         </div>
-    <?php } else { ?>
+    <?php else: ?>
         <div class="mb-4">
             <p class="text-muted">
                 <i class="fas fa-bookmark me-1"></i>
@@ -99,21 +99,21 @@ require 'templates/header.php';
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($favorites as $book) { ?>
+                            <?php foreach ($favorites as $book): ?>
                                 <tr id="book-<?php echo $book['id']; ?>">
                                     <td>
                                         <a href="book_detail.php?id=<?php echo $book['id']; ?>" class="text-decoration-none fw-bold">
-                                            <?php echo htmlspecialchars(mb_substr($book['title'] ?: __('book_untitled'), 0, 60)).(mb_strlen($book['title'] ?? '') > 60 ? '…' : ''); ?>
+                                            <?php echo htmlspecialchars(mb_substr($book['title'] ?: __('book_untitled'), 0, 60)) . (mb_strlen($book['title'] ?? '') > 60 ? '…' : ''); ?>
                                         </a>
                                     </td>
                                     <td>
-                                        <?php if (!empty($book['author'])) { ?>
+                                        <?php if (!empty($book['author'])): ?>
                                             <a href="index.php?field=author&q=<?php echo urlencode($book['author']); ?>" class="text-decoration-none">
                                                 <?php echo htmlspecialchars(mb_substr($book['author'], 0, 30)); ?>
                                             </a>
-                                        <?php } else { ?>
+                                        <?php else: ?>
                                             <span class="text-muted"><?php echo __('book_unknown_author'); ?></span>
-                                        <?php } ?>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <?php
@@ -126,14 +126,14 @@ require 'templates/header.php';
                                 ?>
                                     </td>
                                     <td>
-                                        <?php if (!empty($book['series'])) { ?>
+                                        <?php if (!empty($book['series'])): ?>
                                             <?php echo htmlspecialchars(mb_substr($book['series'], 0, 30)); ?>
-                                            <?php if (!empty($book['series_number'])) { ?>
+                                            <?php if (!empty($book['series_number'])): ?>
                                                 <span class="badge bg-light text-dark border ms-1">#<?php echo $book['series_number']; ?></span>
-                                            <?php } ?>
-                                        <?php } else { ?>
+                                            <?php endif; ?>
+                                        <?php else: ?>
                                             <span class="text-muted">—</span>
-                                        <?php } ?>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <span class="badge bg-secondary"><?php echo strtoupper($book['file_type']); ?></span>
@@ -163,23 +163,23 @@ require 'templates/header.php';
                                         </div>
                                     </td>
                                 </tr>
-                            <?php } ?>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
 
                 <!-- Пагинация -->
-                <?php if ($totalPages > 1) { ?>
+                <?php if ($totalPages > 1): ?>
                 <div class="card-footer bg-white">
                     <nav aria-label="<?php echo __('pagination'); ?>">
                         <ul class="pagination justify-content-center mb-0">
-                            <?php if ($page > 1) { ?>
+                            <?php if ($page > 1): ?>
                                 <li class="page-item">
                                     <a class="page-link" href="?page=<?php echo $page - 1; ?>" aria-label="<?php echo __('previous'); ?>">
                                         <span aria-hidden="true">&laquo;</span>
                                     </a>
                                 </li>
-                            <?php } ?>
+                            <?php endif; ?>
 
                             <?php
                             $startPage = max(1, $page - 2);
@@ -192,35 +192,35 @@ require 'templates/header.php';
                         }
                     }
 
-                    for ($i = $startPage; $i <= $endPage; ++$i) { ?>
+                    for ($i = $startPage; $i <= $endPage; $i++): ?>
                                 <li class="page-item <?php echo $i == $page ? 'active' : ''; ?>">
                                     <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
                                 </li>
-                            <?php } ?>
+                            <?php endfor; ?>
 
-                            <?php if ($endPage < $totalPages) { ?>
-                                <?php if ($endPage < $totalPages - 1) { ?>
+                            <?php if ($endPage < $totalPages): ?>
+                                <?php if ($endPage < $totalPages - 1): ?>
                                     <li class="page-item disabled"><span class="page-link">...</span></li>
-                                <?php } ?>
+                                <?php endif; ?>
                                 <li class="page-item">
                                     <a class="page-link" href="?page=<?php echo $totalPages; ?>"><?php echo $totalPages; ?></a>
                                 </li>
-                            <?php } ?>
+                            <?php endif; ?>
 
-                            <?php if ($page < $totalPages) { ?>
+                            <?php if ($page < $totalPages): ?>
                                 <li class="page-item">
                                     <a class="page-link" href="?page=<?php echo $page + 1; ?>" aria-label="<?php echo __('next'); ?>">
                                         <span aria-hidden="true">&raquo;</span>
                                     </a>
                                 </li>
-                            <?php } ?>
+                            <?php endif; ?>
                         </ul>
                     </nav>
                 </div>
-                <?php } ?>
+                <?php endif; ?>
             </div>
         </div>
-    <?php } ?>
+    <?php endif; ?>
 
     <div class="mt-4 text-center">
         <a href="index.php" class="btn btn-primary">

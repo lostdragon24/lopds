@@ -6,7 +6,7 @@ $scriptPath = $_SERVER['SCRIPT_NAME'];
 $installDir = dirname($scriptPath);
 
 // Вариант 1: Если установщик в подпапке, поднимаемся на один уровень
-if ('install' === basename($installDir)) {
+if (basename($installDir) === 'install') {
     $basePath = dirname($installDir); // /5
 } else {
     // Альтернативный способ: ищем корень сайта
@@ -16,7 +16,7 @@ if ('install' === basename($installDir)) {
 // Убираем возможные дублирующиеся слэши
 $basePath = rtrim($basePath, '/');
 
-$stepsConfig = include __DIR__.'/../config/steps.php';
+$stepsConfig = include __DIR__ . '/../config/steps.php';
 $progress = $stepsConfig['steps'][$step]['progress'] ?? 14;
 
 // Получаем информацию о языках для переключателя
@@ -89,14 +89,14 @@ $availableLangs = $detector->getAvailableLanguages();
 </head>
 <body>
     <!-- Language selector -->
-    <?php if (count($availableLangs) > 1) { ?>
+    <?php if (count($availableLangs) > 1): ?>
     <div class="language-selector dropdown">
         <button class="btn btn-light dropdown-toggle" type="button" id="languageDropdown" 
                 data-bs-toggle="dropdown" aria-expanded="false">
-            <?php echo $detector->getLanguageFlag().' '.$detector->getLanguageName(); ?>
+            <?php echo $detector->getLanguageFlag() . ' ' . $detector->getLanguageName(); ?>
         </button>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="languageDropdown">
-            <?php foreach ($availableLangs as $lang) {
+            <?php foreach ($availableLangs as $lang):
                 $langFlag = $detector->getLanguageFlag($lang);
                 $langName = $detector->getLanguageName($lang);
                 ?>
@@ -104,13 +104,13 @@ $availableLangs = $detector->getAvailableLanguages();
                 <a class="dropdown-item <?php echo $lang === $currentLang ? 'active' : ''; ?>" 
                    href="#" 
                    onclick="event.preventDefault(); changeLanguage('<?php echo $lang; ?>');">
-                    <?php echo $langFlag.' '.$langName; ?>
+                    <?php echo $langFlag . ' ' . $langName; ?>
                 </a>
             </li>
-            <?php } ?>
+            <?php endforeach; ?>
         </ul>
     </div>
-    <?php } ?>
+    <?php endif; ?>
 
     <div class="container mt-4">
         <div class="row justify-content-center">
@@ -137,29 +137,29 @@ $availableLangs = $detector->getAvailableLanguages();
                         </div>
                         
                         <!-- Сообщения -->
-                        <?php if ($error) { ?>
+                        <?php if ($error): ?>
                             <div class="alert alert-danger alert-dismissible fade show">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
                                 <?php echo nl2br(htmlspecialchars($error)); ?>
                                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                             </div>
-                        <?php } ?>
+                        <?php endif; ?>
                         
-                        <?php if ($success) { ?>
+                        <?php if ($success): ?>
                             <div class="alert alert-success alert-dismissible fade show">
                                 <i class="fas fa-check-circle me-2"></i>
                                 <?php echo nl2br(htmlspecialchars($success)); ?>
                                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                             </div>
-                        <?php } ?>
+                        <?php endif; ?>
                         
-                        <?php if ($warning) { ?>
+                        <?php if ($warning): ?>
                             <div class="alert alert-warning alert-dismissible fade show">
                                 <i class="fas fa-exclamation-circle me-2"></i>
                                 <?php echo nl2br(htmlspecialchars($warning)); ?>
                                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                             </div>
-                        <?php } ?>
+                        <?php endif; ?>
 
 <script src="assets/js/installer.js"></script>
 

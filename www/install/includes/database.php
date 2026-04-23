@@ -3,7 +3,7 @@
 // install/includes/database.php
 
 /**
- * Обработчик тестирования подключения к БД.
+ * Обработчик тестирования подключения к БД
  */
 function handleTestConnection($post)
 {
@@ -16,24 +16,23 @@ function handleTestConnection($post)
             'database' => $post['database'] ?? '',
             'user' => $post['user'] ?? '',
             'password' => $post['password'] ?? '',
-            'path' => $post['path'] ?? '',
+            'path' => $post['path'] ?? ''
         ];
 
         if (isset($result['diagnostics'])) {
             $_SESSION['db_diagnostics'] = $result['diagnostics'];
         }
 
-        error_log('DB config saved to session: '.print_r($_SESSION['db_config'], true));
+        error_log("DB config saved to session: " . print_r($_SESSION['db_config'], true));
 
         session_write_close();
         session_start();
     }
-
     return $result;
 }
 
 /**
- * Тестирование подключения к БД.
+ * Тестирование подключения к БД
  */
 function testDatabaseConnection($config)
 {
@@ -42,55 +41,56 @@ function testDatabaseConnection($config)
     try {
         $type = $config['type'] ?? 'sqlite';
 
-        if ('mysql' === $type) {
+        if ($type === 'mysql') {
             return testMysqlConnection($config, $diagnostics);
-        } elseif ('sqlite' === $type) {
+        } elseif ($type === 'sqlite') {
             return testSqliteConnection($config, $diagnostics);
         }
+
     } catch (Exception $e) {
         return [
             'success' => false,
-            'message' => '❌ Ошибка подключения: '.$e->getMessage(),
-            'diagnostics' => $diagnostics,
+            'message' => '❌ Ошибка подключения: ' . $e->getMessage(),
+            'diagnostics' => $diagnostics
         ];
     }
 }
 
 /**
- * Тестирование MySQL подключения.
+ * Тестирование MySQL подключения
  */
 function testMysqlConnection($config, &$diagnostics)
 {
-    $dsn = "mysql:host={$config['host']}".
-           (isset($config['port']) ? ";port={$config['port']}" : '').
-           ';charset=utf8mb4';
+    $dsn = "mysql:host={$config['host']}" .
+           (isset($config['port']) ? ";port={$config['port']}" : "") .
+           ";charset=utf8mb4";
 
     $pdo = new PDO($dsn, $config['user'], $config['password'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_TIMEOUT => 5,
+        PDO::ATTR_TIMEOUT => 5
     ]);
 
-    $stmt = $pdo->query('SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA 
-                          WHERE SCHEMA_NAME = '.$pdo->quote($config['database']));
-    $dbExists = false !== $stmt->fetch();
+    $stmt = $pdo->query("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA 
+                          WHERE SCHEMA_NAME = " . $pdo->quote($config['database']));
+    $dbExists = $stmt->fetch() !== false;
 
     return [
         'success' => true,
-        'message' => '✅ Подключение к MySQL успешно! '.
+        'message' => '✅ Подключение к MySQL успешно! ' .
                     ($dbExists ? 'База данных существует.' : 'База данных будет создана.'),
-        'diagnostics' => $diagnostics,
+        'diagnostics' => $diagnostics
     ];
 }
 
 /**
- * Тестирование SQLite подключения.
+ * Тестирование SQLite подключения
  */
 function testSqliteConnection($config, &$diagnostics)
 {
     $path = $config['path'];
 
-    if (0 !== strpos($path, '/')) {
-        $path = realpath(__DIR__.'/../../').'/'.ltrim($path, '/');
+    if (strpos($path, '/') !== 0) {
+        $path = realpath(__DIR__ . '/../../') . '/' . ltrim($path, '/');
     }
 
     $dir = dirname($path);
@@ -107,7 +107,7 @@ function testSqliteConnection($config, &$diagnostics)
     }
 
     // Просто проверяем, что можем создать файл
-    $testFile = $dir.'/test.tmp';
+    $testFile = $dir . '/test.tmp';
     file_put_contents($testFile, 'test');
     unlink($testFile);
 
@@ -116,16 +116,16 @@ function testSqliteConnection($config, &$diagnostics)
     return [
         'success' => true,
         'message' => '✅ SQLite база данных может быть создана',
-        'diagnostics' => $diagnostics,
+        'diagnostics' => $diagnostics
     ];
 }
 
 /**
- * Обработчик создания базы данных - ГАРАНТИРОВАННО РАБОЧАЯ ВЕРСИЯ.
+ * Обработчик создания базы данных - ГАРАНТИРОВАННО РАБОЧАЯ ВЕРСИЯ
  */
 function handleCreateDatabase($post)
 {
-    error_log('=== handleCreateDatabase START ===');
+    error_log("=== handleCreateDatabase START ===");
 
     try {
         $dbConfig = $_SESSION['db_config'] ?? [];
@@ -136,7 +136,7 @@ function handleCreateDatabase($post)
 
         $type = $dbConfig['type'] ?? 'sqlite';
 
-        if ('sqlite' === $type) {
+        if ($type === 'sqlite') {
             $result = createSqliteDatabase($dbConfig);
         } else {
             $result = createMysqlDatabase($dbConfig);
@@ -148,31 +148,32 @@ function handleCreateDatabase($post)
 
             return [
                 'success' => true,
-                'message' => '✅ База данных успешно создана',
-                'redirect' => 'index.php?step=4&success=1',
+                'message' => "✅ База данных успешно создана",
+                'redirect' => 'index.php?step=4&success=1'
             ];
+        } else {
+            throw new Exception($result['message']);
         }
-        throw new Exception($result['message']);
-    } catch (Exception $e) {
-        error_log('ERROR in handleCreateDatabase: '.$e->getMessage());
 
+    } catch (Exception $e) {
+        error_log("ERROR in handleCreateDatabase: " . $e->getMessage());
         return [
             'success' => false,
-            'message' => '❌ Ошибка создания БД: '.$e->getMessage(),
+            'message' => '❌ Ошибка создания БД: ' . $e->getMessage()
         ];
     }
 }
 
 /**
- * Создание SQLite базы данных - ИСПОЛЬЗУЕТ ТОЛЬКО КОМАНДНУЮ СТРОКУ.
+ * Создание SQLite базы данных - ИСПОЛЬЗУЕТ ТОЛЬКО КОМАНДНУЮ СТРОКУ
  */
 function createSqliteDatabase($dbConfig)
 {
     $path = $dbConfig['path'];
 
     // Получаем абсолютный путь
-    if (0 !== strpos($path, '/')) {
-        $path = realpath(__DIR__.'/../../').'/'.ltrim($path, '/');
+    if (strpos($path, '/') !== 0) {
+        $path = realpath(__DIR__ . '/../../') . '/' . ltrim($path, '/');
     }
 
     $dbDir = dirname($path);
@@ -191,12 +192,12 @@ function createSqliteDatabase($dbConfig)
     }
 
     // 3. Удаляем lock-файлы
-    foreach (glob($dbDir.'/library.db-*') as $lockFile) {
+    foreach (glob($dbDir . '/library.db-*') as $lockFile) {
         unlink($lockFile);
     }
 
     // 4. СОЗДАЕМ БАЗУ ЧЕРЕЗ SQLITE3 КОМАНДНОЙ СТРОКИ
-    $sql = '
+    $sql = "
         PRAGMA journal_mode = WAL;
         PRAGMA synchronous = NORMAL;
         PRAGMA busy_timeout = 5000;
@@ -276,14 +277,14 @@ function createSqliteDatabase($dbConfig)
         CREATE INDEX IF NOT EXISTS idx_favorites_user ON book_favorites(user_ip);
         
         .tables
-    ';
+    ";
 
     // Сохраняем SQL во временный файл
     $tempFile = tempnam(sys_get_temp_dir(), 'db_');
     file_put_contents($tempFile, $sql);
 
     // Выполняем sqlite3
-    $command = 'sqlite3 '.escapeshellarg($path).' < '.escapeshellarg($tempFile).' 2>&1';
+    $command = "sqlite3 " . escapeshellarg($path) . " < " . escapeshellarg($tempFile) . " 2>&1";
     error_log("Executing: $command");
 
     exec($command, $output, $returnCode);
@@ -291,44 +292,44 @@ function createSqliteDatabase($dbConfig)
     // Удаляем временный файл
     unlink($tempFile);
 
-    if (0 !== $returnCode) {
-        throw new Exception('SQLite error: '.implode("\n", $output));
+    if ($returnCode !== 0) {
+        throw new Exception("SQLite error: " . implode("\n", $output));
     }
 
     // Проверяем, что таблицы создались
-    $checkCommand = 'sqlite3 '.escapeshellarg($path)." \"SELECT name FROM sqlite_master WHERE type='table';\" 2>&1";
+    $checkCommand = "sqlite3 " . escapeshellarg($path) . " \"SELECT name FROM sqlite_master WHERE type='table';\" 2>&1";
     exec($checkCommand, $tables, $returnCode);
 
-    if (0 !== $returnCode || empty($tables)) {
-        throw new Exception('Failed to create tables');
+    if ($returnCode !== 0 || empty($tables)) {
+        throw new Exception("Failed to create tables");
     }
 
     // Устанавливаем права
     chmod($path, 0666);
 
     // Убиваем все процессы, которые могли остаться
-    exec('fuser -k '.escapeshellarg($path).' 2>/dev/null');
+    exec("fuser -k " . escapeshellarg($path) . " 2>/dev/null");
 
-    error_log('Database created successfully with tables: '.implode(', ', $tables));
+    error_log("Database created successfully with tables: " . implode(', ', $tables));
 
     return [
         'success' => true,
-        'message' => 'SQLite database created successfully',
+        'message' => 'SQLite database created successfully'
     ];
 }
 
 /**
- * Создание MySQL базы данных.
+ * Создание MySQL базы данных
  */
 function createMysqlDatabase($dbConfig)
 {
-    $dsn = "mysql:host={$dbConfig['host']}".
-           (isset($dbConfig['port']) ? ";port={$dbConfig['port']}" : '').
-           ';charset=utf8mb4';
+    $dsn = "mysql:host={$dbConfig['host']}" .
+           (isset($dbConfig['port']) ? ";port={$dbConfig['port']}" : "") .
+           ";charset=utf8mb4";
 
     $pdo = new PDO($dsn, $dbConfig['user'], $dbConfig['password'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_TIMEOUT => 5,
+        PDO::ATTR_TIMEOUT => 5
     ]);
 
     // Создаем базу данных если не существует
@@ -337,7 +338,7 @@ function createMysqlDatabase($dbConfig)
     $pdo->exec("USE `{$dbConfig['database']}`");
 
     // SQL для создания таблиц
-    $sql = '
+    $sql = "
         CREATE TABLE IF NOT EXISTS books (
             id INT AUTO_INCREMENT PRIMARY KEY,
             file_path VARCHAR(500) UNIQUE,
@@ -410,12 +411,12 @@ function createMysqlDatabase($dbConfig)
             INDEX idx_favorites_book (book_id),
             INDEX idx_favorites_user (user_ip)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    ';
+    ";
 
     $pdo->exec($sql);
 
     return [
         'success' => true,
-        'message' => 'MySQL database created successfully',
+        'message' => 'MySQL database created successfully'
     ];
 }

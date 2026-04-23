@@ -2,21 +2,21 @@
 
 // lib/EnvManager.php
 
-require_once __DIR__.'/../init.php';
+require_once __DIR__ . '/../init.php';
 
 class EnvManager
 {
     private $envFile;
-    private $envData;
+    private $envData = null;
     private $loaded = false;
 
     public function __construct()
     {
-        $this->envFile = __DIR__.'/../config/.env';
+        $this->envFile = __DIR__ . '/../config/.env';
     }
 
     /**
-     * Загрузить данные из .env.
+     * Загрузить данные из .env
      */
     public function load()
     {
@@ -30,11 +30,11 @@ class EnvManager
             $lines = file($this->envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
             foreach ($lines as $line) {
                 // Пропускаем комментарии
-                if (0 === strpos(trim($line), '#')) {
+                if (strpos(trim($line), '#') === 0) {
                     continue;
                 }
 
-                if (false !== strpos($line, '=')) {
+                if (strpos($line, '=') !== false) {
                     list($key, $value) = explode('=', $line, 2);
                     $key = trim($key);
                     $value = trim($value, " \t\n\r\0\x0B\"'");
@@ -42,36 +42,33 @@ class EnvManager
                 }
             }
         } else {
-            error_log(__('env_manager_file_not_found').': '.$this->envFile);
+            error_log(__('env_manager_file_not_found') . ': ' . $this->envFile);
         }
 
         $this->loaded = true;
-
         return $this->envData;
     }
 
     /**
-     * Получить значение.
+     * Получить значение
      */
     public function get($key, $default = null)
     {
         $this->load();
-
         return $this->envData[$key] ?? $default;
     }
 
     /**
-     * Получить все значения.
+     * Получить все значения
      */
     public function getAll()
     {
         $this->load();
-
         return $this->envData;
     }
 
     /**
-     * Сохранить данные в .env.
+     * Сохранить данные в .env
      */
     public function save($data)
     {
@@ -100,7 +97,7 @@ class EnvManager
         }
 
         // Сохраняем
-        if (false === file_put_contents($this->envFile, $content)) {
+        if (file_put_contents($this->envFile, $content) === false) {
             throw new Exception(__('env_manager_save_failed'));
         }
 
@@ -113,7 +110,7 @@ class EnvManager
     }
 
     /**
-     * Объединить текущие данные с новыми, сохраняя пароль.
+     * Объединить текущие данные с новыми, сохраняя пароль
      */
     private function mergeWithCurrent($current, $new)
     {
@@ -121,9 +118,9 @@ class EnvManager
 
         foreach ($new as $key => $value) {
             // Специальная обработка для паролей
-            if ('DB_PASS' === $key) {
+            if ($key === 'DB_PASS') {
                 // Если новый пароль пустой или равен '********', сохраняем старый
-                if (empty($value) || '********' === $value) {
+                if (empty($value) || $value === '********') {
                     if (isset($current[$key])) {
                         $result[$key] = $current[$key];
                     }
@@ -139,12 +136,12 @@ class EnvManager
     }
 
     /**
-     * Сгенерировать содержимое .env.
+     * Сгенерировать содержимое .env
      */
     private function generateContent($data)
     {
-        $content = '; '.__('env_manager_header')."\n";
-        $content .= '; '.sprintf(__('env_manager_generated'), date('Y-m-d H:i:s'))."\n\n";
+        $content = "; " . __('env_manager_header') . "\n";
+        $content .= "; " . sprintf(__('env_manager_generated'), date('Y-m-d H:i:s')) . "\n\n";
 
         // Секции для лучшей читаемости
         $sections = [
@@ -154,17 +151,17 @@ class EnvManager
             'cache' => ['ENABLE_CACHE', 'USE_APCU', 'CACHE_TTL', 'PAGE_CACHE_ENABLED'],
             'paths' => ['BOOKS_DIR', 'CACHE_DIR', 'COVER_CACHE_DIR', 'SCANNER_PATH'],
             'performance' => ['MEMORY_LIMIT', 'MAX_SEARCH_RESULTS'],
-            'security' => ['ADMIN_USER', 'ADMIN_PASSWORD_HASH', 'ADMIN_ALLOWED_IPS'],
+            'security' => ['ADMIN_USER', 'ADMIN_PASSWORD_HASH', 'ADMIN_ALLOWED_IPS']
         ];
 
         foreach ($sections as $section => $keys) {
-            $content .= "\n; ".__('env_manager_section_'.$section)."\n";
+            $content .= "\n; " . __('env_manager_section_' . $section) . "\n";
             foreach ($keys as $key) {
                 if (isset($data[$key])) {
                     $value = $data[$key];
                     // Экранируем если есть пробелы или специальные символы
-                    if (false !== strpos($value, ' ') || false !== strpos($value, '#') || false !== strpos($value, '=')) {
-                        $value = '"'.addslashes($value).'"';
+                    if (strpos($value, ' ') !== false || strpos($value, '#') !== false || strpos($value, '=') !== false) {
+                        $value = '"' . addslashes($value) . '"';
                     }
                     $content .= "$key = $value\n";
                 }
@@ -183,20 +180,18 @@ class EnvManager
             return;
         }
 
-        $backupDir = __DIR__.'/../backups/config';
+        $backupDir = __DIR__ . '/../backups/config';
         if (!file_exists($backupDir)) {
             if (!mkdir($backupDir, 0755, true)) {
                 error_log(sprintf(__('env_manager_cannot_create_backup_dir'), $backupDir));
-
                 return;
             }
         }
 
-        $backupFile = $backupDir.'/env.backup.'.date('Ymd_His');
+        $backupFile = $backupDir . '/env.backup.' . date('Ymd_His');
 
         if (!copy($this->envFile, $backupFile)) {
             error_log(sprintf(__('env_manager_backup_failed'), $this->envFile, $backupFile));
-
             return;
         }
 
@@ -208,11 +203,11 @@ class EnvManager
     }
 
     /**
-     * Очистить старые бэкапы.
+     * Очистить старые бэкапы
      */
     private function cleanupBackups($backupDir, $keep = 10)
     {
-        $backups = glob($backupDir.'/env.backup.*');
+        $backups = glob($backupDir . '/env.backup.*');
         if (count($backups) <= $keep) {
             return;
         }
@@ -226,7 +221,7 @@ class EnvManager
 
         foreach ($toDelete as $file) {
             if (unlink($file)) {
-                ++$deleted;
+                $deleted++;
             }
         }
 
@@ -236,11 +231,11 @@ class EnvManager
     }
 
     /**
-     * Восстановить из бэкапа.
+     * Восстановить из бэкапа
      */
     public function restore($backupFile)
     {
-        $backupPath = __DIR__.'/../backups/config/'.basename($backupFile);
+        $backupPath = __DIR__ . '/../backups/config/' . basename($backupFile);
 
         if (!file_exists($backupPath)) {
             throw new Exception(sprintf(__('env_manager_backup_not_found'), $backupFile));
@@ -259,7 +254,7 @@ class EnvManager
     }
 
     /**
-     * Сбросить кэш.
+     * Сбросить кэш
      */
     public function reset()
     {
@@ -268,7 +263,7 @@ class EnvManager
     }
 
     /**
-     * Проверить, существует ли файл .env.
+     * Проверить, существует ли файл .env
      */
     public function exists()
     {
@@ -276,7 +271,7 @@ class EnvManager
     }
 
     /**
-     * Получить путь к файлу .env.
+     * Получить путь к файлу .env
      */
     public function getFilePath()
     {
@@ -284,7 +279,7 @@ class EnvManager
     }
 
     /**
-     * Проверить права доступа к файлу.
+     * Проверить права доступа к файлу
      */
     public function checkPermissions()
     {
@@ -292,7 +287,7 @@ class EnvManager
             'exists' => false,
             'readable' => false,
             'writable' => false,
-            'path' => $this->envFile,
+            'path' => $this->envFile
         ];
 
         if (file_exists($this->envFile)) {
@@ -310,7 +305,7 @@ class EnvManager
     }
 
     /**
-     * Создать файл .env с значениями по умолчанию.
+     * Создать файл .env с значениями по умолчанию
      */
     public function createDefault()
     {
@@ -325,18 +320,18 @@ class EnvManager
             'OPDS_AUTHOR' => 'Book Lib',
             'OPDS_ID' => 'urn:uuid:your-uuid-here',
             'DB_TYPE' => 'sqlite',
-            'DB_PATH' => __DIR__.'/../data/library.db',
+            'DB_PATH' => __DIR__ . '/../data/library.db',
             'ENABLE_CACHE' => 'true',
             'USE_APCU' => 'true',
             'CACHE_TTL' => '36000',
             'PAGE_CACHE_ENABLED' => 'true',
-            'BOOKS_DIR' => __DIR__.'/../books',
-            'CACHE_DIR' => __DIR__.'/../cache',
-            'COVER_CACHE_DIR' => __DIR__.'/../cache/covers',
-            'SCANNER_PATH' => __DIR__.'/../scanner/book_scanner',
+            'BOOKS_DIR' => __DIR__ . '/../books',
+            'CACHE_DIR' => __DIR__ . '/../cache',
+            'COVER_CACHE_DIR' => __DIR__ . '/../cache/covers',
+            'SCANNER_PATH' => __DIR__ . '/../scanner/book_scanner',
             'MEMORY_LIMIT' => '512M',
             'MAX_SEARCH_RESULTS' => '500',
-            'ADMIN_USER' => 'admin',
+            'ADMIN_USER' => 'admin'
         ];
 
         return $this->save($defaults);

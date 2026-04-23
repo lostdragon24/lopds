@@ -3,7 +3,7 @@
 
 define('LOPDS_ROOT', __DIR__);
 
-require_once __DIR__.'/init.php';
+require_once __DIR__ . '/init.php';
 require_once 'config/config.php';
 require_once 'lib/Database.php';
 require_once 'lib/BookHelper.php';
@@ -15,7 +15,7 @@ require_once 'lib/Translator.php';
 $cacheKey = 'db_status_check_v2';
 $status = Cache::get($cacheKey, 'statistics');
 
-if (null === $status) {
+if ($status === null) {
     $checker = DatabaseChecker::getInstance();
     $status = $checker->getDetailedStatus();
     Cache::set($cacheKey, $status, 'statistics', 600); // Кэш на 10 минут
@@ -30,13 +30,14 @@ if (!$status['database_available']) {
 
 // Если база доступна, но нет таблиц - показываем специальное сообщение
 if (!$status['tables_exist']) {
-    if (false === strpos($_SERVER['SCRIPT_NAME'], '/admin/')) {
+    if (strpos($_SERVER['SCRIPT_NAME'], '/admin/') === false) {
         $error = __('error_init');
         require 'templates/maintenance.php';
         exit;
+    } else {
+        header('Location: install/index.php');
+        exit;
     }
-    header('Location: install/index.php');
-    exit;
 }
 
 // Всё хорошо - продолжаем нормальную работу
@@ -71,6 +72,7 @@ if (!empty($searchQuery)) {
 
 $totalPages = ceil($totalBooks / $itemsPerPage);
 
+
 // Загружаем все данные одним пакетом
 $bookIds = array_column($books, 'id');
 
@@ -103,19 +105,19 @@ require 'templates/header.php';
                     </div>
                     <div class="mb-3">
                         <select class="form-select" name="field">
-                            <option value="all" <?php echo 'all' === $searchField ? 'selected' : ''; ?>>
+                            <option value="all" <?php echo $searchField === 'all' ? 'selected' : ''; ?>>
                                 <?php echo __('search_all'); ?>
                             </option>
-                            <option value="title" <?php echo 'title' === $searchField ? 'selected' : ''; ?>>
+                            <option value="title" <?php echo $searchField === 'title' ? 'selected' : ''; ?>>
                                 <?php echo __('search_title'); ?>
                             </option>
-                            <option value="author" <?php echo 'author' === $searchField ? 'selected' : ''; ?>>
+                            <option value="author" <?php echo $searchField === 'author' ? 'selected' : ''; ?>>
                                 <?php echo __('search_author'); ?>
                             </option>
-                            <option value="genre" <?php echo 'genre' === $searchField ? 'selected' : ''; ?>>
+                            <option value="genre" <?php echo $searchField === 'genre' ? 'selected' : ''; ?>>
                                 <?php echo __('search_genre'); ?>
                             </option>
-                            <option value="series" <?php echo 'series' === $searchField ? 'selected' : ''; ?>>
+                            <option value="series" <?php echo $searchField === 'series' ? 'selected' : ''; ?>>
                                 <?php echo __('search_series'); ?>
                             </option>
                         </select>
@@ -144,23 +146,23 @@ require 'templates/header.php';
         // Кэшируем статистику на 1 час
         $stats = Cache::get('collection_stats_sidebar', 'statistics');
 
-if (null === $stats) {
+if ($stats === null) {
     try {
         $stats = $db->getCollectionStats();
         Cache::set('collection_stats_sidebar', $stats, 'statistics', 3600);
     } catch (Exception $e) {
         $stats = ['total_books' => 0, 'total_authors' => 0, 'total_genres' => 0];
-        echo '<small class="text-muted">'.__('stats_unavailable').'</small>';
+        echo '<small class="text-muted">' . __('stats_unavailable') . '</small>';
     }
 }
 
-if (isset($stats['total_books'])) { ?>
+if (isset($stats['total_books'])): ?>
             <small class="text-muted">
                 <?php echo __('stats_total_books'); ?> <?php echo number_format($stats['total_books'] ?? 0, 0, '', ' '); ?><br>
                 <?php echo __('stats_total_authors'); ?> <?php echo number_format($stats['total_authors'] ?? 0, 0, '', ' '); ?><br>
                 <?php echo __('stats_total_genres'); ?> <?php echo number_format($stats['total_genres'] ?? 0, 0, '', ' '); ?>
             </small>
-        <?php } ?>
+        <?php endif; ?>
 
             </div>
         </div>
@@ -168,25 +170,25 @@ if (isset($stats['total_books'])) { ?>
 
     <div class="col-md-9">
         <h2>
-            <?php if (!empty($searchQuery)) { ?>
+            <?php if (!empty($searchQuery)): ?>
                 <?php echo sprintf(__('search_results_for'), htmlspecialchars($searchQuery)); ?>
                 <small class="text-muted">(<?php echo sprintf(__('search_found'), $totalBooks); ?>)</small>
-            <?php } else { ?>
+            <?php else: ?>
                 <?php echo __('recent_books'); ?>
-            <?php } ?>
+            <?php endif; ?>
         </h2>
 
-        <?php if (empty($books)) { ?>
+        <?php if (empty($books)): ?>
             <div class="alert alert-info">
-                <?php if (!empty($searchQuery)) { ?>
+                <?php if (!empty($searchQuery)): ?>
                     <?php echo sprintf(__('search_no_results'), htmlspecialchars($searchQuery)); ?>
-                <?php } else { ?>
+                <?php else: ?>
                     <?php echo __('catalog_empty'); ?>
-                <?php } ?>
+                <?php endif; ?>
             </div>
-        <?php } else { ?>
+        <?php else: ?>
             <div class="row" id="books-container">
-                <?php foreach ($books as $book) {
+                <?php foreach ($books as $book):
                     $bookId = $book['id'];
                     $rating = $ratings[$bookId] ?? ['votes' => 0, 'average' => 0, 'average_rounded' => 0];
                     $isFavorite = isset($userFavorites[$bookId]);
@@ -215,7 +217,7 @@ if (isset($stats['total_books'])) { ?>
                                             </a>
                                         </h6>
                                         
-                                        <?php if ($book['author']) { ?>
+                                        <?php if ($book['author']): ?>
                                             <p class="card-text mb-1">
                                                 <small class="text-muted">
                                                     <strong><?php echo __('book_author'); ?>:</strong>
@@ -224,23 +226,23 @@ if (isset($stats['total_books'])) { ?>
                                                     </a>
                                                 </small>
                                             </p>
-                                        <?php } ?>
+                                        <?php endif; ?>
                                         
-                                        <?php if ($book['series']) { ?>
+                                        <?php if ($book['series']): ?>
                                             <p class="card-text mb-1">
                                                 <small>
                                                     <strong><?php echo __('book_series'); ?>:</strong>
                                                     <a href="index.php?field=series&q=<?php echo urlencode($book['series']); ?>" class="text-decoration-none">
                                                         <?php echo htmlspecialchars($book['series']); ?>
                                                     </a>
-                                                    <?php if ($book['series_number']) { ?>
+                                                    <?php if ($book['series_number']): ?>
                                                         <span class="badge bg-secondary ms-1">#<?php echo $book['series_number']; ?></span>
-                                                    <?php } ?>
+                                                    <?php endif; ?>
                                                 </small>
                                             </p>
-                                        <?php } ?>
+                                        <?php endif; ?>
 
-                                        <?php if ($book['genre']) { ?>
+                                        <?php if ($book['genre']): ?>
                                             <p class="card-text mb-1">
                                                 <small>
                                                     <strong><?php echo __('book_genre'); ?>:</strong>
@@ -250,32 +252,32 @@ if (isset($stats['total_books'])) { ?>
                                             ?>
                                                 </small>
                                             </p>
-                                        <?php } ?>
+                                        <?php endif; ?>
 
-                                        <?php if ($book['year']) { ?>
+                                        <?php if ($book['year']): ?>
                                             <p class="card-text mb-1">
                                                 <small><strong><?php echo __('book_year'); ?>:</strong> <?php echo $book['year']; ?></small>
                                             </p>
-                                        <?php } ?>
+                                        <?php endif; ?>
 
                                         <div class="d-flex justify-content-between align-items-center mt-2">
                                             <div class="book-rating-mini" id="rating-<?php echo $bookId; ?>" data-book-id="<?php echo $bookId; ?>">
-                                                <?php if ($rating['votes'] > 0) { ?>
+                                                <?php if ($rating['votes'] > 0): ?>
                                                     <?php
                                             $r = $rating['average_rounded'];
-                                                    for ($i = 1; $i <= 5; ++$i) {
-                                                        if ($i <= floor($r)) { ?>
+                                                    for ($i = 1; $i <= 5; $i++):
+                                                        if ($i <= floor($r)): ?>
                                                             <i class="fas fa-star text-warning" style="font-size: 0.8em;"></i>
-                                                        <?php } elseif ($i - 0.5 <= $r) { ?>
+                                                        <?php elseif ($i - 0.5 <= $r): ?>
                                                             <i class="fas fa-star-half-alt text-warning" style="font-size: 0.8em;"></i>
-                                                        <?php } else { ?>
+                                                        <?php else: ?>
                                                             <i class="far fa-star text-warning" style="font-size: 0.8em;"></i>
-                                                        <?php }
-                                                        } ?>
+                                                        <?php endif;
+                                                    endfor; ?>
                                                     <small class="text-muted"><?php echo number_format($rating['average'], 1); ?></small>
-                                                <?php } else { ?>
+                                                <?php else: ?>
                                                     <small class="text-muted"><?php echo __('rating_no_votes'); ?></small>
-                                                <?php } ?>
+                                                <?php endif; ?>
                                             </div>
                                             <button class="btn btn-sm <?php echo $isFavorite ? 'btn-danger' : 'btn-outline-danger'; ?> favorite-btn" 
                                                     data-book-id="<?php echo $bookId; ?>"
@@ -290,9 +292,9 @@ if (isset($stats['total_books'])) { ?>
                                 <div class="d-flex justify-content-between align-items-center">
                                     <small class="text-muted">
                                         <?php echo __('book_added'); ?>: <?php echo date('d.m.Y', strtotime($book['added_date'])); ?>
-                                        <?php if ($book['archive_path']) { ?>
+                                        <?php if ($book['archive_path']): ?>
                                             • <?php echo __('book_in_archive'); ?>
-                                        <?php } ?>
+                                        <?php endif; ?>
                                     </small>
                                     <div>
                                         <a href="book_detail.php?id=<?php echo $bookId; ?>" class="btn btn-sm btn-outline-primary"><?php echo __('details'); ?></a>
@@ -303,47 +305,47 @@ if (isset($stats['total_books'])) { ?>
                         </div>
                     </div>
 
-                <?php } ?>
+                <?php endforeach; ?>
             </div>
 
-            <?php if ($totalPages > 1) { ?>
+            <?php if ($totalPages > 1): ?>
                 <nav aria-label="<?php echo __('pagination'); ?>" class="mt-4">
                     <ul class="pagination justify-content-center">
-                        <?php if ($page > 1) { ?>
+                        <?php if ($page > 1): ?>
                             <li class="page-item">
                                 <a class="page-link" href="?q=<?php echo urlencode($searchQuery); ?>&field=<?php echo $searchField; ?>&page=<?php echo $page - 1; ?>">
                                     <?php echo __('back'); ?>
                                 </a>
                             </li>
-                        <?php } ?>
+                        <?php endif; ?>
 
                         <?php
                         $startPage = max(1, $page - 2);
                 $endPage = min($totalPages, $page + 2);
 
-                for ($i = $startPage; $i <= $endPage; ++$i) { ?>
+                for ($i = $startPage; $i <= $endPage; $i++): ?>
                             <li class="page-item <?php echo $i == $page ? 'active' : ''; ?>">
                                 <a class="page-link" href="?q=<?php echo urlencode($searchQuery); ?>&field=<?php echo $searchField; ?>&page=<?php echo $i; ?>">
                                     <?php echo $i; ?>
                                 </a>
                             </li>
-                        <?php } ?>
+                        <?php endfor; ?>
 
-                        <?php if ($page < $totalPages) { ?>
+                        <?php if ($page < $totalPages): ?>
                             <li class="page-item">
                                 <a class="page-link" href="?q=<?php echo urlencode($searchQuery); ?>&field=<?php echo $searchField; ?>&page=<?php echo $page + 1; ?>">
                                     <?php echo __('forward'); ?>
                                 </a>
                             </li>
-                        <?php } ?>
+                        <?php endif; ?>
                     </ul>
                 </nav>
                 
                 <div class="text-center text-muted">
                     <small><?php echo sprintf(__('page_of'), $page, $totalPages); ?></small>
                 </div>
-            <?php } ?>
-        <?php } ?>
+            <?php endif; ?>
+        <?php endif; ?>
     </div>
 </div>
 

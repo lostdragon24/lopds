@@ -56,7 +56,7 @@ class AppInitializer
      */
     private static function setMemoryLimit()
     {
-        $memoryLimit = ConfigData::PERFORMANCE['memory_limit'] ?? null;
+        $memoryLimit = Config::getMemorylimit() ?? null;
         if ($memoryLimit) {
             ini_set('memory_limit', $memoryLimit);
         }

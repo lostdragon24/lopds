@@ -85,13 +85,13 @@
             
             <?php
             $scanner = new ScannerManager();
-if ($scanner->isAvailable()) {
+if ($scanner->isAvailable()):
     ?>
             <div class="alert alert-success mt-3">
                 <i class="fas fa-check-circle me-2"></i>
                 <?php echo sprintf(__('install_scanner_found'), $scanner->getVersion() ?: __('install_scanner_version_unknown')); ?>
             </div>
-            <?php } ?>
+            <?php endif; ?>
         </div>
     </div>
     

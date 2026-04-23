@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Запустить сканирование.
+ * Запустить сканирование
  */
 function handleRunScanner($post)
 {
@@ -9,7 +9,7 @@ function handleRunScanner($post)
         $scanner = new ScannerManager();
 
         if (!$scanner->isAvailable()) {
-            throw new Exception('Сканер не доступен');
+            throw new Exception("Сканер не доступен");
         }
 
         switch ($post['scan_mode'] ?? 'normal') {
@@ -22,24 +22,25 @@ function handleRunScanner($post)
 
         if ($result['success'] ?? false) {
             $_SESSION['scan_completed'] = true;
-
             return [
                 'success' => true,
-                'message' => '✅ Сканирование запущено успешно',
-                'redirect' => 'index.php?step=6&success=1',
+                'message' => "✅ Сканирование запущено успешно",
+                'redirect' => 'index.php?step=6&success=1'
             ];
+        } else {
+            throw new Exception($result['message'] ?? 'Unknown error');
         }
-        throw new Exception($result['message'] ?? 'Unknown error');
+
     } catch (Exception $e) {
         return [
             'success' => false,
-            'message' => '❌ Ошибка запуска сканера: '.$e->getMessage(),
+            'message' => '❌ Ошибка запуска сканера: ' . $e->getMessage()
         ];
     }
 }
 
 /**
- * Найти INPX файл.
+ * Найти INPX файл
  */
 function findInpxFile($dir)
 {
@@ -49,18 +50,18 @@ function findInpxFile($dir)
 
     $files = scandir($dir);
     foreach ($files as $file) {
-        if ('.' == $file || '..' == $file) {
+        if ($file == '.' || $file == '..') {
             continue;
         }
 
-        $path = $dir.'/'.$file;
+        $path = $dir . '/' . $file;
 
         if (is_dir($path)) {
             $found = findInpxFile($path);
             if ($found) {
                 return $found;
             }
-        } elseif (is_file($path) && 'inpx' == strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+        } elseif (is_file($path) && strtolower(pathinfo($path, PATHINFO_EXTENSION)) == 'inpx') {
             return $path;
         }
     }

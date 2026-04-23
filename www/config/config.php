@@ -108,6 +108,87 @@ class Config
         return env('DB_PATH', LOPDS_ROOT.'/data/library.db');
     }
 
+
+    // ===== МЕТОДЫ ДЛЯ OPDS =====
+
+public static function getOpdsTitle()
+{
+    return env('OPDS_TITLE', 'Моя библиотека');
+}
+
+public static function getOpdsAuthor()
+{
+    return env('OPDS_AUTHOR', 'Book Lib');
+}
+
+public static function getOpdsId()
+{
+    return env('OPDS_ID', 'urn:uuid:your-uuid-here');
+}
+
+   
+    public static function getOpdsDefaultLang()
+    {
+        return env('OPDS_LANG', 'ru');
+    } 
+
+
+public static function isCacheEnabled()
+{
+    return env('ENABLE_CACHE', 'true');
+}
+
+public static function isUseApcu()
+{
+    return env('USE_APCU', 'true');
+}
+
+public static function isCacheTtl()
+{
+    return env('CACHE_TTL', '36000');
+}
+
+public static function isPageCache()
+{
+    return filter_var(env('PAGE_CACHE_ENABLED', 'true'), FILTER_VALIDATE_BOOLEAN);
+}
+
+public static function getMemorylimit()
+{
+    return  env('MEMORY_LIMIT', '512M');
+}
+
+
+public static function isQuerylogging()
+{
+    return filter_var(env('Q_L', 'false'), FILTER_VALIDATE_BOOLEAN);
+}
+
+
+public static function isPageCacheEnabled()
+{
+    return filter_var(env('PAGE_CACHE_ENABLED', 'true'), FILTER_VALIDATE_BOOLEAN);
+}
+
+    /**
+     * Проверить, используется ли SQLite.
+     */
+    public static function isSqlite()
+    {
+        return 'sqlite' === self::getDbType();
+    }
+
+    /**
+     * Проверить, используется ли MySQL.
+     */
+    public static function isMysql()
+    {
+        return 'mysql' === self::getDbType();
+    }
+
+
+
+
     // ===== БАЗА ДАННЫХ (ленивая загрузка) =====
 
     public static function getDbConfig()
@@ -140,79 +221,26 @@ class Config
         return env('DB_TYPE', 'sqlite');
     }
 
+
+
     // ===== СЕССИИ И CSRF =====
 
     public static function startSecureSession()
     {
-        if (PHP_SESSION_NONE === session_status()) {
-            session_start();
-        }
+	return SessionManager::getCsrfToken();
 
-        return self::getCsrfToken();
     }
 
     public static function getCsrfToken()
     {
-        if (PHP_SESSION_NONE === session_status()) {
-            session_start();
-        }
-        if (empty($_SESSION['csrf_token'])) {
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-        }
-
-        return $_SESSION['csrf_token'];
+	return SessionManager::getCsrfToken();
     }
 
     public static function validateCsrfToken($token)
     {
-        if (empty($token)) {
-            return false;
-        }
-        if (PHP_SESSION_NONE === session_status()) {
-            session_start();
-        }
-        if (empty($_SESSION['csrf_token'])) {
-            return false;
-        }
-
-        return hash_equals($_SESSION['csrf_token'], $token);
+	return SessionManager::validateCsrfToken($token);
     }
 
-    // ===== ЖАНРЫ (ленивая загрузка через GenreManager) =====
-
-    public static function getReadableGenre($genreCode)
-    {
-        // Загружаем GenreManager только когда нужен
-        static $genreManager = null;
-        if (null === $genreManager) {
-            require_once LOPDS_ROOT.'/lib/GenreManager.php';
-            $genreManager = true;
-        }
-
-        return GenreManager::getReadableName($genreCode);
-    }
-
-    public static function getAllGenres()
-    {
-        static $genres = null;
-        if (null === $genres) {
-            require_once LOPDS_ROOT.'/lib/GenreManager.php';
-            $genres = GenreManager::getAllGenres();
-        }
-
-        return $genres;
-    }
-
-    public static function getGenresByCategory()
-    {
-        static $categories = null;
-        if (null === $categories) {
-            require_once LOPDS_ROOT.'/lib/GenreManager.php';
-            $categories = GenreManager::getGenresByCategory();
-        }
-
-        return $categories;
-    }
 
     // ===== MIME-ТИПЫ =====
 
@@ -239,31 +267,18 @@ class Config
         return file_exists(__DIR__.'/.dev');
     }
 
-    // ===== КОНСТАНТЫ ДЛЯ СОВМЕСТИМОСТИ =====
-
-    public const DB_TYPE = 'mysql';
-    public const DB_HOST = 'localhost';
-    public const SITE_TITLE = 'Моя домашняя библиотека';
-    public const ITEMS_PER_PAGE = 10;
-    public const OPDS_TITLE = 'Моя библиотека';
-    public const OPDS_AUTHOR = 'Book Lib';
-    public const OPDS_ID = 'urn:uuid:your-uuid-here';
-    public const ENABLE_CACHE = true;
-    public const USE_APCU = true;
-    public const CACHE_TTL = 36000;
-
-    public const PERFORMANCE = [
-        'enable_page_cache' => true,
-        'memory_limit' => '512M',
-        'max_search_results' => 500,
-        'enable_query_logging' => false,
-    ];
-
     public const CACHE_CONFIG = [
         'search_results' => ['ttl' => 300],
         'book_data' => ['ttl' => 3600],
         'statistics' => ['ttl' => 1800],
         'page_cache' => ['ttl' => 300],
+    ];
+
+    public const SEARCH_OPTIMIZATION = [
+        'enable_fulltext' => false,
+        'min_word_length' => 3,
+        'cache_search_results' => true,
+        'search_cache_ttl' => 300,
     ];
 
     public const COVER_PROCESSING = [
@@ -275,13 +290,4 @@ class Config
         'apcu_ttl' => 3600,
     ];
 
-    public const SEARCH_OPTIMIZATION = [
-        'enable_fulltext' => false,
-        'min_word_length' => 3,
-        'cache_search_results' => true,
-        'search_cache_ttl' => 300,
-    ];
-
-    public const ALLOWED_ORDER_BY = ['id', 'title', 'author', 'year', 'added_date'];
-    public const ALLOWED_ORDER_DIR = ['ASC', 'DESC'];
 }

@@ -2,18 +2,18 @@
 
 // api/extract_description.php
 
-require_once __DIR__.'/../config/config.php';
-require_once __DIR__.'/../lib/Database.php';
-require_once __DIR__.'/../lib/BookHelper.php';
-require_once __DIR__.'/../lib/Cache.php';
-require_once __DIR__.'/../init.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../lib/Database.php';
+require_once __DIR__ . '/../lib/BookHelper.php';
+require_once __DIR__ . '/../lib/Cache.php';
+require_once __DIR__ . '/../init.php';
 
 header('Content-Type: application/json');
 
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     echo json_encode([
         'success' => false,
-        'message' => __('error_invalid_id'),
+        'message' => __('error_invalid_id')
     ]);
     exit;
 }
@@ -25,7 +25,7 @@ $book = $db->getBook($bookId);
 if (!$book) {
     echo json_encode([
         'success' => false,
-        'message' => __('book_not_found'),
+        'message' => __('book_not_found')
     ]);
     exit;
 }
@@ -41,17 +41,17 @@ if (!empty($description)) {
         'success' => true,
         'description' => $formattedDescription,
         'raw_description' => $description,
-        'message' => __('description_extracted'),
+        'message' => __('description_extracted')
     ]);
 } else {
     echo json_encode([
         'success' => false,
-        'message' => __('description_extract_failed'),
+        'message' => __('description_extract_failed')
     ]);
 }
 
 /**
- * Форматировать описание.
+ * Форматировать описание
  */
 function formatDescription($description)
 {

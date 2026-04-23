@@ -1,16 +1,16 @@
 <?php
 // templates/maintenance.php
 
-require_once __DIR__.'/../config/config.php';
-require_once __DIR__.'/../lib/DatabaseChecker.php';
-require_once __DIR__.'/../init.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../lib/DatabaseChecker.php';
+require_once __DIR__ . '/../init.php';
 
 $scriptPath = $_SERVER['SCRIPT_NAME'];
 $basePath = rtrim(dirname($scriptPath), '/');
-$installPath = $basePath.'/install';
-$adminPath = $basePath.'/admin';
+$installPath = $basePath . '/install';
+$adminPath = $basePath . '/admin';
 
-$isAdmin = false !== strpos($scriptPath, '/admin/');
+$isAdmin = strpos($scriptPath, '/admin/') !== false;
 
 // Проверяем, есть ли таблицы
 $checker = DatabaseChecker::getInstance();
@@ -45,13 +45,13 @@ $configInfo = [
     'type' => $dbConfig['type'],
     'host' => $dbConfig['host'] ?? 'N/A',
     'database' => $dbConfig['name'] ?? $dbConfig['path'] ?? 'N/A',
-    'user' => ('mysql' === $dbConfig['type'] && isset($dbConfig['user'])) ? '***' : '('.__('empty').')',
-    'path' => $dbConfig['path'] ?? 'N/A',
+    'user' => ($dbConfig['type'] === 'mysql' && isset($dbConfig['user'])) ? '***' : '(' . __('empty') . ')',
+    'path' => $dbConfig['path'] ?? 'N/A'
 ];
 
 // Проверяем существование директории install
-$installDirExists = file_exists(__DIR__.'/../install');
-$installFileExists = file_exists(__DIR__.'/../install/index.php');
+$installDirExists = file_exists(__DIR__ . '/../install');
+$installFileExists = file_exists(__DIR__ . '/../install/index.php');
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo Translator::getInstance()->getCurrentLanguage(); ?>">
@@ -335,22 +335,22 @@ $installFileExists = file_exists(__DIR__.'/../install/index.php');
 $availableLangs = $detector->getAvailableLanguages();
 $currentLang = $detector->getCurrentLanguage();
 ?>
-    <?php if (count($availableLangs) > 1) { ?>
+    <?php if (count($availableLangs) > 1): ?>
     <div class="language-selector">
         <form method="post" action="<?php echo $basePath; ?>/change-language.php">
             <select name="lang" onchange="this.form.submit()">
-                <?php foreach ($availableLangs as $lang) {
+                <?php foreach ($availableLangs as $lang):
                     $langName = $detector->getLanguageName($lang);
                     $langFlag = $detector->getLanguageFlag($lang);
                     ?>
                 <option value="<?php echo $lang; ?>" <?php echo $lang === $currentLang ? 'selected' : ''; ?>>
-                    <?php echo $langFlag.' '.$langName; ?>
+                    <?php echo $langFlag . ' ' . $langName; ?>
                 </option>
-                <?php } ?>
+                <?php endforeach; ?>
             </select>
         </form>
     </div>
-    <?php } ?>
+    <?php endif; ?>
     
     <div class="maintenance-card">
         <div class="text-center">
@@ -368,7 +368,7 @@ $currentLang = $detector->getCurrentLanguage();
             </div>
             
             <!-- ПРИГЛАШЕНИЕ К УСТАНОВКЕ -->
-            <?php if ($installDirExists && $installFileExists && ('init' === $errorType || 'database' === $errorType)) { ?>
+            <?php if ($installDirExists && $installFileExists && ($errorType === 'init' || $errorType === 'database')): ?>
                 <div class="install-prompt">
                     <i class="fas fa-magic fa-3x mb-3"></i>
                     <h3>🚀 <?php echo __('install_quick'); ?></h3>
@@ -391,7 +391,7 @@ $currentLang = $detector->getCurrentLanguage();
                         </ul>
                     </div>
                 </div>
-            <?php } elseif ($installDirExists && $installFileExists && 'unknown' === $errorType) { ?>
+            <?php elseif ($installDirExists && $installFileExists && $errorType === 'unknown'): ?>
                 <div class="install-prompt" style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);">
                     <i class="fas fa-tools fa-3x mb-3"></i>
                     <h3>🔧 <?php echo __('maintenance_diagnose'); ?></h3>
@@ -403,7 +403,7 @@ $currentLang = $detector->getCurrentLanguage();
                         <?php echo __('maintenance_diagnose'); ?>
                     </a>
                 </div>
-            <?php } else { ?>
+            <?php else: ?>
                 <div class="install-missing">
                     <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
                     <h4>⚠️ <?php echo __('install_not_found'); ?></h4>
@@ -411,7 +411,7 @@ $currentLang = $detector->getCurrentLanguage();
                         <?php echo sprintf(__('install_dir_missing'), '<code>/install/</code>'); ?>
                     </p>
                 </div>
-            <?php } ?>
+            <?php endif; ?>
             
             <!-- Детальная информация о статусе -->
             <div class="status-details">
@@ -423,26 +423,26 @@ $currentLang = $detector->getCurrentLanguage();
                 <div class="status-item">
                     <span class="label"><?php echo __('diagnostics_database'); ?></span>
                     <span class="value">
-                        <?php if ($dbAvailable) { ?>
+                        <?php if ($dbAvailable): ?>
                             <span class="badge bg-success"><?php echo __('diagnostics_available'); ?></span>
-                        <?php } else { ?>
+                        <?php else: ?>
                             <span class="badge bg-danger"><?php echo __('diagnostics_unavailable'); ?></span>
-                        <?php } ?>
+                        <?php endif; ?>
                     </span>
                 </div>
                 
-                <?php if ($dbAvailable) { ?>
+                <?php if ($dbAvailable): ?>
                 <div class="status-item">
                     <span class="label"><?php echo __('diagnostics_tables'); ?></span>
                     <span class="value">
-                        <?php if ($hasTables) { ?>
+                        <?php if ($hasTables): ?>
                             <span class="badge bg-success"><?php echo __('diagnostics_tables_created'); ?></span>
-                        <?php } else { ?>
+                        <?php else: ?>
                             <span class="badge bg-warning"><?php echo __('diagnostics_tables_missing'); ?></span>
-                        <?php } ?>
+                        <?php endif; ?>
                     </span>
                 </div>
-                <?php } ?>
+                <?php endif; ?>
                 
                 <div class="status-item">
                     <span class="label"><?php echo __('diagnostics_db_type'); ?></span>
@@ -451,7 +451,7 @@ $currentLang = $detector->getCurrentLanguage();
                     </span>
                 </div>
                 
-                <?php if ('sqlite' === $configInfo['type']) { ?>
+                <?php if ($configInfo['type'] === 'sqlite'): ?>
                 <div class="status-item">
                     <span class="label"><?php echo __('diagnostics_db_file'); ?></span>
                     <span class="value">
@@ -461,26 +461,26 @@ $currentLang = $detector->getCurrentLanguage();
                 <div class="status-item">
                     <span class="label"><?php echo __('diagnostics_file_exists'); ?></span>
                     <span class="value">
-                        <?php if (file_exists($configInfo['database'])) { ?>
+                        <?php if (file_exists($configInfo['database'])): ?>
                             <span class="badge bg-success"><?php echo __('diagnostics_yes'); ?></span>
-                        <?php } else { ?>
+                        <?php else: ?>
                             <span class="badge bg-danger"><?php echo __('diagnostics_no'); ?></span>
-                        <?php } ?>
+                        <?php endif; ?>
                     </span>
                 </div>
-                <?php } ?>
+                <?php endif; ?>
             </div>
             
-            <?php if (isset($status['error']) && $status['error']) { ?>
+            <?php if (isset($status['error']) && $status['error']): ?>
                 <div class="error-detail">
                     <i class="fas fa-exclamation-triangle me-2"></i>
                     <strong><?php echo __('error_details'); ?></strong><br>
                     <small><?php echo htmlspecialchars($status['error']); ?></small>
                 </div>
-            <?php } ?>
+            <?php endif; ?>
             
             <!-- Конфигурация для отладки (только для администраторов) -->
-            <?php if ($isAdmin) { ?>
+            <?php if ($isAdmin): ?>
             <div class="config-info">
                 <details>
                     <summary class="text-muted">
@@ -490,7 +490,7 @@ $currentLang = $detector->getCurrentLanguage();
                     <pre><?php echo htmlspecialchars(print_r($configInfo, true)); ?></pre>
                 </details>
             </div>
-            <?php } ?>
+            <?php endif; ?>
             
             <!-- Действия -->
             <div class="maintenance-actions">
@@ -499,18 +499,18 @@ $currentLang = $detector->getCurrentLanguage();
                     <?php echo __('maintenance_refresh'); ?>
                 </button>
                 
-                <?php if ($installDirExists && $installFileExists) { ?>
-                    <?php if (!$dbAvailable) { ?>
+                <?php if ($installDirExists && $installFileExists): ?>
+                    <?php if (!$dbAvailable): ?>
                         <a href="<?php echo $installPath; ?>/?step=3" class="btn btn-warning">
                             <i class="fas fa-wrench me-2"></i>
                             <?php echo __('maintenance_configure_db'); ?>
                         </a>
-                    <?php } elseif (!$hasTables) { ?>
+                    <?php elseif (!$hasTables): ?>
                         <a href="<?php echo $installPath; ?>/?step=4" class="btn btn-success">
                             <i class="fas fa-play me-2"></i>
                             <?php echo __('maintenance_create_tables'); ?>
                         </a>
-                    <?php } ?>
+                    <?php endif; ?>
                     
                     <a href="<?php echo $installPath; ?>/" class="btn btn-info">
                         <i class="fas fa-magic me-2"></i>
@@ -521,7 +521,7 @@ $currentLang = $detector->getCurrentLanguage();
                         <i class="fas fa-stethoscope me-2"></i>
                         <?php echo __('maintenance_diagnose'); ?>
                     </a>
-                <?php } ?>
+                <?php endif; ?>
             </div>
             
             <div class="mt-4 text-muted small">
@@ -529,7 +529,7 @@ $currentLang = $detector->getCurrentLanguage();
                 <?php echo date('d.m.Y H:i:s'); ?>
             </div>
             
-            <?php if ($installDirExists && $installFileExists) { ?>
+            <?php if ($installDirExists && $installFileExists): ?>
             <div class="mt-3">
                 <div class="alert alert-warning py-2 mb-0">
                     <i class="fas fa-shield-alt me-2"></i>
@@ -538,7 +538,7 @@ $currentLang = $detector->getCurrentLanguage();
                     </small>
                 </div>
             </div>
-            <?php } ?>
+            <?php endif; ?>
         </div>
     </div>
 </body>

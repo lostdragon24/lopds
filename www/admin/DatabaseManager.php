@@ -11,7 +11,7 @@ class DatabaseManager
     public function __construct($db)
     {
         $this->db = $db;
-        $this->backupDir = Config::getBasePath().'/backups/database';
+        $this->backupDir = Config::getBasePath() . '/backups/database';
         $this->dbType = Config::getDbType();
 
         if (!file_exists($this->backupDir)) {
@@ -20,7 +20,7 @@ class DatabaseManager
     }
 
     /**
-     * Получить подробную информацию о БД.
+     * Получить подробную информацию о БД
      */
     public function getInfo()
     {
@@ -33,11 +33,11 @@ class DatabaseManager
             'version' => '',
             'path' => '',
             'status' => 'active',
-            'status_text' => __('admin_db_status_active'),
+            'status_text' => __('admin_db_status_active')
         ];
 
         try {
-            if ('sqlite' === $this->dbType) {
+            if ($this->dbType === 'sqlite') {
                 $info['path'] = $dbConfig['path'];
                 $info['size'] = file_exists($info['path']) ? filesize($info['path']) : 0;
                 $info['version'] = $this->db->getConnection()->query('SELECT sqlite_version()')->fetchColumn();
@@ -49,19 +49,20 @@ class DatabaseManager
                 $info['tables_count'] = $stmt->fetchColumn();
 
                 // Размер WAL файла если есть
-                $walFile = $info['path'].'-wal';
+                $walFile = $info['path'] . '-wal';
                 if (file_exists($walFile)) {
                     $info['wal_size'] = filesize($walFile);
                 }
 
                 // Информация о журнале
-                $stmt = $this->db->getConnection()->query('PRAGMA journal_mode');
+                $stmt = $this->db->getConnection()->query("PRAGMA journal_mode");
                 $info['journal_mode'] = $stmt->fetchColumn();
+
             } else { // MySQL
-                $stmt = $this->db->getConnection()->query('SELECT VERSION() as version');
+                $stmt = $this->db->getConnection()->query("SELECT VERSION() as version");
                 $info['version'] = $stmt->fetchColumn();
 
-                $stmt = $this->db->getConnection()->query('SHOW TABLE STATUS');
+                $stmt = $this->db->getConnection()->query("SHOW TABLE STATUS");
                 $tables = $stmt->fetchAll();
                 $info['tables_count'] = count($tables);
 
@@ -82,8 +83,9 @@ class DatabaseManager
             $info['is_readable'] = $this->isReadable();
             $info['writable_text'] = $info['is_writable'] ? __('admin_db_writable_yes') : __('admin_db_writable_no');
             $info['readable_text'] = $info['is_readable'] ? __('admin_db_readable_yes') : __('admin_db_readable_no');
+
         } catch (Exception $e) {
-            error_log('Error getting DB info: '.$e->getMessage());
+            error_log("Error getting DB info: " . $e->getMessage());
             $info['status'] = 'error';
             $info['status_text'] = __('admin_db_status_error');
             $info['error'] = $e->getMessage();
@@ -93,14 +95,14 @@ class DatabaseManager
     }
 
     /**
-     * Получить список таблиц с деталями.
+     * Получить список таблиц с деталями
      */
     public function getTables()
     {
         $tables = [];
 
         try {
-            if ('sqlite' === $this->dbType) {
+            if ($this->dbType === 'sqlite') {
                 // Получаем список таблиц
                 $stmt = $this->db->getConnection()->query(
                     "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
@@ -130,11 +132,11 @@ class DatabaseManager
                         'rows' => $count,
                         'size' => $size ?: 0,
                         'indexes' => $indexes,
-                        'engine' => 'SQLite',
+                        'engine' => 'SQLite'
                     ];
                 }
             } else {
-                $stmt = $this->db->getConnection()->query('SHOW TABLE STATUS');
+                $stmt = $this->db->getConnection()->query("SHOW TABLE STATUS");
                 while ($row = $stmt->fetch()) {
                     $tables[] = [
                         'name' => $row['Name'],
@@ -146,26 +148,26 @@ class DatabaseManager
                         'collation' => $row['Collation'] ?? 'utf8mb4_unicode_ci',
                         'auto_increment' => $row['Auto_increment'] ?? null,
                         'create_time' => $row['Create_time'] ?? null,
-                        'update_time' => $row['Update_time'] ?? null,
+                        'update_time' => $row['Update_time'] ?? null
                     ];
                 }
             }
         } catch (Exception $e) {
-            error_log('Error getting tables: '.$e->getMessage());
+            error_log("Error getting tables: " . $e->getMessage());
         }
 
         return $tables;
     }
 
     /**
-     * Создать бэкап базы данных.
+     * Создать бэкап базы данных
      */
     public function createBackup()
     {
-        $filename = $this->backupDir.'/backup_'.date('Y-m-d_His').'.';
+        $filename = $this->backupDir . '/backup_' . date('Y-m-d_His') . '.';
 
         try {
-            if ('sqlite' === $this->dbType) {
+            if ($this->dbType === 'sqlite') {
                 $filename .= 'db';
                 $this->createSqliteBackup($filename);
                 $message = __('admin_db_backup_sqlite_created');
@@ -179,7 +181,7 @@ class DatabaseManager
             if (filesize($filename) > 1024 * 1024) { // больше 1MB
                 $this->compressBackup($filename);
                 $filename .= '.gz';
-                $message .= ' '.__('admin_db_backup_compressed');
+                $message .= ' ' . __('admin_db_backup_compressed');
             }
 
             // Удаляем старые бэкапы
@@ -192,14 +194,14 @@ class DatabaseManager
                 'filename' => basename($filename),
                 'size' => $size,
                 'size_formatted' => $this->formatBytes($size),
-                'message' => $message,
+                'message' => $message
             ];
-        } catch (Exception $e) {
-            error_log('Backup failed: '.$e->getMessage());
 
+        } catch (Exception $e) {
+            error_log("Backup failed: " . $e->getMessage());
             return [
                 'success' => false,
-                'message' => __('admin_db_backup_failed').': '.$e->getMessage(),
+                'message' => __('admin_db_backup_failed') . ': ' . $e->getMessage()
             ];
         }
     }
@@ -221,9 +223,9 @@ class DatabaseManager
         }
 
         // Копируем WAL файл если есть
-        $walFile = $sourceFile.'-wal';
+        $walFile = $sourceFile . '-wal';
         if (file_exists($walFile)) {
-            copy($walFile, $filename.'-wal');
+            copy($walFile, $filename . '-wal');
         }
     }
 
@@ -239,9 +241,9 @@ class DatabaseManager
             throw new Exception(__('admin_db_backup_create_failed'));
         }
 
-        fwrite($handle, '-- MySQL dump created at '.date('Y-m-d H:i:s')."\n");
-        fwrite($handle, '-- Database: '.$dbConfig['name']."\n");
-        fwrite($handle, '-- PHP Version: '.PHP_VERSION."\n\n");
+        fwrite($handle, "-- MySQL dump created at " . date('Y-m-d H:i:s') . "\n");
+        fwrite($handle, "-- Database: " . $dbConfig['name'] . "\n");
+        fwrite($handle, "-- PHP Version: " . PHP_VERSION . "\n\n");
 
         fwrite($handle, "SET FOREIGN_KEY_CHECKS=0;\n");
         fwrite($handle, "SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';\n");
@@ -259,7 +261,7 @@ class DatabaseManager
     }
 
     /**
-     * Создать дамп одной таблицы.
+     * Создать дамп одной таблицы
      */
     private function dumpTableToFile($handle, $tableName)
     {
@@ -269,13 +271,13 @@ class DatabaseManager
         // Получаем CREATE TABLE
         $stmt = $this->db->getConnection()->query("SHOW CREATE TABLE `$tableName`");
         $row = $stmt->fetch();
-        fwrite($handle, $row['Create Table'].";\n\n");
+        fwrite($handle, $row['Create Table'] . ";\n\n");
 
         // Получаем количество записей
         $stmt = $this->db->getConnection()->query("SELECT COUNT(*) as count FROM `$tableName`");
         $totalRows = $stmt->fetchColumn();
 
-        if (0 == $totalRows) {
+        if ($totalRows == 0) {
             return;
         }
 
@@ -291,28 +293,27 @@ class DatabaseManager
             $rows = $stmt->fetchAll(PDO::FETCH_NUM);
 
             if (!empty($rows)) {
-                if (0 == $offset) {
+                if ($offset == 0) {
                     fwrite($handle, "INSERT INTO `$tableName` VALUES \n");
                 }
 
                 $values = [];
                 foreach ($rows as $row) {
-                    $escaped = array_map(function ($val) {
-                        if (null === $val) {
+                    $escaped = array_map(function ($val) use ($handle) {
+                        if ($val === null) {
                             return 'NULL';
                         }
-
-                        return "'".addslashes($val)."'";
+                        return "'" . addslashes($val) . "'";
                     }, $row);
-                    $values[] = '('.implode(', ', $escaped).')';
+                    $values[] = "(" . implode(', ', $escaped) . ")";
                 }
 
                 if ($offset + $limit >= $totalRows) {
                     // Последняя порция
-                    fwrite($handle, implode(",\n", $values).";\n\n");
+                    fwrite($handle, implode(",\n", $values) . ";\n\n");
                 } else {
                     // Не последняя - добавляем запятую в конце
-                    fwrite($handle, implode(",\n", $values).",\n");
+                    fwrite($handle, implode(",\n", $values) . ",\n");
                 }
             }
 
@@ -320,7 +321,7 @@ class DatabaseManager
 
             // Очищаем память
             unset($rows);
-            $this->db->getConnection()->query('DO 1'); // Держим соединение живым
+            $this->db->getConnection()->query("DO 1"); // Держим соединение живым
         }
     }
 
@@ -331,16 +332,16 @@ class DatabaseManager
     {
         $data = file_get_contents($filename);
         $compressed = gzencode($data, 9);
-        file_put_contents($filename.'.gz', $compressed);
+        file_put_contents($filename . '.gz', $compressed);
         unlink($filename);
     }
 
     /**
-     * Удалить старые бэкапы.
+     * Удалить старые бэкапы
      */
     private function cleanupOldBackups($keep = 10)
     {
-        $backups = glob($this->backupDir.'/backup_*');
+        $backups = glob($this->backupDir . '/backup_*');
         if (count($backups) <= $keep) {
             return;
         }
@@ -358,11 +359,11 @@ class DatabaseManager
     }
 
     /**
-     * Получить список бэкапов.
+     * Получить список бэкапов
      */
     public function getBackups()
     {
-        $files = glob($this->backupDir.'/backup_*');
+        $files = glob($this->backupDir . '/backup_*');
         $backups = [];
 
         foreach ($files as $file) {
@@ -372,7 +373,7 @@ class DatabaseManager
                 'size_formatted' => $this->formatBytes(filesize($file)),
                 'date' => date('Y-m-d H:i:s', filemtime($file)),
                 'timestamp' => filemtime($file),
-                'type' => pathinfo($file, PATHINFO_EXTENSION),
+                'type' => pathinfo($file, PATHINFO_EXTENSION)
             ];
         }
 
@@ -385,29 +386,29 @@ class DatabaseManager
     }
 
     /**
-     * Восстановить из бэкапа.
+     * Восстановить из бэкапа
      */
     public function restoreBackup($filename)
     {
-        $backupFile = $this->backupDir.'/'.basename($filename);
+        $backupFile = $this->backupDir . '/' . basename($filename);
 
         if (!file_exists($backupFile)) {
             return ['success' => false, 'message' => __('admin_db_restore_file_not_found')];
         }
 
         try {
-            if ('sqlite' === $this->dbType) {
+            if ($this->dbType === 'sqlite') {
                 return $this->restoreSqliteBackup($backupFile);
+            } else {
+                return $this->restoreMysqlBackup($backupFile);
             }
-
-            return $this->restoreMysqlBackup($backupFile);
         } catch (Exception $e) {
-            return ['success' => false, 'message' => __('admin_db_restore_failed').': '.$e->getMessage()];
+            return ['success' => false, 'message' => __('admin_db_restore_failed') . ': ' . $e->getMessage()];
         }
     }
 
     /**
-     * Восстановить SQLite из бэкапа.
+     * Восстановить SQLite из бэкапа
      */
     private function restoreSqliteBackup($backupFile)
     {
@@ -426,23 +427,23 @@ class DatabaseManager
         }
 
         // Восстанавливаем WAL если есть
-        $walFile = $backupFile.'-wal';
+        $walFile = $backupFile . '-wal';
         if (file_exists($walFile)) {
-            copy($walFile, $targetFile.'-wal');
+            copy($walFile, $targetFile . '-wal');
         }
 
         return ['success' => true, 'message' => __('admin_db_restore_success')];
     }
 
     /**
-     * Восстановить MySQL из бэкапа.
+     * Восстановить MySQL из бэкапа
      */
     private function restoreMysqlBackup($backupFile)
     {
         $dbConfig = Config::getDbConfig();
 
         // Распаковываем если сжато
-        if ('gz' === pathinfo($backupFile, PATHINFO_EXTENSION)) {
+        if (pathinfo($backupFile, PATHINFO_EXTENSION) === 'gz') {
             $gz = gzopen($backupFile, 'rb');
             $sql = '';
             while (!gzeof($gz)) {
@@ -455,32 +456,32 @@ class DatabaseManager
 
         // Выполняем SQL
         $pdo = $this->db->getConnection();
-        $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
+        $pdo->exec("SET FOREIGN_KEY_CHECKS=0");
         $pdo->exec($sql);
-        $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
+        $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
 
         return ['success' => true, 'message' => __('admin_db_restore_success')];
     }
 
     /**
-     * Оптимизировать базу данных.
+     * Оптимизировать базу данных
      */
     public function optimize()
     {
         $results = [];
 
         try {
-            if ('sqlite' === $this->dbType) {
+            if ($this->dbType === 'sqlite') {
                 // VACUUM
                 $start = microtime(true);
-                $this->db->getConnection()->exec('VACUUM');
+                $this->db->getConnection()->exec("VACUUM");
                 $results['vacuum_time'] = round(microtime(true) - $start, 2);
 
                 // PRAGMA optimize
-                $this->db->getConnection()->exec('PRAGMA optimize');
+                $this->db->getConnection()->exec("PRAGMA optimize");
 
                 // Анализ
-                $this->db->getConnection()->exec('ANALYZE');
+                $this->db->getConnection()->exec("ANALYZE");
 
                 $before = $this->getInfo()['size'];
                 $after = filesize(Config::getDbConfig()['path']);
@@ -489,6 +490,7 @@ class DatabaseManager
                 $results['after'] = $after;
                 $results['saved'] = $before - $after;
                 $results['saved_formatted'] = $this->formatBytes($before - $after);
+
             } else {
                 $tables = $this->getTables();
                 foreach ($tables as $table) {
@@ -498,38 +500,40 @@ class DatabaseManager
                 }
 
                 // Анализ
-                $this->db->getConnection()->exec('ANALYZE TABLE '.implode(', ', array_column($tables, 'name')));
+                $this->db->getConnection()->exec("ANALYZE TABLE " . implode(', ', array_column($tables, 'name')));
             }
 
             return [
                 'success' => true,
                 'message' => __('admin_db_optimize_success'),
-                'results' => $results,
+                'results' => $results
             ];
+
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => __('admin_db_optimize_failed').': '.$e->getMessage(),
+                'message' => __('admin_db_optimize_failed') . ': ' . $e->getMessage()
             ];
         }
     }
 
     /**
-     * Проверить целостность базы данных.
+     * Проверить целостность базы данных
      */
     public function checkIntegrity()
     {
         $results = [];
 
         try {
-            if ('sqlite' === $this->dbType) {
-                $stmt = $this->db->getConnection()->query('PRAGMA integrity_check');
+            if ($this->dbType === 'sqlite') {
+                $stmt = $this->db->getConnection()->query("PRAGMA integrity_check");
                 $results['integrity'] = $stmt->fetchColumn();
 
-                $stmt = $this->db->getConnection()->query('PRAGMA foreign_key_check');
+                $stmt = $this->db->getConnection()->query("PRAGMA foreign_key_check");
                 $results['foreign_keys'] = $stmt->fetchAll();
 
-                $status = 'ok' === $results['integrity'] ? __('admin_db_integrity_ok') : __('admin_db_integrity_error');
+                $status = $results['integrity'] === 'ok' ? __('admin_db_integrity_ok') : __('admin_db_integrity_error');
+
             } else {
                 $tables = $this->getTables();
                 $allOk = true;
@@ -537,7 +541,7 @@ class DatabaseManager
                     $stmt = $this->db->getConnection()->query("CHECK TABLE `{$table['name']}`");
                     $row = $stmt->fetch();
                     $results[$table['name']] = $row['Msg_text'];
-                    if ('OK' !== $row['Msg_text']) {
+                    if ($row['Msg_text'] !== 'OK') {
                         $allOk = false;
                     }
                 }
@@ -547,43 +551,41 @@ class DatabaseManager
             return [
                 'success' => true,
                 'message' => $status,
-                'results' => $results,
+                'results' => $results
             ];
+
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => __('admin_db_integrity_failed').': '.$e->getMessage(),
+                'message' => __('admin_db_integrity_failed') . ': ' . $e->getMessage()
             ];
         }
     }
 
     /**
-     * Проверить доступность для записи.
+     * Проверить доступность для записи
      */
     private function isWritable()
     {
-        if ('sqlite' === $this->dbType) {
+        if ($this->dbType === 'sqlite') {
             $dbConfig = Config::getDbConfig();
             $dir = dirname($dbConfig['path']);
-
             return is_writable($dir) && (!file_exists($dbConfig['path']) || is_writable($dbConfig['path']));
+        } else {
+            // Для MySQL всегда true если есть соединение
+            return true;
         }
-
-        // Для MySQL всегда true если есть соединение
-        return true;
     }
 
     /**
-     * Проверить доступность для чтения.
+     * Проверить доступность для чтения
      */
     private function isReadable()
     {
-        if ('sqlite' === $this->dbType) {
+        if ($this->dbType === 'sqlite') {
             $dbConfig = Config::getDbConfig();
-
             return !file_exists($dbConfig['path']) || is_readable($dbConfig['path']);
         }
-
         return true;
     }
 
@@ -600,18 +602,18 @@ class DatabaseManager
 
         $bytes /= pow(1024, $pow);
 
-        return round($bytes, $precision).' '.$units[$pow];
+        return round($bytes, $precision) . ' ' . $units[$pow];
     }
 
     /**
-     * Получить детальную информацию о конкретной таблице.
+     * Получить детальную информацию о конкретной таблице
      */
     public function getTableInfo($tableName)
     {
         $info = [];
 
         try {
-            if ('sqlite' === $this->dbType) {
+            if ($this->dbType === 'sqlite') {
                 // Структура таблицы
                 $stmt = $this->db->getConnection()->query("PRAGMA table_info(\"$tableName\")");
                 $info['columns'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -629,6 +631,7 @@ class DatabaseManager
                 // Внешние ключи
                 $stmt = $this->db->getConnection()->query("PRAGMA foreign_key_list(\"$tableName\")");
                 $info['foreign_keys'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
             } else {
                 // Структура таблицы для MySQL
                 $stmt = $this->db->getConnection()->query("DESCRIBE `$tableName`");
@@ -640,16 +643,16 @@ class DatabaseManager
 
                 // Внешние ключи для MySQL
                 $stmt = $this->db->getConnection()->prepare(
-                    'SELECT * FROM information_schema.KEY_COLUMN_USAGE 
+                    "SELECT * FROM information_schema.KEY_COLUMN_USAGE 
                      WHERE TABLE_SCHEMA = DATABASE() 
                      AND TABLE_NAME = ? 
-                     AND REFERENCED_TABLE_NAME IS NOT NULL'
+                     AND REFERENCED_TABLE_NAME IS NOT NULL"
                 );
                 $stmt->execute([$tableName]);
                 $info['foreign_keys'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
             }
         } catch (Exception $e) {
-            error_log('Error getting table info: '.$e->getMessage());
+            error_log("Error getting table info: " . $e->getMessage());
             $info['error'] = $e->getMessage();
         }
 

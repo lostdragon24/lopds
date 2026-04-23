@@ -3,7 +3,7 @@
 // /install/includes/functions.php
 
 /**
- * Сохранить конфигурацию в .env файл.
+ * Сохранить конфигурацию в .env файл
  */
 function handleSaveEnv($post)
 {
@@ -11,42 +11,42 @@ function handleSaveEnv($post)
         $type = $_SESSION['db_config']['type'] ?? 'sqlite';
         $paths = $_SESSION['paths'] ?? [];
 
-        $envContent = '; '.__('install_config_file_header')."\n";
-        $envContent .= '; '.sprintf(__('install_config_file_created'), date('Y-m-d H:i:s'))."\n\n";
+        $envContent = "; " . __('install_config_file_header') . "\n";
+        $envContent .= "; " . sprintf(__('install_config_file_created'), date('Y-m-d H:i:s')) . "\n\n";
 
-        $envContent .= 'DB_TYPE = '.$type."\n\n";
+        $envContent .= "DB_TYPE = " . $type . "\n\n";
 
-        if ('mysql' === $type) {
-            $envContent .= 'DB_HOST = '.($_SESSION['db_config']['host'] ?? 'localhost')."\n";
-            $envContent .= 'DB_NAME = '.($_SESSION['db_config']['database'] ?? 'library')."\n";
-            $envContent .= 'DB_USER = '.($_SESSION['db_config']['user'] ?? '')."\n";
-            $envContent .= 'DB_PASS = '.($_SESSION['db_config']['password'] ?? '')."\n";
+        if ($type === 'mysql') {
+            $envContent .= "DB_HOST = " . ($_SESSION['db_config']['host'] ?? 'localhost') . "\n";
+            $envContent .= "DB_NAME = " . ($_SESSION['db_config']['database'] ?? 'library') . "\n";
+            $envContent .= "DB_USER = " . ($_SESSION['db_config']['user'] ?? '') . "\n";
+            $envContent .= "DB_PASS = " . ($_SESSION['db_config']['password'] ?? '') . "\n";
         } else {
-            $envContent .= 'DB_PATH = '.($_SESSION['db_config']['path'] ?? Config::getDbPath())."\n";
+            $envContent .= "DB_PATH = " . ($_SESSION['db_config']['path'] ?? Config::getDbPath()) . "\n";
         }
 
-        $envContent .= "\nBOOKS_DIR = ".($paths['books_dir'] ?? Config::getBooksDir())."\n";
+        $envContent .= "\nBOOKS_DIR = " . ($paths['books_dir'] ?? Config::getBooksDir()) . "\n";
 
         if (!empty($paths['scanner_path'])) {
-            $envContent .= 'SCANNER_PATH = '.$paths['scanner_path']."\n";
+            $envContent .= "SCANNER_PATH = " . $paths['scanner_path'] . "\n";
         }
 
-        $envContent .= 'CACHE_DIR = '.Config::getCacheDir()."\n";
+        $envContent .= "CACHE_DIR = " . Config::getCacheDir() . "\n";
 
         // Добавляем пароль администратора если есть
-        if (isset($_SESSION['admin_password_set']) && file_exists(__DIR__.'/../../config/.env')) {
-            $existingEnv = file_get_contents(__DIR__.'/../../config/.env');
+        if (isset($_SESSION['admin_password_set']) && file_exists(__DIR__ . '/../../config/.env')) {
+            $existingEnv = file_get_contents(__DIR__ . '/../../config/.env');
             if (preg_match('/ADMIN_PASSWORD_HASH\s*=\s*(.+)/', $existingEnv, $matches)) {
-                $envContent .= "\nADMIN_PASSWORD_HASH = ".trim($matches[1])."\n";
+                $envContent .= "\nADMIN_PASSWORD_HASH = " . trim($matches[1]) . "\n";
                 $envContent .= "ADMIN_USER = admin\n";
             }
         }
 
-        $envFile = __DIR__.'/../../config/.env';
+        $envFile = __DIR__ . '/../../config/.env';
 
         // Создаем бэкап если файл существует
         if (file_exists($envFile)) {
-            copy($envFile, $envFile.'.backup.'.date('YmdHis'));
+            copy($envFile, $envFile . '.backup.' . date('YmdHis'));
         }
 
         file_put_contents($envFile, $envContent);
@@ -56,12 +56,12 @@ function handleSaveEnv($post)
 
         return ['success' => true, 'message' => __('install_config_saved')];
     } catch (Exception $e) {
-        return ['success' => false, 'message' => __('install_error').': '.$e->getMessage()];
+        return ['success' => false, 'message' => __('install_error') . ': ' . $e->getMessage()];
     }
 }
 
 /**
- * Создать необходимые директории.
+ * Создать необходимые директории
  */
 function handleCreateDirectories($post)
 {
@@ -69,10 +69,10 @@ function handleCreateDirectories($post)
     $errors = [];
 
     $dirs = [
-        Config::getBasePath().'/data',
+        Config::getBasePath() . '/data',
         Config::getCacheDir(),
         Config::getCoverCacheDir(),
-        dirname(Config::getScannerPath()),
+        dirname(Config::getScannerPath())
     ];
 
     foreach ($dirs as $dir) {
@@ -80,7 +80,7 @@ function handleCreateDirectories($post)
             if (@mkdir($dir, 0755, true)) {
                 $created[] = $dir;
             } else {
-                $errors[] = __('install_error_create_dir').': '.$dir;
+                $errors[] = __('install_error_create_dir') . ': ' . $dir;
             }
         }
     }
@@ -88,18 +88,18 @@ function handleCreateDirectories($post)
     if (empty($errors)) {
         return [
             'success' => true,
-            'message' => __('install_directories_created')."\n".implode("\n", $created),
+            'message' => __('install_directories_created') . "\n" . implode("\n", $created)
+        ];
+    } else {
+        return [
+            'success' => false,
+            'message' => __('install_errors') . "\n" . implode("\n", $errors)
         ];
     }
-
-    return [
-        'success' => false,
-        'message' => __('install_errors')."\n".implode("\n", $errors),
-    ];
 }
 
 /**
- * Исправить права на директории.
+ * Исправить права на директории
  */
 function handleFixPermissions($post)
 {
@@ -107,18 +107,18 @@ function handleFixPermissions($post)
     $errors = [];
 
     $dirs = [
-        Config::getBasePath().'/data' => 0755,
+        Config::getBasePath() . '/data' => 0755,
         Config::getCacheDir() => 0755,
         Config::getCoverCacheDir() => 0755,
-        dirname(Config::getScannerPath()) => 0755,
+        dirname(Config::getScannerPath()) => 0755
     ];
 
     foreach ($dirs as $dir => $perms) {
         if (file_exists($dir)) {
             if (@chmod($dir, $perms)) {
-                $fixed[] = "$dir -> ".decoct($perms);
+                $fixed[] = "$dir -> " . decoct($perms);
             } else {
-                $errors[] = __('install_error_fix_perms').': '.$dir;
+                $errors[] = __('install_error_fix_perms') . ': ' . $dir;
             }
         }
     }
@@ -126,18 +126,18 @@ function handleFixPermissions($post)
     if (empty($errors)) {
         return [
             'success' => true,
-            'message' => __('install_permissions_fixed')."\n".implode("\n", $fixed),
+            'message' => __('install_permissions_fixed') . "\n" . implode("\n", $fixed)
+        ];
+    } else {
+        return [
+            'success' => false,
+            'message' => __('install_errors') . "\n" . implode("\n", $errors)
         ];
     }
-
-    return [
-        'success' => false,
-        'message' => __('install_errors')."\n".implode("\n", $errors),
-    ];
 }
 
 /**
- * Сохранить пароль администратора.
+ * Сохранить пароль администратора
  */
 function handleSaveAdminPassword($post)
 {
@@ -161,19 +161,19 @@ function handleSaveAdminPassword($post)
         $hash = password_hash($password, PASSWORD_DEFAULT);
 
         // Загружаем текущий .env
-        $envFile = __DIR__.'/../../config/.env';
+        $envFile = __DIR__ . '/../../config/.env';
         $envContent = file_exists($envFile) ? file_get_contents($envFile) : '';
 
         // Обновляем или добавляем ADMIN_PASSWORD_HASH
         if (preg_match('/^ADMIN_PASSWORD_HASH\s*=\s*.*$/m', $envContent)) {
             $envContent = preg_replace(
                 '/^ADMIN_PASSWORD_HASH\s*=\s*.*$/m',
-                'ADMIN_PASSWORD_HASH = '.$hash,
+                "ADMIN_PASSWORD_HASH = " . $hash,
                 $envContent
             );
         } else {
-            $envContent .= "\n; ".__('install_admin_hash_comment')."\n";
-            $envContent .= 'ADMIN_PASSWORD_HASH = '.$hash."\n";
+            $envContent .= "\n; " . __('install_admin_hash_comment') . "\n";
+            $envContent .= "ADMIN_PASSWORD_HASH = " . $hash . "\n";
         }
 
         // Добавляем ADMIN_USER если его нет
@@ -190,32 +190,33 @@ function handleSaveAdminPassword($post)
         return [
             'success' => true,
             'message' => __('install_admin_saved'),
-            'redirect' => 'index.php?step=6',
+            'redirect' => 'index.php?step=6'
         ];
+
     } catch (Exception $e) {
         return [
             'success' => false,
-            'message' => __('install_error').': '.$e->getMessage(),
+            'message' => __('install_error') . ': ' . $e->getMessage()
         ];
     }
 }
 
 /**
- * Сохранить пути.
+ * Сохранить пути
  */
 function handleSavePaths($post)
 {
-    error_log('=== handleSavePaths called ===');
-    error_log('POST data: '.print_r($post, true));
+    error_log("=== handleSavePaths called ===");
+    error_log("POST data: " . print_r($post, true));
 
     $_SESSION['paths'] = [
         'books_dir' => $post['books_dir'],
         'scanner_path' => $post['scanner_path'],
-        'cache_dir' => $post['cache_dir'] ?? Config::getCacheDir(),
+        'cache_dir' => $post['cache_dir'] ?? Config::getCacheDir()
     ];
 
     // Сохраняем в .env
-    $envFile = __DIR__.'/../../config/.env';
+    $envFile = __DIR__ . '/../../config/.env';
     $envContent = file_exists($envFile) ? file_get_contents($envFile) : '';
 
     $updates = [
@@ -228,43 +229,43 @@ function handleSavePaths($post)
     }
 
     foreach ($updates as $key => $value) {
-        if (preg_match('/^'.$key.'\s*=\s*.*$/m', $envContent)) {
+        if (preg_match('/^' . $key . '\s*=\s*.*$/m', $envContent)) {
             $envContent = preg_replace(
-                '/^'.$key.'\s*=\s*.*$/m',
-                $key.' = '.$value,
+                '/^' . $key . '\s*=\s*.*$/m',
+                $key . " = " . $value,
                 $envContent
             );
         } else {
-            $envContent .= "\n".$key.' = '.$value."\n";
+            $envContent .= "\n" . $key . " = " . $value . "\n";
         }
     }
 
     file_put_contents($envFile, $envContent);
     chmod($envFile, 0600);
 
-    error_log('Session after save: '.print_r($_SESSION, true));
-    error_log('Redirecting to step 3');
+    error_log("Session after save: " . print_r($_SESSION, true));
+    error_log("Redirecting to step 3");
 
     return [
         'success' => true,
         'message' => __('install_paths_saved'),
-        'redirect' => 'index.php?step=3',
+        'redirect' => 'index.php?step=3'
     ];
 }
 
 /**
- * Сохранить администратора в .env.
+ * Сохранить администратора в .env
  */
 function saveAdminToEnv($user, $hash)
 {
-    $envFile = __DIR__.'/../../config/.env';
+    $envFile = __DIR__ . '/../../config/.env';
 
     // Загружаем существующий .env или создаем новый
     $env = [];
     if (file_exists($envFile)) {
         $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         foreach ($lines as $line) {
-            if (false !== strpos($line, '=') && 0 !== strpos($line, '#')) {
+            if (strpos($line, '=') !== false && strpos($line, '#') !== 0) {
                 list($key, $value) = explode('=', $line, 2);
                 $env[trim($key)] = trim($value);
             }
@@ -287,7 +288,7 @@ function saveAdminToEnv($user, $hash)
     // Добавляем настройки БД
     if (isset($_SESSION['db_config'])) {
         $env['DB_TYPE'] = $_SESSION['db_config']['type'];
-        if ('sqlite' === $_SESSION['db_config']['type']) {
+        if ($_SESSION['db_config']['type'] === 'sqlite') {
             $env['DB_PATH'] = $_SESSION['db_config']['path'];
         } else {
             $env['DB_HOST'] = $_SESSION['db_config']['host'];
@@ -298,8 +299,8 @@ function saveAdminToEnv($user, $hash)
     }
 
     // Генерируем содержимое
-    $content = '; '.__('install_config_file_header')."\n";
-    $content .= '; '.sprintf(__('install_config_file_created'), date('Y-m-d H:i:s'))."\n\n";
+    $content = "; " . __('install_config_file_header') . "\n";
+    $content .= "; " . sprintf(__('install_config_file_created'), date('Y-m-d H:i:s')) . "\n\n";
 
     foreach ($env as $key => $value) {
         $content .= "$key = $value\n";
@@ -310,11 +311,11 @@ function saveAdminToEnv($user, $hash)
 }
 
 /**
- * Сгенерировать финальный конфиг для сканера.
+ * Сгенерировать финальный конфиг для сканера
  */
 function generateFinalConfig()
 {
-    $configFile = __DIR__.'/../../config/config.ini';
+    $configFile = __DIR__ . '/../../config/config.ini';
     $cacheDir = Config::getCacheDir();
 
     if (!file_exists($cacheDir)) {
@@ -324,25 +325,25 @@ function generateFinalConfig()
     $dbConfig = $_SESSION['db_config'] ?? [];
     $paths = $_SESSION['paths'] ?? [];
 
-    $content = '; '.__('install_scanner_config_header')."\n";
-    $content .= '; '.sprintf(__('install_scanner_config_created'), date('Y-m-d H:i:s'))."\n\n";
+    $content = "; " . __('install_scanner_config_header') . "\n";
+    $content .= "; " . sprintf(__('install_scanner_config_created'), date('Y-m-d H:i:s')) . "\n\n";
 
     $content .= "[database]\n";
 
-    if ('sqlite' === $dbConfig['type']) {
+    if ($dbConfig['type'] === 'sqlite') {
         $content .= "type = sqlite\n";
-        $content .= 'path = '.$dbConfig['path']."\n";
+        $content .= "path = " . $dbConfig['path'] . "\n";
     } else {
         $content .= "type = mysql\n";
-        $content .= 'host = '.($dbConfig['host'] ?? 'localhost')."\n";
-        $content .= 'user = '.($dbConfig['user'] ?? '')."\n";
-        $content .= 'password = '.($dbConfig['password'] ?? '')."\n";
-        $content .= 'database = '.($dbConfig['database'] ?? 'library')."\n";
+        $content .= "host = " . ($dbConfig['host'] ?? 'localhost') . "\n";
+        $content .= "user = " . ($dbConfig['user'] ?? '') . "\n";
+        $content .= "password = " . ($dbConfig['password'] ?? '') . "\n";
+        $content .= "database = " . ($dbConfig['database'] ?? 'library') . "\n";
     }
 
     $content .= "\n[scanner]\n";
-    $content .= 'books_dir = '.($paths['books_dir'] ?? Config::getBooksDir())."\n";
-    $content .= 'log_file = '.$cacheDir."/scanner.log\n";
+    $content .= "books_dir = " . ($paths['books_dir'] ?? Config::getBooksDir()) . "\n";
+    $content .= "log_file = " . $cacheDir . "/scanner.log\n";
     $content .= "rescan_unchanged = no\n";
     $content .= "hash_algorithm = md5\n";
     $content .= "log_level = info\n";
@@ -352,7 +353,7 @@ function generateFinalConfig()
 }
 
 /**
- * Сохранить данные администратора.
+ * Сохранить данные администратора
  */
 function handleSaveAdmin($post)
 {
@@ -378,7 +379,7 @@ function handleSaveAdmin($post)
         // Сохраняем в сессию
         $_SESSION['admin'] = [
             'user' => 'admin',
-            'hash' => $hash,
+            'hash' => $hash
         ];
 
         // Если отмечено "запомнить меня" - сохраняем в .env
@@ -398,20 +399,21 @@ function handleSaveAdmin($post)
         $protocol = isset($_SERVER['HTTPS']) ? 'https://' : 'http://';
         $host = $_SERVER['HTTP_HOST'];
         $basePath = dirname(dirname($_SERVER['SCRIPT_NAME']));
-        $redirectUrl = $protocol.$host.$basePath.'/install/index.php?step=6';
+        $redirectUrl = $protocol . $host . $basePath . '/install/index.php?step=6';
 
-        header('Location: '.$redirectUrl);
+        header('Location: ' . $redirectUrl);
         exit;
+
     } catch (Exception $e) {
         return [
             'success' => false,
-            'message' => __('install_error').': '.$e->getMessage(),
+            'message' => __('install_error') . ': ' . $e->getMessage()
         ];
     }
 }
 
 /**
- * Получить обработчик для POST действия.
+ * Получить обработчик для POST действия
  */
 function getPostHandler($action)
 {
@@ -423,7 +425,7 @@ function getPostHandler($action)
         'fix_permissions' => 'handleFixPermissions',
         'create_directories' => 'handleCreateDirectories',
         'run_scanner' => 'handleRunScanner',
-        'save_admin_password' => 'handleSaveAdminPassword',
+        'save_admin_password' => 'handleSaveAdminPassword'
     ];
 
     return $handlers[$action] ?? null;

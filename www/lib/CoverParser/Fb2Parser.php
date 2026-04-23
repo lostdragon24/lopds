@@ -1,20 +1,20 @@
 <?php
 
-require_once __DIR__.'/BaseParser.php';
+require_once __DIR__ . '/BaseParser.php';
 
 class Fb2CoverParser extends BaseCoverParser
 {
     public function hasCover($book): bool
     {
-        $cacheKey = 'has_cover_'.$book['id'];
+        $cacheKey = 'has_cover_' . $book['id'];
         $cached = Cache::get($cacheKey);
 
-        if (null !== $cached) {
+        if ($cached !== null) {
             return $cached;
         }
 
         $content = $this->getBookContent($book);
-        $hasCover = false !== $this->findCoverInContent($content);
+        $hasCover = $this->findCoverInContent($content) !== false;
 
         Cache::set($cacheKey, $hasCover, 300);
 
@@ -34,7 +34,6 @@ class Fb2CoverParser extends BaseCoverParser
 
         if ($coverData) {
             $this->saveToCache($book['id'], $coverData, $thumb);
-
             return $thumb ? $this->createThumbnail($coverData) : $coverData;
         }
 
@@ -64,7 +63,7 @@ class Fb2CoverParser extends BaseCoverParser
             'height' => $info[1],
             'type' => $info[2],
             'mime' => $info['mime'],
-            'size' => strlen($coverData),
+            'size' => strlen($coverData)
         ];
     }
 
@@ -99,13 +98,13 @@ class Fb2CoverParser extends BaseCoverParser
     private function extractBinaryData($content, $binaryId)
     {
         $patterns = [
-            '/<binary[^>]*id[[:space:]]*=[[:space:]]*["\']'.preg_quote($binaryId, '/').'["\'][^>]*content-type[[:space:]]*=[[:space:]]*["\']([^"\']+)["\'][^>]*>([^<]*)<\/binary>/is',
-            '/<binary[^>]*id[[:space:]]*=[[:space:]]*["\']'.preg_quote($binaryId, '/').'["\'][^>]*>([^<]*)<\/binary>/is',
+            '/<binary[^>]*id[[:space:]]*=[[:space:]]*["\']' . preg_quote($binaryId, '/') . '["\'][^>]*content-type[[:space:]]*=[[:space:]]*["\']([^"\']+)["\'][^>]*>([^<]*)<\/binary>/is',
+            '/<binary[^>]*id[[:space:]]*=[[:space:]]*["\']' . preg_quote($binaryId, '/') . '["\'][^>]*>([^<]*)<\/binary>/is'
         ];
 
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $content, $matches)) {
-                $data = base64_decode(trim($matches[3 == count($matches) ? 2 : 1]));
+                $data = base64_decode(trim($matches[count($matches) == 3 ? 2 : 1]));
                 if ($data && strlen($data) > 100) {
                     return $data;
                 }

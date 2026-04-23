@@ -6,14 +6,14 @@ $scriptPath = $_SERVER['SCRIPT_NAME'];
 $basePath = rtrim(dirname(dirname($scriptPath)), '/'); // Поднимаемся на один уровень выше для админки
 
 // Если мы не в админке, используем обычный путь
-if (false === strpos($scriptPath, '/admin/')) {
+if (strpos($scriptPath, '/admin/') === false) {
     $basePath = rtrim(dirname($scriptPath), '/');
 }
 
 $csrfToken = Config::startSecureSession();
 
 // Определяем, находимся ли мы в админке
-$isAdmin = false !== strpos($scriptPath, '/admin/');
+$isAdmin = strpos($scriptPath, '/admin/') !== false;
 
 // Получаем информацию о языках
 $detector = LanguageDetector::getInstance();
@@ -198,15 +198,15 @@ $langFlag = $detector->getLanguageFlag();
                 </ul>
                 
                 <!-- Language switcher -->
-                <?php if (count($availableLangs) > 1) { ?>
+                <?php if (count($availableLangs) > 1): ?>
                 <ul class="navbar-nav">
                     <li class="nav-item dropdown language-switcher">
                         <a class="nav-link dropdown-toggle" href="#" id="languageDropdown" 
                            role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <?php echo $langFlag.' '.$langName; ?>
+                            <?php echo $langFlag . ' ' . $langName; ?>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="languageDropdown">
-                            <?php foreach ($availableLangs as $lang) {
+                            <?php foreach ($availableLangs as $lang):
                                 $langFlag = $detector->getLanguageFlag($lang);
                                 $langName = $detector->getLanguageName($lang);
                                 ?>
@@ -214,20 +214,20 @@ $langFlag = $detector->getLanguageFlag();
                                 <a class="dropdown-item <?php echo $lang === $currentLang ? 'active' : ''; ?>" 
                                    href="#" 
                                    onclick="event.preventDefault(); changeLanguage('<?php echo $lang; ?>');">
-                                    <?php echo $langFlag.' '.$langName; ?>
+                                    <?php echo $langFlag . ' ' . $langName; ?>
                                 </a>
                             </li>
-                            <?php } ?>
+                            <?php endforeach; ?>
                         </ul>
                     </li>
                 </ul>
-                <?php } ?>
+                <?php endif; ?>
             </div>
         </div>
     </nav>
 
     <!-- Индикатор режима чтения (будет показан только в reader.php) -->
-    <?php if (isset($inReader) && $inReader) { ?>
+    <?php if (isset($inReader) && $inReader): ?>
     <style>
     .reader-mode-indicator {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -253,7 +253,7 @@ $langFlag = $detector->getLanguageFlag();
         <i class="fas fa-book-open"></i>
         <?php echo __('reader_mode'); ?>
     </div>
-    <?php } ?>
+    <?php endif; ?>
     
     <div class="container mt-4">
 

@@ -10,7 +10,7 @@ $db = Database::getInstance();
 $startTime = microtime(true);
 
 // Обновляем топ книги (оптимизированный запрос)
-if (Config::DB_TYPE === 'mysql') {
+if (Config::getDbType() === 'mysql') {
     $sql = 'SELECT b.id, b.title, b.author, b.series, b.series_number, 
                    b.genre, b.file_type, b.added_date,
                    COALESCE(r_stats.avg_rating, 0) as avg_rating,
@@ -49,7 +49,7 @@ echo '  ✅ Топ книги обновлены ('.count($topBooks).' книг 
 
 // Обновляем статистику (один запрос)
 $startTime = microtime(true);
-if (Config::DB_TYPE === 'mysql') {
+if (Config::isMysql()) {
     $sql = "SELECT 
                 (SELECT TABLE_ROWS FROM information_schema.TABLES 
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'books') as total_books,

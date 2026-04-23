@@ -24,21 +24,21 @@ if (isset($scanner) && method_exists($scanner, 'hasInpxFile')) {
     <?php echo __('admin_scanner_title'); ?>
 </h1>
 
-<?php if ($message) { ?>
+<?php if ($message): ?>
     <div class="alert alert-success alert-dismissible fade show">
         <i class="fas fa-check-circle me-2"></i>
         <?php echo htmlspecialchars($message); ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
-<?php } ?>
+<?php endif; ?>
 
-<?php if ($error) { ?>
+<?php if ($error): ?>
     <div class="alert alert-danger alert-dismissible fade show">
         <i class="fas fa-exclamation-circle me-2"></i>
         <?php echo htmlspecialchars($error); ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
-<?php } ?>
+<?php endif; ?>
 
 <div class="row">
     <!-- Статус сканера -->
@@ -56,15 +56,15 @@ if (isset($scanner) && method_exists($scanner, 'hasInpxFile')) {
                 <tr>
                     <th width="150"><?php echo __('admin_scanner_available'); ?>:</th>
                     <td>
-                        <?php if ($status['available'] ?? false) { ?>
+                        <?php if ($status['available'] ?? false): ?>
                             <span class="badge bg-success fs-6">
                                 <i class="fas fa-check-circle me-1"></i> <?php echo __('admin_scanner_yes'); ?>
                             </span>
-                        <?php } else { ?>
+                        <?php else: ?>
                             <span class="badge bg-danger fs-6">
                                 <i class="fas fa-times-circle me-1"></i> <?php echo __('admin_scanner_no'); ?>
                             </span>
-                        <?php } ?>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 
@@ -72,7 +72,7 @@ if (isset($scanner) && method_exists($scanner, 'hasInpxFile')) {
                 <tr>
                     <th><?php echo __('admin_scanner_version'); ?>:</th>
                     <td>
-                        <?php if (($status['available'] ?? false) && ($scanner_info['version'] ?? null)) { ?>
+                        <?php if (($status['available'] ?? false) && ($scanner_info['version'] ?? null)): ?>
                             <span class="badge bg-info fs-6">
                                 <i class="fab fa-github-alt me-1"></i>
                                 v<?php echo htmlspecialchars($scanner_info['version']); ?>
@@ -84,19 +84,19 @@ if (isset($scanner) && method_exists($scanner, 'hasInpxFile')) {
                                     title="<?php echo __('admin_scanner_refresh_version'); ?>">
                                 <i class="fas fa-sync-alt"></i>
                             </button>
-                        <?php } elseif ($status['available'] ?? false) { ?>
+                        <?php elseif ($status['available'] ?? false): ?>
                             <span class="badge bg-warning">
                                 <i class="fas fa-exclamation-triangle me-1"></i>
                                 <?php echo __('admin_scanner_version_unknown'); ?>
                             </span>
-                        <?php } else { ?>
+                        <?php else: ?>
                             <span class="text-muted">—</span>
-                        <?php } ?>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 
                 <!-- Дополнительная информация о сканере -->
-                <?php if ($status['available'] ?? false) { ?>
+                <?php if ($status['available'] ?? false): ?>
                     <tr>
                         <th><?php echo __('admin_scanner_path'); ?>:</th>
                         <td>
@@ -109,7 +109,7 @@ if (isset($scanner) && method_exists($scanner, 'hasInpxFile')) {
                     <tr>
                         <th><?php echo __('admin_scanner_size'); ?>:</th>
                         <td>
-                            <?php if ($scanner_info['size_formatted'] ?? null) { ?>
+                            <?php if ($scanner_info['size_formatted'] ?? null): ?>
                                 <span class="badge bg-secondary">
                                     <i class="fas fa-hdd me-1"></i>
                                     <?php echo $scanner_info['size_formatted']; ?>
@@ -117,44 +117,44 @@ if (isset($scanner) && method_exists($scanner, 'hasInpxFile')) {
                                 <small class="text-muted ms-2">
                                     (<?php echo __('admin_scanner_modified'); ?>: <?php echo $scanner_info['modified']; ?>)
                                 </small>
-                            <?php } else { ?>
+                            <?php else: ?>
                                 <span class="text-muted">—</span>
-                            <?php } ?>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     
                     <tr>
                         <th><?php echo __('admin_scanner_permissions'); ?>:</th>
                         <td>
-                            <?php if ($scanner_info['executable'] ?? false) { ?>
+                            <?php if ($scanner_info['executable'] ?? false): ?>
                                 <span class="badge bg-success">
                                     <i class="fas fa-check-circle me-1"></i> <?php echo __('admin_scanner_executable'); ?>
                                 </span>
-                            <?php } else { ?>
+                            <?php else: ?>
                                 <span class="badge bg-danger">
                                     <i class="fas fa-times-circle me-1"></i> <?php echo __('admin_scanner_not_executable'); ?>
                                 </span>
-                            <?php } ?>
+                            <?php endif; ?>
                         </td>
                     </tr>
-                <?php } ?>
+                <?php endif; ?>
                 
                 <tr>
                     <th><?php echo __('admin_scanner_running'); ?>:</th>
                     <td>
-                        <?php if ($status['running'] ?? false) { ?>
+                        <?php if ($status['running'] ?? false): ?>
                             <span class="badge bg-warning text-dark fs-6">
                                 <i class="fas fa-play-circle me-1"></i> <?php echo __('admin_scanner_yes'); ?> (PID: <?php echo $status['pid'] ?? '?'; ?>)
                             </span>
-                        <?php } else { ?>
+                        <?php else: ?>
                             <span class="badge bg-secondary fs-6">
                                 <i class="fas fa-stop-circle me-1"></i> <?php echo __('admin_scanner_no'); ?>
                             </span>
-                        <?php } ?>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 
-                <?php if ($status['running'] ?? false) { ?>
+                <?php if ($status['running'] ?? false): ?>
                 <tr>
                     <th><?php echo __('admin_scanner_started_at'); ?>:</th>
                     <td><?php echo $status['started_at'] ?? '?'; ?></td>
@@ -163,7 +163,7 @@ if (isset($scanner) && method_exists($scanner, 'hasInpxFile')) {
                     <th><?php echo __('admin_scanner_running_time'); ?>:</th>
                     <td><?php echo $status['running_for'] ?? '?'; ?></td>
                 </tr>
-                <?php } ?>
+                <?php endif; ?>
                 
                 <tr>
                     <th><?php echo __('admin_scanner_config'); ?>:</th>
@@ -173,15 +173,15 @@ if (isset($scanner) && method_exists($scanner, 'hasInpxFile')) {
                 <tr>
                     <th><?php echo __('admin_scanner_inpx'); ?>:</th>
                     <td>
-                        <?php if ($hasInpx) { ?>
+                        <?php if ($hasInpx): ?>
                             <span class="badge bg-success">
                                 <i class="fas fa-check"></i> <?php echo __('admin_scanner_inpx_found'); ?>
                             </span>
-                        <?php } else { ?>
+                        <?php else: ?>
                             <span class="badge bg-secondary">
                                 <i class="fas fa-times"></i> <?php echo __('admin_scanner_inpx_not_found'); ?>
                             </span>
-                        <?php } ?>
+                        <?php endif; ?>
                     </td>
                 </tr>
             </table>
@@ -202,11 +202,11 @@ if (isset($scanner) && method_exists($scanner, 'hasInpxFile')) {
                 <?php
                 // Получаем статистику из $status['stats']
                 $statsData = $status['stats'] ?? [];
-$totalBooks = $statsData['total_books'] ?? 0;
-$archivesCount = $statsData['archives_count'] ?? 0;
-$lastScan = $statsData['last_scan'] ?? null;
-$scansCount = $statsData['scans_count'] ?? 0;
-?>
+                $totalBooks = $statsData['total_books'] ?? 0;
+                $archivesCount = $statsData['archives_count'] ?? 0;
+                $lastScan = $statsData['last_scan'] ?? null;
+                $scansCount = $statsData['scans_count'] ?? 0;
+                ?>
                 
                 <table class="table table-borderless">
                     <tr>
@@ -227,12 +227,12 @@ $scansCount = $statsData['scans_count'] ?? 0;
                         </td>
                     </tr>
                     
-                    <?php if (!empty($lastScan)) { ?>
+                    <?php if (!empty($lastScan)): ?>
                     <tr>
                         <th><?php echo __('admin_library_last_scan'); ?>:</th>
                         <td><?php echo date('d.m.Y H:i', strtotime($lastScan)); ?></td>
                     </tr>
-                    <?php } ?>
+                    <?php endif; ?>
                 </table>
                 
                 <!-- Информация о директории с книгами -->
@@ -288,7 +288,7 @@ $scansCount = $statsData['scans_count'] ?? 0;
                             </label>
                         </div>
                         
-                        <?php if ($hasInpx) { ?>
+                        <?php if ($hasInpx): ?>
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="mode" 
                                    id="modeInpx" value="inpx">
@@ -298,7 +298,7 @@ $scansCount = $statsData['scans_count'] ?? 0;
                                 <small class="text-muted"><?php echo __('admin_scan_mode_inpx_desc'); ?></small>
                             </label>
                         </div>
-                        <?php } ?>
+                        <?php endif; ?>
                         
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="mode" 
@@ -355,7 +355,7 @@ $scansCount = $statsData['scans_count'] ?? 0;
                     </button>
                 </form>
                 
-                <?php if ($hasInpx) { ?>
+                <?php if ($hasInpx): ?>
                 <form method="post" class="d-inline-block me-2">
                     <input type="hidden" name="action" value="scanner_import_inpx">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
@@ -365,7 +365,7 @@ $scansCount = $statsData['scans_count'] ?? 0;
                         <?php echo __('admin_scan_import_inpx_btn'); ?>
                     </button>
                 </form>
-                <?php } ?>
+                <?php endif; ?>
                 
                 <a href="?action=scanner&refresh=1" class="btn btn-info">
                     <i class="fas fa-sync-alt me-2"></i>
@@ -391,26 +391,26 @@ $scansCount = $statsData['scans_count'] ?? 0;
         </span>
     </div>
     <div class="card-body p-0">
-        <?php if (empty($status['last_log'])) { ?>
+        <?php if (empty($status['last_log'])): ?>
             <div class="text-center text-muted py-4">
                 <i class="fas fa-file-alt fa-3x mb-2"></i>
                 <p><?php echo __('admin_scanner_log_empty'); ?></p>
             </div>
-        <?php } else { ?>
+        <?php else: ?>
             <div class="scanner-log" style="max-height: 400px; overflow-y: auto;">
                 <table class="table table-sm table-hover mb-0">
                     <tbody>
-                        <?php foreach ($status['last_log'] as $line) { ?>
+                        <?php foreach ($status['last_log'] as $line): ?>
                             <tr>
                                 <td class="font-monospace small">
                                     <?php
-    // Подсветка строк
-    $lineClass = '';
-                            if (false !== strpos($line, 'ERROR') || false !== strpos($line, 'Error')) {
+                    // Подсветка строк
+                    $lineClass = '';
+                            if (strpos($line, 'ERROR') !== false || strpos($line, 'Error') !== false) {
                                 $lineClass = 'text-danger';
-                            } elseif (false !== strpos($line, 'WARNING')) {
+                            } elseif (strpos($line, 'WARNING') !== false) {
                                 $lineClass = 'text-warning';
-                            } elseif (false !== strpos($line, 'SUCCESS')) {
+                            } elseif (strpos($line, 'SUCCESS') !== false) {
                                 $lineClass = 'text-success';
                             }
                             ?>
@@ -419,21 +419,21 @@ $scansCount = $statsData['scans_count'] ?? 0;
                                     </span>
                                 </td>
                             </tr>
-                        <?php } ?>
+                        <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
-        <?php } ?>
+        <?php endif; ?>
     </div>
-    <?php if (!empty($status['last_log'])) { ?>
+    <?php if (!empty($status['last_log'])): ?>
     <div class="card-footer text-muted small">
         <i class="fas fa-info-circle me-1"></i>
         <?php echo __('admin_scanner_log_updated'); ?> <?php echo date('H:i:s'); ?>
-        <?php if (isset($status['log_file']) && file_exists($status['log_file'])) { ?>
+        <?php if (isset($status['log_file']) && file_exists($status['log_file'])): ?>
             | <?php echo __('admin_scanner_log_size'); ?> <?php echo round(filesize($status['log_file']) / 1024, 1); ?> KB
-        <?php } ?>
+        <?php endif; ?>
     </div>
-    <?php } ?>
+    <?php endif; ?>
 </div>
 
 <style>
@@ -528,11 +528,11 @@ function checkScannerVersion() {
 
 <script>
 // Автообновление каждые 5 секунд, если сканер запущен
-<?php if ($status['running'] ?? false) { ?>
+<?php if ($status['running'] ?? false): ?>
 setTimeout(function() {
     location.reload();
 }, 5000);
-<?php } ?>
+<?php endif; ?>
 
 // Прокрутка лога вниз
 window.addEventListener('load', function() {

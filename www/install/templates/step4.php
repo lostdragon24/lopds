@@ -8,9 +8,8 @@ if (!isset($_SESSION['db_config'])) {
     echo __('install_step4_no_config');
     echo '</div>';
     echo '<div class="text-center">';
-    echo '<a href="?step=3" class="btn btn-primary">'.__('install_back_to_step3').'</a>';
+    echo '<a href="?step=3" class="btn btn-primary">' . __('install_back_to_step3') . '</a>';
     echo '</div>';
-
     return;
 }
 
@@ -23,7 +22,7 @@ $dbConfig = $_SESSION['db_config'] ?? [];
 $permissionsOk = true;
 $permissionMessage = '';
 
-if ('sqlite' === $dbConfig['type'] && isset($dbConfig['path'])) {
+if ($dbConfig['type'] === 'sqlite' && isset($dbConfig['path'])) {
     $dbFile = $dbConfig['path'];
     $dbDir = dirname($dbFile);
 
@@ -39,19 +38,19 @@ if ('sqlite' === $dbConfig['type'] && isset($dbConfig['path'])) {
 }
 
 $justCreated = false;
-if ('sqlite' == $dbType && isset($_SESSION['db_created'])) {
+if ($dbType == 'sqlite' && isset($_SESSION['db_created'])) {
     $justCreated = true;
     unset($_SESSION['db_created']);
 }
 ?>
 
-<?php if (!$permissionsOk) { ?>
+<?php if (!$permissionsOk): ?>
     <div class="alert alert-danger mt-3">
         <i class="fas fa-exclamation-triangle me-2"></i>
         <strong><?php echo __('install_step4_permission_problem'); ?></strong>
         <?php echo $permissionMessage; ?>
     </div>
-<?php } ?>
+<?php endif; ?>
 
 <div class="text-center mb-4">
     <i class="fas fa-table fa-4x text-primary mb-3"></i>
@@ -59,12 +58,12 @@ if ('sqlite' == $dbType && isset($_SESSION['db_created'])) {
     <p class="text-muted"><?php echo __('install_step4_desc'); ?></p>
 </div>
 
-<?php if (isset($_GET['success']) && 1 == $_GET['success']) { ?>
+<?php if (isset($_GET['success']) && $_GET['success'] == 1): ?>
     <div class="alert alert-success">
         <i class="fas fa-check-circle me-2"></i>
         ✅ <?php echo __('install_step4_success'); ?>
     </div>
-<?php } ?>
+<?php endif; ?>
 
 <div class="row mb-4">
     <div class="col-md-6">
@@ -81,31 +80,31 @@ if ('sqlite' == $dbType && isset($_SESSION['db_created'])) {
                     <tr>
                         <th><?php echo __('install_step4_db_file'); ?></th>
                         <td>
-                            <?php if ('sqlite' == $dbType) { ?>
+                            <?php if ($dbType == 'sqlite'): ?>
                                 <small><?php echo $_SESSION['db_config']['path'] ?? __('install_step4_not_specified'); ?></small>
-                            <?php } else { ?>
+                            <?php else: ?>
                                 <small><?php echo $_SESSION['db_config']['database'] ?? __('install_step4_not_specified'); ?></small>
-                            <?php } ?>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <tr>
                         <th><?php echo __('install_step4_db_exists'); ?></th>
                         <td>
-                            <?php if ($dbExists || $justCreated) { ?>
+                            <?php if ($dbExists || $justCreated): ?>
                                 <span class="badge bg-success">✅ <?php echo __('yes'); ?></span>
-                            <?php } else { ?>
+                            <?php else: ?>
                                 <span class="badge bg-warning">⚠️ <?php echo __('install_step4_will_be_created'); ?></span>
-                            <?php } ?>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <tr>
                         <th><?php echo __('install_step4_tables_exist'); ?></th>
                         <td>
-                            <?php if ($tablesExist || $justCreated) { ?>
+                            <?php if ($tablesExist || $justCreated): ?>
                                 <span class="badge bg-success">✅ <?php echo __('yes'); ?></span>
-                            <?php } else { ?>
+                            <?php else: ?>
                                 <span class="badge bg-warning">⚠️ <?php echo __('install_step4_will_be_created'); ?></span>
-                            <?php } ?>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 </table>
@@ -142,7 +141,7 @@ if ('sqlite' == $dbType && isset($_SESSION['db_created'])) {
     </div>
 </div>
 
-<?php if ($scanner->isAvailable()) { ?>
+<?php if ($scanner->isAvailable()): ?>
     <div class="alert alert-info">
         <div class="d-flex">
             <div class="me-3">
@@ -156,12 +155,12 @@ if ('sqlite' == $dbType && isset($_SESSION['db_created'])) {
             </div>
         </div>
     </div>
-<?php } else { ?>
+<?php else: ?>
     <div class="alert alert-warning">
         <i class="fas fa-exclamation-triangle me-2"></i>
         <?php echo __('install_step4_scanner_not_available'); ?>
     </div>
-<?php } ?>
+<?php endif; ?>
 
 <!-- Форма создания базы данных -->
 <form method="post" id="createDbForm" class="mt-4">
@@ -192,16 +191,16 @@ if ('sqlite' == $dbType && isset($_SESSION['db_created'])) {
         <?php echo __('install_step4_continue'); ?>
     </a>
     
-    <?php if ($tablesExist || $justCreated || isset($_GET['success'])) { ?>
+    <?php if ($tablesExist || $justCreated || isset($_GET['success'])): ?>
         <div class="alert alert-success mt-3">
             <i class="fas fa-check-circle me-2"></i>
             <?php echo __('install_step4_ready'); ?>
         </div>
-    <?php } ?>
+    <?php endif; ?>
 </div>
 
 <!-- Дополнительная информация для отладки -->
-<?php if (isset($_GET['debug'])) { ?>
+<?php if (isset($_GET['debug'])): ?>
 <div class="card mt-4">
     <div class="card-header bg-warning">
         <h6 class="mb-0"><?php echo __('debug_info'); ?></h6>
@@ -210,7 +209,7 @@ if ('sqlite' == $dbType && isset($_SESSION['db_created'])) {
         <pre class="mb-0"><?php print_r($_SESSION); ?></pre>
     </div>
 </div>
-<?php } ?>
+<?php endif; ?>
 
 <script>
 // Простое подтверждение без лишних проверок

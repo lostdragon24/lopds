@@ -2,24 +2,24 @@
 
 // lib/BookHelper.php
 
-require_once __DIR__.'/CoverParser/Factory.php';
-require_once __DIR__.'/../init.php';
+require_once __DIR__ . '/CoverParser/Factory.php';
+require_once __DIR__ . '/../init.php';
 
 class BookHelper
 {
     /**
-     * Проверить наличие обложки.
+     * Проверить наличие обложки
      */
     public static function hasCover($book)
     {
         // Сначала проверяем кэш
-        $cacheFile = Config::getCoverCacheDir().'/'.$book['id'].'.jpg';
+        $cacheFile = Config::getCoverCacheDir() . '/' . $book['id'] . '.jpg';
         if (file_exists($cacheFile)) {
             return true;
         }
 
         // Для PDF всегда пробуем извлечь обложку
-        if ('pdf' === strtolower($book['file_type'])) {
+        if (strtolower($book['file_type']) === 'pdf') {
             // Не говорим, что обложки нет, пока не проверим
             // Возвращаем true, чтобы попробовать загрузить
             return true;
@@ -30,7 +30,7 @@ class BookHelper
     }
 
     /**
-     * Получить обложку.
+     * Получить обложку
      */
     public static function getCover($book, $thumb = false)
     {
@@ -38,13 +38,14 @@ class BookHelper
     }
 
     /**
-     * Извлечь описание из книги (универсальный метод).
+     * Извлечь описание из книги (универсальный метод)
      */
+
     public static function extractDescription($book)
     {
-        $cacheKey = 'book_desc_'.$book['id'];
+        $cacheKey = 'book_desc_' . $book['id'];
         $cached = Cache::get($cacheKey);
-        if (null !== $cached) {
+        if ($cached !== null) {
             return $cached;
         }
 
@@ -57,7 +58,8 @@ class BookHelper
                 break;
 
             case 'epub':
-                require_once __DIR__.'/EpubMetadataParser.php';
+
+                require_once __DIR__ . '/EpubMetadataParser.php';
                 $metadata = EpubMetadataParser::extractMetadata($book);
                 if (!empty($metadata['description'])) {
                     $description = $metadata['description'];
@@ -77,8 +79,9 @@ class BookHelper
         return $description;
     }
 
+
     /**
-     * Извлечь описание из FB2.
+     * Извлечь описание из FB2
      */
     private static function extractFromFb2($book)
     {
@@ -89,7 +92,7 @@ class BookHelper
 
         // Конвертируем в UTF-8 если нужно
         $encoding = self::detectFileEncoding($content);
-        if ($encoding && 'UTF-8' !== $encoding) {
+        if ($encoding && $encoding !== 'UTF-8') {
             $content = iconv($encoding, 'UTF-8//IGNORE', $content);
         }
 
@@ -104,7 +107,6 @@ class BookHelper
                 $description = trim(strip_tags($matches[1]));
                 $description = html_entity_decode($description, ENT_QUOTES | ENT_HTML5, 'UTF-8');
                 $description = preg_replace('/\s+/', ' ', $description);
-
                 return $description;
             }
         }
@@ -113,7 +115,7 @@ class BookHelper
     }
 
     /**
-     * Извлечь описание из PDF.
+     * Извлечь описание из PDF
      */
     private static function extractFromPdf($book)
     {
@@ -122,11 +124,11 @@ class BookHelper
 
         if (!empty($book['archive_path']) && !empty($book['archive_internal_path'])) {
             $zip = new ZipArchive();
-            if (true === $zip->open($book['archive_path'])) {
+            if ($zip->open($book['archive_path']) === true) {
                 $content = $zip->getFromName($book['archive_internal_path']);
                 $zip->close();
                 if ($content) {
-                    $tempFile = tempnam(sys_get_temp_dir(), 'pdf_').'.pdf';
+                    $tempFile = tempnam(sys_get_temp_dir(), 'pdf_') . '.pdf';
                     file_put_contents($tempFile, $content);
                     $filePath = $tempFile;
                 }
@@ -139,7 +141,6 @@ class BookHelper
             if ($tempFile) {
                 @unlink($tempFile);
             }
-
             return '';
         }
 
@@ -148,7 +149,7 @@ class BookHelper
         // Пробуем pdftotext
         if (function_exists('exec')) {
             $textFile = tempnam(sys_get_temp_dir(), 'txt_');
-            exec('pdftotext -layout '.escapeshellarg($filePath).' '.escapeshellarg($textFile).' 2>/dev/null');
+            exec("pdftotext -layout " . escapeshellarg($filePath) . " " . escapeshellarg($textFile) . " 2>/dev/null");
 
             if (file_exists($textFile) && filesize($textFile) > 0) {
                 $text = file_get_contents($textFile);
@@ -165,35 +166,33 @@ class BookHelper
         return $description;
     }
 
+
     /**
-     * Получить содержимое книги.
+     * Получить содержимое книги
      */
     private static function getBookContent($book)
     {
         if ($book['archive_path'] && $book['archive_internal_path']) {
             $zip = new ZipArchive();
-            if (true === $zip->open($book['archive_path'])) {
+            if ($zip->open($book['archive_path']) === true) {
                 $content = $zip->getFromName($book['archive_internal_path']);
                 $zip->close();
-
                 return $content;
+            } else {
+                error_log(sprintf(__('book_helper_error_open_archive'), $book['archive_path']));
             }
-            error_log(sprintf(__('book_helper_error_open_archive'), $book['archive_path']));
         } else {
             if (!file_exists($book['file_path'])) {
                 error_log(sprintf(__('book_helper_error_file_not_found'), $book['file_path']));
-
                 return false;
             }
-
             return @file_get_contents($book['file_path']);
         }
-
         return false;
     }
 
     /**
-     * Определить кодировку файла.
+     * Определить кодировку файла
      */
     private static function detectFileEncoding($content)
     {
@@ -220,7 +219,7 @@ class BookHelper
     }
 
     /**
-     * Очистка текста.
+     * Очистка текста
      */
     private static function cleanText($text)
     {
@@ -235,14 +234,14 @@ class BookHelper
 
         // Обрезаем слишком длинный текст
         if (mb_strlen($text) > 5000) {
-            $text = mb_substr($text, 0, 5000).'...';
+            $text = mb_substr($text, 0, 5000) . '...';
         }
 
         return trim($text);
     }
 
     /**
-     * Получить метаданные книги (общий метод).
+     * Получить метаданные книги (общий метод)
      */
     public static function getMetadata($book)
     {
@@ -258,14 +257,14 @@ class BookHelper
             'publisher' => $book['publisher'] ?? null,
             'file_type' => strtoupper($book['file_type'] ?? '?'),
             'file_size' => self::getFileSize($book),
-            'has_cover' => self::hasCover($book),
+            'has_cover' => self::hasCover($book)
         ];
 
         return $metadata;
     }
 
     /**
-     * Получить размер файла книги.
+     * Получить размер файла книги
      */
     public static function getFileSize($book)
     {
@@ -285,7 +284,7 @@ class BookHelper
     }
 
     /**
-     * Форматировать размер файла для отображения.
+     * Форматировать размер файла для отображения
      */
     public static function formatFileSize($bytes)
     {
@@ -299,51 +298,47 @@ class BookHelper
 
         $bytes /= pow(1024, $pow);
 
-        return round($bytes, 2).' '.$units[$pow];
+        return round($bytes, 2) . ' ' . $units[$pow];
     }
 
     /**
-     * Проверить, можно ли читать книгу онлайн.
+     * Проверить, можно ли читать книгу онлайн
      */
     public static function isReadableOnline($book)
     {
         $readableFormats = ['fb2', 'epub', 'pdf'];
-
         return in_array(strtolower($book['file_type']), $readableFormats);
     }
 
     /**
-     * Получить URL для чтения книги.
+     * Получить URL для чтения книги
      */
     public static function getReadUrl($book)
     {
         $baseUrl = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
-
-        return $baseUrl.'/reader.php?id='.$book['id'];
+        return $baseUrl . '/reader.php?id=' . $book['id'];
     }
 
     /**
-     * Получить URL для скачивания книги.
+     * Получить URL для скачивания книги
      */
     public static function getDownloadUrl($book)
     {
         $baseUrl = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
-
-        return $baseUrl.'/api/download.php?id='.$book['id'];
+        return $baseUrl . '/api/download.php?id=' . $book['id'];
     }
 
     /**
-     * Получить URL для обложки.
+     * Получить URL для обложки
      */
     public static function getCoverUrl($book, $thumb = false)
     {
         $baseUrl = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
-
-        return $baseUrl.'/api/cover.php?id='.$book['id'].($thumb ? '&thumb=1' : '');
+        return $baseUrl . '/api/cover.php?id=' . $book['id'] . ($thumb ? '&thumb=1' : '');
     }
 
     /**
-     * Генерировать безопасное имя файла для скачивания.
+     * Генерировать безопасное имя файла для скачивания
      */
     public static function generateSafeFilename($book)
     {
@@ -361,13 +356,14 @@ class BookHelper
 
         $filename = $title;
         if ($author && $author !== __('book_unknown_author')) {
-            $filename = $author.' - '.$filename;
+            $filename = $author . ' - ' . $filename;
         }
 
-        $filename .= '.'.$extension;
+        $filename .= '.' . $extension;
 
         return $filename;
     }
+
 
     public static function extractPdfCover($book, $thumb = false)
     {
@@ -378,11 +374,11 @@ class BookHelper
         if (!empty($book['archive_path']) && !empty($book['archive_internal_path'])) {
             // Извлекаем из архива во временный файл
             $zip = new ZipArchive();
-            if (true === $zip->open($book['archive_path'])) {
+            if ($zip->open($book['archive_path']) === true) {
                 $content = $zip->getFromName($book['archive_internal_path']);
                 $zip->close();
                 if ($content) {
-                    $tempFile = tempnam(sys_get_temp_dir(), 'pdf_').'.pdf';
+                    $tempFile = tempnam(sys_get_temp_dir(), 'pdf_') . '.pdf';
                     file_put_contents($tempFile, $content);
                     $pdfPath = $tempFile;
                 }
@@ -395,7 +391,6 @@ class BookHelper
             if ($tempFile) {
                 @unlink($tempFile);
             }
-
             return null;
         }
 
@@ -426,7 +421,7 @@ class BookHelper
     }
 
     /**
-     * Извлечение обложки через Ghostscript.
+     * Извлечение обложки через Ghostscript
      */
     private static function extractWithGhostscript($pdfPath, $thumb)
     {
@@ -439,13 +434,13 @@ class BookHelper
             }
         }
 
-        $tempFile = tempnam(sys_get_temp_dir(), 'cover_').'.jpg';
+        $tempFile = tempnam(sys_get_temp_dir(), 'cover_') . '.jpg';
         $resolution = $thumb ? 72 : 150;
 
         $cmd = sprintf(
             '%s -dSAFER -dBATCH -dNOPAUSE -dFirstPage=1 -dLastPage=1 '
-            .'-sDEVICE=jpeg -dJPEGQ=85 -r%d '
-            .'-sOutputFile="%s" "%s" 2>&1',
+            . '-sDEVICE=jpeg -dJPEGQ=85 -r%d '
+            . '-sOutputFile="%s" "%s" 2>&1',
             escapeshellarg($gsPath),
             $resolution,
             escapeshellarg($tempFile),
@@ -454,20 +449,18 @@ class BookHelper
 
         exec($cmd, $output, $returnCode);
 
-        if (0 === $returnCode && file_exists($tempFile) && filesize($tempFile) > 1000) {
+        if ($returnCode === 0 && file_exists($tempFile) && filesize($tempFile) > 1000) {
             $data = file_get_contents($tempFile);
             @unlink($tempFile);
-
             return $data;
         }
 
         @unlink($tempFile);
-
         return null;
     }
 
     /**
-     * Извлечение обложки через Imagick.
+     * Извлечение обложки через Imagick
      */
     private static function extractWithImagick($pdfPath, $thumb)
     {
@@ -476,7 +469,7 @@ class BookHelper
             $imagick->setResolution(150, 150);
 
             // Читаем только первую страницу
-            $imagick->readImage($pdfPath.'[0]');
+            $imagick->readImage($pdfPath . '[0]');
 
             if ($thumb) {
                 // Изменяем размер для миниатюры
@@ -495,15 +488,15 @@ class BookHelper
             $imagick->clear();
 
             return $data;
-        } catch (Exception $e) {
-            error_log('Imagick error: '.$e->getMessage());
 
+        } catch (Exception $e) {
+            error_log("Imagick error: " . $e->getMessage());
             return null;
         }
     }
 
     /**
-     * Извлечение обложки через PDFtk.
+     * Извлечение обложки через PDFtk
      */
     private static function extractWithPdftk($pdfPath, $thumb)
     {
@@ -513,7 +506,7 @@ class BookHelper
             return null;
         }
 
-        $tempFile = tempnam(sys_get_temp_dir(), 'cover_').'.jpg';
+        $tempFile = tempnam(sys_get_temp_dir(), 'cover_') . '.jpg';
 
         $cmd = sprintf(
             'pdftk "%s" cat 1 output - | convert - -quality 85 -resize 800x "%s" 2>&1',
@@ -523,15 +516,13 @@ class BookHelper
 
         exec($cmd, $output, $returnCode);
 
-        if (0 === $returnCode && file_exists($tempFile) && filesize($tempFile) > 1000) {
+        if ($returnCode === 0 && file_exists($tempFile) && filesize($tempFile) > 1000) {
             $data = file_get_contents($tempFile);
             @unlink($tempFile);
-
             return $data;
         }
 
         @unlink($tempFile);
-
         return null;
     }
 }

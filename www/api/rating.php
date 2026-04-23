@@ -2,10 +2,10 @@
 
 // api/rating.php
 
-require_once __DIR__.'/../config/config.php';
-require_once __DIR__.'/../lib/Database.php';
-require_once __DIR__.'/../lib/PageCache.php';
-require_once __DIR__.'/../init.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../lib/Database.php';
+require_once __DIR__ . '/../lib/PageCache.php';
+require_once __DIR__ . '/../init.php';
 
 header('Content-Type: application/json');
 
@@ -36,17 +36,17 @@ try {
     $action = $data['action'];
 
     // Проверка CSRF для всех действий кроме get_rating
-    if ('get_rating' !== $action) {
+    if ($action !== 'get_rating') {
         if (!isset($data['csrf_token'])) {
-            error_log('CSRF token missing in request');
+            error_log("CSRF token missing in request");
             echo json_encode([
                 'success' => false,
-                'message' => __('error_csrf_missing'),
+                'message' => __('error_csrf_missing')
             ]);
             exit;
         }
 
-        if (PHP_SESSION_NONE === session_status()) {
+        if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
 
@@ -54,15 +54,15 @@ try {
         session_write_close();
 
         if (!$valid) {
-            error_log('CSRF validation failed for action: '.$action);
+            error_log("CSRF validation failed for action: " . $action);
             echo json_encode([
                 'success' => false,
-                'message' => __('error_csrf_invalid'),
+                'message' => __('error_csrf_invalid')
             ]);
             exit;
         }
 
-        error_log('CSRF validation passed for action: '.$action);
+        error_log("CSRF validation passed for action: " . $action);
     }
 
     switch ($action) {
@@ -71,8 +71,8 @@ try {
                 throw new Exception(__('error_missing_params'));
             }
 
-            $bookId = (int) $data['book_id'];
-            $rating = (int) $data['rating'];
+            $bookId = (int)$data['book_id'];
+            $rating = (int)$data['rating'];
 
             if ($rating < 1 || $rating > 5) {
                 throw new Exception(__('error_invalid_rating'));
@@ -86,41 +86,41 @@ try {
 
             // Проверяем, оценивал ли уже пользователь
             $stmt = $db->getConnection()->prepare(
-                'SELECT id FROM book_ratings WHERE book_id = ? AND user_ip = ?'
+                "SELECT id FROM book_ratings WHERE book_id = ? AND user_ip = ?"
             );
             $stmt->execute([$bookId, $userIp]);
 
-            if ($stmt->fetch()) {
-                // Обновляем (created_at не трогаем — это дата первой оценки)
-                $stmt = $db->getConnection()->prepare(
-                    'UPDATE book_ratings SET rating = ? WHERE book_id = ? AND user_ip = ?'
-                );
-                $stmt->execute([$rating, $bookId, $userIp]);
-                $result = 'updated';
-            } else {
-                // Вставляем
-                $stmt = $db->getConnection()->prepare(
-                    'INSERT INTO book_ratings (book_id, user_ip, rating, created_at)
-             VALUES (?, ?, ?, CURRENT_TIMESTAMP)'
-                );
-                $stmt->execute([$bookId, $userIp, $rating]);
-                $result = 'added';
-            }
+        if ($stmt->fetch()) {
+        // Обновляем (created_at не трогаем — это дата первой оценки)
+        $stmt = $db->getConnection()->prepare(
+            "UPDATE book_ratings SET rating = ? WHERE book_id = ? AND user_ip = ?"
+        );
+        $stmt->execute([$rating, $bookId, $userIp]);
+        $result = 'updated';
+    } else {
+        // Вставляем
+        $stmt = $db->getConnection()->prepare(
+            "INSERT INTO book_ratings (book_id, user_ip, rating, created_at)
+             VALUES (?, ?, ?, CURRENT_TIMESTAMP)"
+        );
+        $stmt->execute([$bookId, $userIp, $rating]);
+        $result = 'added';
+    }
 
             // Сбрасываем кэш страниц
             PageCache::invalidateUserPages($userIp);
 
             // Получаем обновленный рейтинг
             $stmt = $db->getConnection()->prepare(
-                'SELECT COUNT(*) as votes, AVG(rating) as average 
-                 FROM book_ratings WHERE book_id = ?'
+                "SELECT COUNT(*) as votes, AVG(rating) as average 
+                 FROM book_ratings WHERE book_id = ?"
             );
             $stmt->execute([$bookId]);
             $ratingData = $stmt->fetch();
 
             // Получаем оценку пользователя
             $stmt = $db->getConnection()->prepare(
-                'SELECT rating FROM book_ratings WHERE book_id = ? AND user_ip = ?'
+                "SELECT rating FROM book_ratings WHERE book_id = ? AND user_ip = ?"
             );
             $stmt->execute([$bookId, $userIp]);
             $userRating = $stmt->fetch();
@@ -130,11 +130,11 @@ try {
                 'message' => __('rating_saved'),
                 'result' => $result,
                 'rating' => [
-                    'votes' => (int) $ratingData['votes'],
-                    'average' => (float) $ratingData['average'],
-                    'average_rounded' => round((float) $ratingData['average'] * 2) / 2,
+                    'votes' => (int)$ratingData['votes'],
+                    'average' => (float)$ratingData['average'],
+                    'average_rounded' => round((float)$ratingData['average'] * 2) / 2
                 ],
-                'user_rating' => $userRating ? (int) $userRating['rating'] : $rating,
+                'user_rating' => $userRating ? (int)$userRating['rating'] : $rating
             ]);
             break;
 
@@ -143,7 +143,7 @@ try {
                 throw new Exception(__('error_missing_params'));
             }
 
-            $bookId = (int) $data['book_id'];
+            $bookId = (int)$data['book_id'];
 
             // Проверяем существование книги
             $book = $db->getBook($bookId);
@@ -153,14 +153,14 @@ try {
 
             // Проверяем, есть ли уже в избранном
             $stmt = $db->getConnection()->prepare(
-                'SELECT id FROM book_favorites WHERE book_id = ? AND user_ip = ?'
+                "SELECT id FROM book_favorites WHERE book_id = ? AND user_ip = ?"
             );
             $stmt->execute([$bookId, $userIp]);
 
             if ($stmt->fetch()) {
                 // Удаляем
                 $stmt = $db->getConnection()->prepare(
-                    'DELETE FROM book_favorites WHERE book_id = ? AND user_ip = ?'
+                    "DELETE FROM book_favorites WHERE book_id = ? AND user_ip = ?"
                 );
                 $stmt->execute([$bookId, $userIp]);
                 $result = 'removed';
@@ -168,7 +168,7 @@ try {
                 $message = __('favorites_removed');
             } else {
                 $stmt = $db->getConnection()->prepare(
-                    'INSERT INTO book_favorites (book_id, user_ip) VALUES (?, ?)'
+                    "INSERT INTO book_favorites (book_id, user_ip) VALUES (?, ?)"
                 );
                 $stmt->execute([$bookId, $userIp]);
                 $result = 'added';
@@ -183,7 +183,7 @@ try {
                 'success' => true,
                 'message' => $message,
                 'result' => $result,
-                'is_favorite' => $isFavorite,
+                'is_favorite' => $isFavorite
             ]);
             break;
 
@@ -192,19 +192,19 @@ try {
                 throw new Exception(__('error_missing_params'));
             }
 
-            $bookId = (int) $data['book_id'];
+            $bookId = (int)$data['book_id'];
 
             // Получаем общий рейтинг
             $stmt = $db->getConnection()->prepare(
-                'SELECT COUNT(*) as votes, AVG(rating) as average 
-                 FROM book_ratings WHERE book_id = ?'
+                "SELECT COUNT(*) as votes, AVG(rating) as average 
+                 FROM book_ratings WHERE book_id = ?"
             );
             $stmt->execute([$bookId]);
             $ratingData = $stmt->fetch();
 
             // Получаем оценку пользователя
             $stmt = $db->getConnection()->prepare(
-                'SELECT rating FROM book_ratings WHERE book_id = ? AND user_ip = ?'
+                "SELECT rating FROM book_ratings WHERE book_id = ? AND user_ip = ?"
             );
             $stmt->execute([$bookId, $userIp]);
             $userRating = $stmt->fetch();
@@ -212,39 +212,40 @@ try {
             // Получаем распределение оценок
             $distribution = [0, 0, 0, 0, 0];
             $stmt = $db->getConnection()->prepare(
-                'SELECT rating, COUNT(*) as count 
+                "SELECT rating, COUNT(*) as count 
                  FROM book_ratings 
                  WHERE book_id = ? 
                  GROUP BY rating 
-                 ORDER BY rating DESC'
+                 ORDER BY rating DESC"
             );
             $stmt->execute([$bookId]);
             $distResults = $stmt->fetchAll();
 
             foreach ($distResults as $row) {
                 $index = 5 - $row['rating'];
-                $distribution[$index] = (int) $row['count'];
+                $distribution[$index] = (int)$row['count'];
             }
 
             echo json_encode([
                 'success' => true,
                 'rating' => [
-                    'votes' => (int) $ratingData['votes'],
-                    'average' => (float) $ratingData['average'],
-                    'average_rounded' => round((float) $ratingData['average'] * 2) / 2,
-                    'distribution' => $distribution,
+                    'votes' => (int)$ratingData['votes'],
+                    'average' => (float)$ratingData['average'],
+                    'average_rounded' => round((float)$ratingData['average'] * 2) / 2,
+                    'distribution' => $distribution
                 ],
-                'user_rating' => $userRating ? (int) $userRating['rating'] : 0,
+                'user_rating' => $userRating ? (int)$userRating['rating'] : 0
             ]);
             break;
 
         default:
-            throw new Exception(__('error_unknown_action').': '.$action);
+            throw new Exception(__('error_unknown_action') . ': ' . $action);
     }
+
 } catch (Exception $e) {
-    error_log('Rating API Error: '.$e->getMessage());
+    error_log("Rating API Error: " . $e->getMessage());
     echo json_encode([
         'success' => false,
-        'message' => __('error_occurred').': '.$e->getMessage(),
+        'message' => __('error_occurred') . ': ' . $e->getMessage()
     ]);
 }

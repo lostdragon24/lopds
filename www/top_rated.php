@@ -4,8 +4,8 @@
 define('LOPDS_ROOT', __DIR__);
 
 // Если это AJAX запрос, не используем кэш страниц
-if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])
-    && 'xmlhttprequest' == strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+    strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
     require_once 'config/config.php';
     require_once 'lib/Database.php';
     require_once 'lib/BookHelper.php';
@@ -20,7 +20,7 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])
 
     // Начинаем кэширование страницы
     $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-    $cacheKey = 'top_rated_page_'.$page;
+    $cacheKey = 'top_rated_page_' . $page;
     PageCache::start($cacheKey);
 }
 
@@ -28,20 +28,20 @@ $db = Database::getInstance();
 $userIp = $_SERVER['REMOTE_ADDR'];
 $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
 
-// количество на странице для топа
+//количество на странице для топа
 $perPage = Config::getItemsPerPage();
 
 // ========== ПОЛУЧАЕМ ДАННЫЕ ИЗ КЭША ==========
 $cacheKey = 'top_rated_data_v2';
 $allBooks = Cache::get($cacheKey, 'statistics');
 
-if (null === $allBooks) {
+if ($allBooks === null) {
     // ОПТИМИЗИРОВАННЫЙ ЗАПРОС С ИСПОЛЬЗОВАНИЕМ ИНДЕКСОВ
     $startTime = microtime(true);
 
-    if ('mysql' === Config::getDbType()) {
+    if (Config::getDbType() === 'mysql') {
         // MySQL версия с подзапросом
-        $sql = 'SELECT 
+        $sql = "SELECT 
                     b.id,
                     b.title,
                     b.author,
@@ -63,10 +63,10 @@ if (null === $allBooks) {
                 ) r_stats ON b.id = r_stats.book_id
                 WHERE r_stats.votes_count >= 1
                 ORDER BY r_stats.avg_rating DESC, r_stats.votes_count DESC, b.title
-                LIMIT 100';
+                LIMIT 100";
     } else {
         // SQLite версия
-        $sql = 'SELECT 
+        $sql = "SELECT 
                     b.id,
                     b.title,
                     b.author,
@@ -88,16 +88,17 @@ if (null === $allBooks) {
                 ) r_stats ON b.id = r_stats.book_id
                 WHERE r_stats.votes_count >= 1
                 ORDER BY r_stats.avg_rating DESC, r_stats.votes_count DESC, b.title
-                LIMIT 100';
+                LIMIT 100";
     }
 
     $stmt = $db->getConnection()->query($sql);
     $allBooks = $stmt->fetchAll();
     $queryTime = microtime(true) - $startTime;
-    error_log('Top rated query time: '.round($queryTime, 2).' sec');
+    error_log("Top rated query time: " . round($queryTime, 2) . " sec");
 
     // Кэшируем на 1 час
-    Cache::set($cacheKey, $allBooks, 3600);
+    // Cache::set($cacheKey, $allBooks, 3600);
+    Cache::set($cacheKey, $allBooks, 'statistics', 3600);
 }
 
 // ========== ПОЛУЧАЕМ СТАТУС ИЗБРАННОГО ОДНИМ ЗАПРОСОМ ==========
@@ -129,14 +130,14 @@ $currentBooks = array_slice($allBooks, $offset, $perPage);
 $statsCacheKey = 'rating_stats_global';
 $ratingStats = Cache::get($statsCacheKey, 'statistics');
 
-if (null === $ratingStats) {
-    $stmt = $db->getConnection()->query('
+if ($ratingStats === null) {
+    $stmt = $db->getConnection()->query("
         SELECT
             COUNT(DISTINCT book_id) as rated_books,
             COUNT(*) as total_ratings,
             COALESCE(AVG(rating), 0) as avg_rating
         FROM book_ratings
-    ');
+    ");
     $ratingStats = $stmt->fetch();
     Cache::set($statsCacheKey, $ratingStats, 3600);
 }
@@ -163,12 +164,12 @@ require 'templates/header.php';
         </div>
     </div>
     
-    <?php if (empty($allBooks)) { ?>
+    <?php if (empty($allBooks)): ?>
         <div class="alert alert-warning">
             <i class="fas fa-exclamation-triangle me-2"></i>
             <?php echo __('top_rated_empty'); ?>
         </div>
-    <?php } else { ?>
+    <?php else: ?>
         <!-- Статистика рейтингов -->
         <div class="row mb-4">
             <div class="col-md-4">
@@ -199,12 +200,12 @@ require 'templates/header.php';
                             $avgRounded = round($ratingStats['avg_rating'] * 2) / 2;
         $fullStars = floor($avgRounded);
         $halfStar = $avgRounded - $fullStars >= 0.5;
-        for ($i = 0; $i < $fullStars; ++$i) { ?>
+        for ($i = 0; $i < $fullStars; $i++): ?>
                                 <i class="fas fa-star text-warning"></i>
-                            <?php } ?>
-                            <?php if ($halfStar) { ?>
+                            <?php endfor; ?>
+                            <?php if ($halfStar): ?>
                                 <i class="fas fa-star-half-alt text-warning"></i>
-                            <?php } ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -239,50 +240,50 @@ require 'templates/header.php';
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($currentBooks as $index => $book) {
+                            <?php foreach ($currentBooks as $index => $book):
                                 $globalIndex = $offset + $index + 1;
-                                $avgRating = (float) $book['avg_rating'];
-                                $votes = (int) $book['votes_count'];
+                                $avgRating = (float)$book['avg_rating'];
+                                $votes = (int)$book['votes_count'];
                                 $isFavorite = isset($favoritesMap[$book['id']]);
                                 ?>
                                 <tr>
                                     <td class="text-center align-middle">
-                                        <?php if ($globalIndex <= 3) { ?>
+                                        <?php if ($globalIndex <= 3): ?>
                                             <span class="badge bg-warning text-dark rounded-circle p-2" style="width: 32px;">
                                                 <?php echo $globalIndex; ?>
                                             </span>
-                                        <?php } else { ?>
+                                        <?php else: ?>
                                             <span class="badge bg-secondary rounded-circle p-2" style="width: 32px;">
                                                 <?php echo $globalIndex; ?>
                                             </span>
-                                        <?php } ?>
+                                        <?php endif; ?>
                                     </td>
                                     <td class="align-middle">
                                         <div>
                                             <a href="book_detail.php?id=<?php echo $book['id']; ?>" 
                                                class="text-decoration-none fw-bold">
-                                                <?php echo htmlspecialchars(mb_substr($book['title'] ?: __('book_untitled'), 0, 60)).(mb_strlen($book['title'] ?? '') > 60 ? '…' : ''); ?>
+                                                <?php echo htmlspecialchars(mb_substr($book['title'] ?: __('book_untitled'), 0, 60)) . (mb_strlen($book['title'] ?? '') > 60 ? '…' : ''); ?>
                                             </a>
-                                            <?php if (!empty($book['series'])) { ?>
+                                            <?php if (!empty($book['series'])): ?>
                                                 <div class="small text-muted">
                                                     <i class="fas fa-bookmark me-1"></i>
                                                     <?php echo htmlspecialchars(mb_substr($book['series'], 0, 40)); ?>
-                                                    <?php if (!empty($book['series_number'])) { ?>
+                                                    <?php if (!empty($book['series_number'])): ?>
                                                         <span class="badge bg-light text-dark border ms-1">#<?php echo $book['series_number']; ?></span>
-                                                    <?php } ?>
+                                                    <?php endif; ?>
                                                 </div>
-                                            <?php } ?>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                     <td class="align-middle">
-                                        <?php if (!empty($book['author'])) { ?>
+                                        <?php if (!empty($book['author'])): ?>
                                             <a href="index.php?field=author&q=<?php echo urlencode($book['author']); ?>" 
                                                class="text-decoration-none">
                                                 <?php echo htmlspecialchars(mb_substr($book['author'], 0, 30)); ?>
                                             </a>
-                                        <?php } else { ?>
+                                        <?php else: ?>
                                             <span class="text-muted"><?php echo __('book_unknown_author'); ?></span>
-                                        <?php } ?>
+                                        <?php endif; ?>
                                     </td>
                                     <td class="align-middle">
                                         <div class="d-flex align-items-center">
@@ -291,12 +292,12 @@ require 'templates/header.php';
                                                 <?php
                                                     $fullStars = floor($avgRating);
                                 $halfStar = $avgRating - $fullStars >= 0.5;
-                                for ($i = 0; $i < $fullStars; ++$i) { ?>
+                                for ($i = 0; $i < $fullStars; $i++): ?>
                                                     <i class="fas fa-star text-warning" style="font-size: 0.8em;"></i>
-                                                <?php } ?>
-                                                <?php if ($halfStar) { ?>
+                                                <?php endfor; ?>
+                                                <?php if ($halfStar): ?>
                                                     <i class="fas fa-star-half-alt text-warning" style="font-size: 0.8em;"></i>
-                                                <?php } ?>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </td>
@@ -329,23 +330,23 @@ require 'templates/header.php';
                                         </div>
                                     </td>
                                 </tr>
-                            <?php } ?>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
                 
                 <!-- Пагинация -->
-                <?php if ($totalPages > 1) { ?>
+                <?php if ($totalPages > 1): ?>
                 <div class="card-footer bg-white">
                     <nav aria-label="<?php echo __('pagination'); ?>">
                         <ul class="pagination justify-content-center mb-0">
-                            <?php if ($page > 1) { ?>
+                            <?php if ($page > 1): ?>
                                 <li class="page-item">
                                     <a class="page-link" href="?page=<?php echo $page - 1; ?>" aria-label="<?php echo __('previous'); ?>">
                                         <span aria-hidden="true">&laquo;</span>
                                     </a>
                                 </li>
-                            <?php } ?>
+                            <?php endif; ?>
                             
                             <?php
                             $startPage = max(1, $page - 2);
@@ -358,35 +359,35 @@ require 'templates/header.php';
                         }
                     }
 
-                    for ($i = $startPage; $i <= $endPage; ++$i) { ?>
+                    for ($i = $startPage; $i <= $endPage; $i++): ?>
                                 <li class="page-item <?php echo $i == $page ? 'active' : ''; ?>">
                                     <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
                                 </li>
-                            <?php } ?>
+                            <?php endfor; ?>
                             
-                            <?php if ($endPage < $totalPages) { ?>
-                                <?php if ($endPage < $totalPages - 1) { ?>
+                            <?php if ($endPage < $totalPages): ?>
+                                <?php if ($endPage < $totalPages - 1): ?>
                                     <li class="page-item disabled"><span class="page-link">...</span></li>
-                                <?php } ?>
+                                <?php endif; ?>
                                 <li class="page-item">
                                     <a class="page-link" href="?page=<?php echo $totalPages; ?>"><?php echo $totalPages; ?></a>
                                 </li>
-                            <?php } ?>
+                            <?php endif; ?>
                             
-                            <?php if ($page < $totalPages) { ?>
+                            <?php if ($page < $totalPages): ?>
                                 <li class="page-item">
                                     <a class="page-link" href="?page=<?php echo $page + 1; ?>" aria-label="<?php echo __('next'); ?>">
                                         <span aria-hidden="true">&raquo;</span>
                                     </a>
                                 </li>
-                            <?php } ?>
+                            <?php endif; ?>
                         </ul>
                     </nav>
                 </div>
-                <?php } ?>
+                <?php endif; ?>
             </div>
         </div>
-    <?php } ?>
+    <?php endif; ?>
     
     <div class="mt-4 text-center">
         <a href="index.php" class="btn btn-primary">
@@ -442,6 +443,8 @@ require 'templates/header.php';
 </style>
 
 <?php
-PageCache::save();
+
+
 require 'templates/footer.php';
+PageCache::save();
 ?>

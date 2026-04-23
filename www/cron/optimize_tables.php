@@ -258,7 +258,7 @@ try {
             LIMIT 100
         ')->fetchAll();
 
-        Cache::set('top_rated_all_v3', $topBooks, 1800);
+        Cache::set('top_rated_all_v3', $topBooks, 'statistics', 1800);
         $time = microtime(true) - $start;
         echo '  ✅ Кэш топ книг обновлен ('.round($time, 2)." сек)\n";
 
@@ -271,7 +271,7 @@ try {
             'total_series' => $db->getConnection()->query('SELECT COUNT(DISTINCT series) FROM books WHERE series IS NOT NULL')->fetchColumn(),
         ];
 
-        Cache::set('collection_stats', $stats, 3600);
+        Cache::set('collection_stats', $stats, 'statistics', 3600);
         $time = microtime(true) - $start;
         echo '  ✅ Кэш статистики обновлен ('.round($time, 2)." сек)\n";
     } catch (Exception $e) {

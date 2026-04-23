@@ -36,13 +36,13 @@ class OpdsGenerator
         $xml->writeAttribute('xmlns:dc', 'http://purl.org/dc/terms/');
         $xml->writeAttribute('xmlns:opds', 'http://opds-spec.org/2010/catalog');
 
-        $xml->writeElement('id', ConfigData::OPDS_ID.($page > 1 ? ':page:'.$page : ''));
-        $xml->writeElement('title', ConfigData::OPDS_TITLE.($page > 1 ? ' - '.__('opds_page').' '.$page : ''));
+        $xml->writeElement('id', Config::getOpdsId().($page > 1 ? ':page:'.$page : ''));
+        $xml->writeElement('title', Config::getOpdsTitle().($page > 1 ? ' - '.__('opds_page').' '.$page : ''));
         $xml->writeElement('updated', date('c'));
         $xml->writeElement('icon', $this->baseUrl.'/favicon.ico');
 
         $xml->startElement('author');
-        $xml->writeElement('name', ConfigData::OPDS_AUTHOR);
+        $xml->writeElement('name', Config::getOpdsAuthor());
         $xml->endElement();
 
         // Ссылка на сам каталог
@@ -106,13 +106,13 @@ class OpdsGenerator
             $xml->writeAttribute('xmlns:dc', 'http://purl.org/dc/terms/');
             $xml->writeAttribute('xmlns:opds', 'http://opds-spec.org/2010/catalog');
 
-            $xml->writeElement('id', ConfigData::OPDS_ID.':search:'.urlencode($query).($page > 1 ? ':page:'.$page : ''));
+            $xml->writeElement('id', Config::getOpdsId().':search:'.urlencode($query).($page > 1 ? ':page:'.$page : ''));
             $xml->writeElement('title', sprintf(__('opds_search_results'), htmlspecialchars($query)).($page > 1 ? ' - '.__('opds_page').' '.$page : ''));
             $xml->writeElement('updated', date('c'));
             $xml->writeElement('icon', $this->baseUrl.'/favicon.ico');
 
             $xml->startElement('author');
-            $xml->writeElement('name', ConfigData::OPDS_AUTHOR);
+            $xml->writeElement('name', Config::getOpdsAuthor());
             $xml->endElement();
 
             // Ссылка на сам каталог
@@ -183,13 +183,13 @@ class OpdsGenerator
             $xml->writeAttribute('xmlns:dc', 'http://purl.org/dc/terms/');
             $xml->writeAttribute('xmlns:opds', 'http://opds-spec.org/2010/catalog');
 
-            $xml->writeElement('id', ConfigData::OPDS_ID.':search:error');
-            $xml->writeElement('title', __('opds_search_error').' - '.ConfigData::OPDS_TITLE);
+            $xml->writeElement('id', Config::getOpdsId().':search:error');
+            $xml->writeElement('title', __('opds_search_error').' - '.Config::getOpdsTitle());
             $xml->writeElement('updated', date('c'));
             $xml->writeElement('icon', $this->baseUrl.'/favicon.ico');
 
             $xml->startElement('author');
-            $xml->writeElement('name', ConfigData::OPDS_AUTHOR);
+            $xml->writeElement('name', Config::getOpdsAuthor());
             $xml->endElement();
 
             $xml->startElement('entry');
@@ -231,12 +231,12 @@ class OpdsGenerator
         $xml->writeAttribute('xmlns:dc', 'http://purl.org/dc/terms/');
         $xml->writeAttribute('xmlns:opds', 'http://opds-spec.org/2010/catalog');
 
-        $xml->writeElement('id', ConfigData::OPDS_ID.':authors:navigation'.($page > 1 ? ':page:'.$page : ''));
+        $xml->writeElement('id', Config::getOpdsId().':authors:navigation'.($page > 1 ? ':page:'.$page : ''));
         $xml->writeElement('title', __('opds_browse_authors').($page > 1 ? ' - '.__('opds_page').' '.$page : ''));
         $xml->writeElement('updated', date('c'));
 
         $xml->startElement('author');
-        $xml->writeElement('name', ConfigData::OPDS_AUTHOR);
+        $xml->writeElement('name', Config::getOpdsAuthor());
         $xml->endElement();
 
         $xml->startElement('link');
@@ -296,12 +296,12 @@ class OpdsGenerator
         $xml->writeAttribute('xmlns:dc', 'http://purl.org/dc/terms/');
         $xml->writeAttribute('xmlns:opds', 'http://opds-spec.org/2010/catalog');
 
-        $xml->writeElement('id', ConfigData::OPDS_ID.':genres:navigation');
+        $xml->writeElement('id', Config::getOpdsId().':genres:navigation');
         $xml->writeElement('title', __('opds_browse_genres'));
         $xml->writeElement('updated', date('c'));
 
         $xml->startElement('author');
-        $xml->writeElement('name', ConfigData::OPDS_AUTHOR);
+        $xml->writeElement('name', Config::getOpdsAuthor());
         $xml->endElement();
 
         $xml->startElement('link');
@@ -377,12 +377,12 @@ class OpdsGenerator
         $xml->writeAttribute('xmlns:dc', 'http://purl.org/dc/terms/');
         $xml->writeAttribute('xmlns:opds', 'http://opds-spec.org/2010/catalog');
 
-        $xml->writeElement('id', ConfigData::OPDS_ID.':genres:category:'.urlencode($category));
+        $xml->writeElement('id', Config::getOpdsId().':genres:category:'.urlencode($category));
         $xml->writeElement('title', sprintf(__('opds_genres_category'), htmlspecialchars($category)));
         $xml->writeElement('updated', date('c'));
 
         $xml->startElement('author');
-        $xml->writeElement('name', ConfigData::OPDS_AUTHOR);
+        $xml->writeElement('name', Config::getOpdsAuthor());
         $xml->endElement();
 
         $xml->startElement('link');
@@ -447,12 +447,12 @@ class OpdsGenerator
         $xml->writeAttribute('xmlns:dc', 'http://purl.org/dc/terms/');
         $xml->writeAttribute('xmlns:opds', 'http://opds-spec.org/2010/catalog');
 
-        $xml->writeElement('id', ConfigData::OPDS_ID.':genres:all'.($page > 1 ? ':page:'.$page : ''));
+        $xml->writeElement('id', Config::getOpdsId().':genres:all'.($page > 1 ? ':page:'.$page : ''));
         $xml->writeElement('title', __('opds_all_genres').($page > 1 ? ' - '.__('opds_page').' '.$page : ''));
         $xml->writeElement('updated', date('c'));
 
         $xml->startElement('author');
-        $xml->writeElement('name', ConfigData::OPDS_AUTHOR);
+        $xml->writeElement('name', Config::getOpdsAuthor());
         $xml->endElement();
 
         $xml->startElement('link');
@@ -541,12 +541,12 @@ class OpdsGenerator
         $xml->writeAttribute('xmlns:dc', 'http://purl.org/dc/terms/');
         $xml->writeAttribute('xmlns:opds', 'http://opds-spec.org/2010/catalog');
 
-        $xml->writeElement('id', ConfigData::OPDS_ID.':author:'.urlencode($author).($page > 1 ? ':page:'.$page : ''));
+        $xml->writeElement('id', Config::getOpdsId().':author:'.urlencode($author).($page > 1 ? ':page:'.$page : ''));
         $xml->writeElement('title', sprintf(__('opds_books_by_author_title'), htmlspecialchars($author)).($page > 1 ? ' - '.__('opds_page').' '.$page : ''));
         $xml->writeElement('updated', date('c'));
 
         $xml->startElement('author');
-        $xml->writeElement('name', ConfigData::OPDS_AUTHOR);
+        $xml->writeElement('name', Config::getOpdsAuthor());
         $xml->endElement();
 
         $xml->startElement('link');
@@ -608,12 +608,12 @@ class OpdsGenerator
         $readableGenre = GenreManager::getReadableName($genre);
         $displayGenre = $readableGenre ?: $genre;
 
-        $xml->writeElement('id', ConfigData::OPDS_ID.':genre:'.urlencode($genre).($page > 1 ? ':page:'.$page : ''));
+        $xml->writeElement('id', Config::getOpdsId().':genre:'.urlencode($genre).($page > 1 ? ':page:'.$page : ''));
         $xml->writeElement('title', sprintf(__('opds_books_in_genre_title'), htmlspecialchars($displayGenre)).($page > 1 ? ' - '.__('opds_page').' '.$page : ''));
         $xml->writeElement('updated', date('c'));
 
         $xml->startElement('author');
-        $xml->writeElement('name', ConfigData::OPDS_AUTHOR);
+        $xml->writeElement('name', Config::getOpdsAuthor());
         $xml->endElement();
 
         $xml->startElement('link');
@@ -672,12 +672,12 @@ class OpdsGenerator
         $xml->writeAttribute('xmlns:dc', 'http://purl.org/dc/terms/');
         $xml->writeAttribute('xmlns:opds', 'http://opds-spec.org/2010/catalog');
 
-        $xml->writeElement('id', ConfigData::OPDS_ID.':series:'.urlencode($series).($page > 1 ? ':page:'.$page : ''));
+        $xml->writeElement('id', Config::getOpdsId().':series:'.urlencode($series).($page > 1 ? ':page:'.$page : ''));
         $xml->writeElement('title', sprintf(__('opds_books_in_series'), htmlspecialchars($series)).($page > 1 ? ' - '.__('opds_page').' '.$page : ''));
         $xml->writeElement('updated', date('c'));
 
         $xml->startElement('author');
-        $xml->writeElement('name', ConfigData::OPDS_AUTHOR);
+        $xml->writeElement('name', Config::getOpdsAuthor());
         $xml->endElement();
 
         $xml->startElement('link');
@@ -827,7 +827,7 @@ class OpdsGenerator
     {
         $xml->startElement('entry');
 
-        $xml->writeElement('id', ConfigData::OPDS_ID.':book:'.$book['id']);
+        $xml->writeElement('id', Config::getOpdsId().':book:'.$book['id']);
         $xml->writeElement('title', htmlspecialchars($book['title'] ?: __('book_untitled')));
         $xml->writeElement('updated', date('c', strtotime($book['added_date'])));
 

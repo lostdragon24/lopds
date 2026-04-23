@@ -1,22 +1,22 @@
 <?php
 // api/read_epub.php
 
-require_once __DIR__.'/../config/config.php';
-require_once __DIR__.'/../lib/Database.php';
-require_once __DIR__.'/../init.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../lib/Database.php';
+require_once __DIR__ . '/../init.php';
 
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     http_response_code(400);
-    exit(__('error_invalid_id'));
+    die(__('error_invalid_id'));
 }
 
 $db = Database::getInstance();
 $bookId = intval($_GET['id']);
 $book = $db->getBook($bookId);
 
-if (!$book || 'epub' !== strtolower($book['file_type'])) {
+if (!$book || strtolower($book['file_type']) !== 'epub') {
     http_response_code(404);
-    exit(__('book_not_found'));
+    die(__('book_not_found'));
 }
 
 // Определяем basePath для CSS и JS
@@ -27,25 +27,25 @@ $basePath = rtrim(dirname(dirname($scriptPath)), '/');
 if ($book['archive_path'] && $book['archive_internal_path']) {
     // Если книга в архиве
     $zip = new ZipArchive();
-    if (true === $zip->open($book['archive_path'])) {
+    if ($zip->open($book['archive_path']) === true) {
         $content = $zip->getFromName($book['archive_internal_path']);
         $zip->close();
     } else {
         http_response_code(500);
-        exit(__('error_extract_failed'));
+        die(__('error_extract_failed'));
     }
 } else {
     // Прямой файл
     if (!file_exists($book['file_path'])) {
         http_response_code(404);
-        exit(__('error_file_not_found'));
+        die(__('error_file_not_found'));
     }
     $content = file_get_contents($book['file_path']);
 }
 
 if (!$content) {
     http_response_code(500);
-    exit(__('error_extract_failed'));
+    die(__('error_extract_failed'));
 }
 
 $base64 = base64_encode($content);

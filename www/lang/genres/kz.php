@@ -335,5 +335,5 @@ return [
     'rus_classic' => 'Қазақ классикасы',
     'sf_russian' => 'Қазақ фантастикасы',
     'fantasy_russian' => 'Қазақ фэнтезиі',
-    'Islam' => 'Ислам',
+    'Islam' => 'Ислам'
 ];

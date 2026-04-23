@@ -1,6 +1,8 @@
 <?php
 
-require_once __DIR__.'/DbConfig.php';
+//require_once __DIR__.'/DbConfig.php';
+
+require_once __DIR__.'/../config/config.php';
 require_once __DIR__.'/PathManager.php';
 
 class ScannerConfigGenerator
@@ -31,12 +33,15 @@ class ScannerConfigGenerator
      */
     private static function buildConfigContent()
     {
-        $dbConfig = DbConfig::getConfig();
+        //$dbConfig = DbConfig::getConfig();
+        $dbConfig = Config::getDbConfig();
+
+
 
         $content = "[database]\n";
         $content .= 'type = '.$dbConfig['type']."\n";
 
-        if (DbConfig::isSqlite()) {
+        if (Config::isSqlite()) {
             $content .= 'path = '.$dbConfig['path']."\n";
         } else {
             $content .= 'host = '.$dbConfig['host']."\n";

@@ -2,10 +2,10 @@
 
 // api/download.php
 
-require_once __DIR__.'/../config/config.php';
-require_once __DIR__.'/../lib/Database.php';
-require_once __DIR__.'/../lib/SecurityHelper.php';
-require_once __DIR__.'/../init.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../lib/Database.php';
+require_once __DIR__ . '/../lib/SecurityHelper.php';
+require_once __DIR__ . '/../init.php';
 
 while (ob_get_level()) {
     ob_end_clean();
@@ -26,18 +26,18 @@ $opdsClients = [
     'Eboox',
     'KyBook',
     'Foliate',
-    'Calibre',
+    'Calibre'
 ];
 
 foreach ($opdsClients as $client) {
-    if (false !== stripos($userAgent, $client)) {
+    if (stripos($userAgent, $client) !== false) {
         $isOpdsRequest = true;
         break;
     }
 }
 
 // Проверка по Accept header
-if (false !== strpos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/atom+xml')) {
+if (strpos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/atom+xml') !== false) {
     $isOpdsRequest = true;
 }
 
@@ -46,42 +46,43 @@ if (isset($_GET['opds'])) {
     $isOpdsRequest = true;
 }
 
-error_log("Download request - ID: {$_GET['id']}, Method: {$_SERVER['REQUEST_METHOD']}, UA: $userAgent, isOPDS: ".($isOpdsRequest ? 'yes' : 'no'));
+error_log("Download request - ID: {$_GET['id']}, Method: {$_SERVER['REQUEST_METHOD']}, UA: $userAgent, isOPDS: " . ($isOpdsRequest ? 'yes' : 'no'));
 
 // Проверяем referer ТОЛЬКО для обычных веб-запросов, НЕ для OPDS
-if ('GET' === $_SERVER['REQUEST_METHOD'] && !$isOpdsRequest) {
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && !$isOpdsRequest) {
+
     //    $referer = $_SERVER['HTTP_REFERER'] ?? '';
     //    $allowedDomains = [$_SERVER['HTTP_HOST']];
 
     // === БЕЗОПАСНАЯ ПРОВЕРКА REFERER ===
-    if ('GET' === $_SERVER['REQUEST_METHOD'] && !$isOpdsRequest) {
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && !$isOpdsRequest) {
         $referer = $_SERVER['HTTP_REFERER'] ?? '';
 
         if (empty($referer)) {
             http_response_code(403);
-            exit(__('error_access_denied_direct'));
+            die(__('error_access_denied_direct'));
         }
 
         $refererHost = parse_url($referer, PHP_URL_HOST);
         // parse_url возвращает null/false при malformed URL
-        if (null === $refererHost || false === $refererHost) {
+        if ($refererHost === null || $refererHost === false) {
             http_response_code(403);
-            exit(__('error_access_denied_referer'));
+            die(__('error_access_denied_referer'));
         }
 
         // Нормализуем текущий хост (убираем порт если есть)
-        $currentHost = parse_url('http://'.($_SERVER['HTTP_HOST'] ?? ''), PHP_URL_HOST);
+        $currentHost = parse_url('http://' . ($_SERVER['HTTP_HOST'] ?? ''), PHP_URL_HOST);
         if (empty($currentHost) || !in_array($refererHost, [$currentHost], true)) {
             http_response_code(403);
-            exit(__('error_access_denied_referer'));
+            die(__('error_access_denied_referer'));
         }
     }
 
     // Если referer пустой - тоже блокируем для обычных запросов
     if (empty($referer)) {
-        error_log('Download blocked - empty referer for non-OPDS request');
+        error_log("Download blocked - empty referer for non-OPDS request");
         http_response_code(403);
-        exit(__('error_access_denied_direct'));
+        die(__('error_access_denied_direct'));
     }
 
     //    $refererHost = parse_url($referer, PHP_URL_HOST);
@@ -99,15 +100,15 @@ $rawId = $_GET['id'] ?? '';
 
 if (!ctype_digit($rawId)) {
     http_response_code(400);
-    exit(__('error_invalid_id'));
+    die(__('error_invalid_id'));
 }
 
-$bookId = (int) $rawId;
+$bookId = (int)$rawId;
 $book = $db->getBook($bookId);
 
 if (!$book) {
     http_response_code(404);
-    exit(__('book_not_found'));
+    die(__('book_not_found'));
 }
 
 // Rate limiting
@@ -115,7 +116,7 @@ $userIp = $security->sanitizeIp($_SERVER['REMOTE_ADDR']);
 $rateKey = "download:{$userIp}";
 if (!$security->checkRateLimit($rateKey, 10, 3600)) {
     http_response_code(429);
-    exit(__('error_rate_limit'));
+    die(__('error_rate_limit'));
 }
 
 // Определяем путь к файлу
@@ -131,24 +132,25 @@ function downloadRegularFile($book, $security)
 
     if (!file_exists($filePath)) {
         http_response_code(404);
-        exit(__('error_file_not_found'));
+        die(__('error_file_not_found'));
     }
 
     // Проверка, что файл находится в разрешенной директории
     $realPath = realpath($filePath);
     $booksDir = realpath(Config::getBooksDir());
-    if (0 !== strpos($realPath, $booksDir)) {
+    if (strpos($realPath, $booksDir) !== 0) {
         http_response_code(403);
-        exit(__('error_access_denied_path'));
+        die(__('error_access_denied_path'));
     }
 
     // Генерируем безопасное имя файла
     $filename = generateSafeFilename($book, $security);
     $mimeType = Config::getMimeType($book['file_type']);
 
-    header('Content-Type: '.$mimeType);
-    header('Content-Disposition: attachment; filename="'.$filename.'"');
-    header('Content-Length: '.filesize($filePath));
+    header('Content-Type: ' . $mimeType);
+    // header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Content-Disposition: attachment; filename="' . rawurlencode($filename) . '"');
+    header('Content-Length: ' . filesize($filePath));
     header('Cache-Control: private, max-age=0, must-revalidate');
     header('Pragma: public');
     header('X-Content-Type-Options: nosniff');
@@ -166,38 +168,38 @@ function downloadFromArchive($book, $security)
     // Проверка путей
     $realArchivePath = realpath($archivePath);
     $booksDir = realpath(Config::getBooksDir());
-    if (0 !== strpos($realArchivePath, $booksDir)) {
+    if (strpos($realArchivePath, $booksDir) !== 0) {
         http_response_code(403);
-        exit(__('error_access_denied_archive'));
+        die(__('error_access_denied_archive'));
     }
 
     // Проверка внутреннего пути на path traversal
-    if (false !== strpos($internalPath, '..') || 0 === strpos($internalPath, '/')) {
+    if (strpos($internalPath, '..') !== false || strpos($internalPath, '/') === 0) {
         http_response_code(403);
-        exit(__('error_invalid_path'));
+        die(__('error_invalid_path'));
     }
 
     if (!file_exists($archivePath)) {
         http_response_code(404);
-        exit(__('error_archive_not_found'));
+        die(__('error_archive_not_found'));
     }
 
     // Генерируем безопасное имя файла
     $filename = generateSafeFilename($book, $security);
     $mimeType = Config::getMimeType(pathinfo($internalPath, PATHINFO_EXTENSION));
 
-    header('Content-Type: '.$mimeType);
-    header('Content-Disposition: attachment; filename="'.$filename.'"');
+    header('Content-Type: ' . $mimeType);
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Cache-Control: private, max-age=0, must-revalidate');
     header('Pragma: public');
     header('X-Content-Type-Options: nosniff');
 
     // Используем ZipArchive для извлечения
     $zip = new ZipArchive();
-    if (true === $zip->open($archivePath)) {
+    if ($zip->open($archivePath) === true) {
         $content = $zip->getFromName($internalPath);
-        if (false !== $content) {
-            header('Content-Length: '.strlen($content));
+        if ($content !== false) {
+            header('Content-Length: ' . strlen($content));
             echo $content;
             $zip->close();
             exit;
@@ -206,17 +208,21 @@ function downloadFromArchive($book, $security)
     }
 
     http_response_code(500);
-    exit(__('error_extract_failed'));
+    die(__('error_extract_failed'));
 }
 
 /**
- * Генерация безопасного имени файла.
+ * Генерация безопасного имени файла
  */
 function generateSafeFilename($book, $security)
 {
     $extension = strtolower($book['file_type']);
     $title = $book['title'] ?: __('book_untitled');
     $author = $book['author'] ?: __('book_unknown_author');
+
+
+    $title = preg_replace('/[\r\n]+/', '', $title);
+    $author = preg_replace('/[\r\n]+/', '', $author);
 
     $title = $security->sanitizeFilename($title);
     $author = $security->sanitizeFilename($author);
@@ -226,16 +232,16 @@ function generateSafeFilename($book, $security)
 
     $filename = $title;
     if ($author && $author !== __('book_unknown_author')) {
-        $filename = $author.' - '.$filename;
+        $filename = $author . ' - ' . $filename;
     }
 
-    $filename .= '.'.$extension;
+    $filename .= '.' . $extension;
 
     return $filename;
 }
 
 /**
- * Безопасное чтение файла частями.
+ * Безопасное чтение файла частями
  */
 function readfile_chunked($filename, $retbytes = true)
 {
@@ -244,7 +250,7 @@ function readfile_chunked($filename, $retbytes = true)
     $cnt = 0;
     $handle = fopen($filename, 'rb');
 
-    if (false === $handle) {
+    if ($handle === false) {
         return false;
     }
 

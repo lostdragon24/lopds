@@ -12,7 +12,7 @@ $csrf_token = $csrf_token ?? '';
 function getFieldValue($fieldKey, $field, $currentSettings, $current)
 {
     // 1. Сначала из .env
-    if (isset($currentSettings[$fieldKey]) && '' !== $currentSettings[$fieldKey]) {
+    if (isset($currentSettings[$fieldKey]) && $currentSettings[$fieldKey] !== '') {
         return $currentSettings[$fieldKey];
     }
 
@@ -33,18 +33,18 @@ function getFieldValue($fieldKey, $field, $currentSettings, $current)
     <?php echo __('admin_settings_title'); ?>
 </h1>
 
-<?php if (!empty($message)) { ?>
+<?php if (!empty($message)): ?>
     <div class="alert alert-<?php echo $message_type; ?> alert-dismissible fade show">
-        <i class="fas fa-<?php echo 'success' === $message_type ? 'check-circle' : 'exclamation-circle'; ?> me-2"></i>
+        <i class="fas fa-<?php echo $message_type === 'success' ? 'check-circle' : 'exclamation-circle'; ?> me-2"></i>
         <?php echo htmlspecialchars($message); ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
-<?php } ?>
+<?php endif; ?>
 
 <!-- Вкладки настроек -->
 <ul class="nav nav-tabs mb-4" id="settingsTabs" role="tablist">
     <?php $first = true; ?>
-    <?php foreach ($groups as $groupKey => $group) { ?>
+    <?php foreach ($groups as $groupKey => $group): ?>
         <li class="nav-item" role="presentation">
             <button class="nav-link <?php echo $first ? 'active' : ''; ?>" 
                     id="<?php echo $groupKey; ?>-tab" 
@@ -56,7 +56,7 @@ function getFieldValue($fieldKey, $field, $currentSettings, $current)
             </button>
         </li>
         <?php $first = false; ?>
-    <?php } ?>
+    <?php endforeach; ?>
     
     <li class="nav-item">
         <button class="nav-link" id="backups-tab" data-bs-toggle="tab" data-bs-target="#backups" type="button" role="tab">
@@ -73,7 +73,7 @@ function getFieldValue($fieldKey, $field, $currentSettings, $current)
     
     <div class="tab-content" id="settingsTabsContent">
         <?php $first = true; ?>
-        <?php foreach ($groups as $groupKey => $group) { ?>
+        <?php foreach ($groups as $groupKey => $group): ?>
             <div class="tab-pane fade <?php echo $first ? 'show active' : ''; ?>" 
                  id="<?php echo $groupKey; ?>" 
                  role="tabpanel">
@@ -86,7 +86,7 @@ function getFieldValue($fieldKey, $field, $currentSettings, $current)
                         </h5>
                     </div>
                     <div class="card-body">
-                        <?php foreach ($group['fields'] as $fieldKey => $field) { ?>
+                        <?php foreach ($group['fields'] as $fieldKey => $field): ?>
                             <?php
                             // Проверяем условия отображения
                             $show = true;
@@ -108,39 +108,39 @@ function getFieldValue($fieldKey, $field, $currentSettings, $current)
                             <div class="mb-3 row field-<?php echo $fieldKey; ?>" data-type="<?php echo $field['type']; ?>">
                                 <label class="col-sm-4 col-form-label">
                                     <?php echo $field['label'] ?? $fieldKey; ?>
-                                    <?php if (isset($field['description'])) { ?>
+                                    <?php if (isset($field['description'])): ?>
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="<?php echo htmlspecialchars($field['description']); ?>"></i>
-                                    <?php } ?>
-                                    <?php if (!empty($field['required'])) { ?>
+                                    <?php endif; ?>
+                                    <?php if (!empty($field['required'])): ?>
                                         <span class="text-danger">*</span>
-                                    <?php } ?>
+                                    <?php endif; ?>
                                 </label>
                                 <div class="col-sm-8">
-                                    <?php if ('checkbox' === $field['type']) { ?>
+                                    <?php if ($field['type'] === 'checkbox'): ?>
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" 
                                                    type="checkbox" 
                                                    name="<?php echo $fieldKey; ?>" 
                                                    id="<?php echo $fieldKey; ?>"
-                                                   <?php echo ('true' === $fieldValue || '1' === $fieldValue) ? 'checked' : ''; ?>>
+                                                   <?php echo ($fieldValue === 'true' || $fieldValue === '1') ? 'checked' : ''; ?>>
                                             <label class="form-check-label" for="<?php echo $fieldKey; ?>">
                                                 <?php echo $field['label'] ?? $fieldKey; ?>
                                             </label>
                                         </div>
                                         
-                                    <?php } elseif ('select' === $field['type']) { ?>
+                                    <?php elseif ($field['type'] === 'select'): ?>
                                         <select class="form-select" name="<?php echo $fieldKey; ?>" id="<?php echo $fieldKey; ?>">
-                                            <?php foreach ($field['options'] as $optValue => $optLabel) { ?>
+                                            <?php foreach ($field['options'] as $optValue => $optLabel): ?>
                                                 <option value="<?php echo $optValue; ?>" 
                                                     <?php echo $fieldValue == $optValue ? 'selected' : ''; ?>>
                                                     <?php echo $optLabel; ?>
                                                 </option>
-                                            <?php } ?>
+                                            <?php endforeach; ?>
                                         </select>
                                         
-                                    <?php } elseif ('password_hash' === $field['type']) { ?>
+                                    <?php elseif ($field['type'] === 'password_hash'): ?>
                                         <div class="border p-3 bg-light rounded">
                                             <div class="mb-2">
                                                 <span class="badge bg-success">
@@ -171,7 +171,7 @@ function getFieldValue($fieldKey, $field, $currentSettings, $current)
                                             <div id="passwordMatch" class="mt-2" style="display: none;"></div>
                                         </div>
                                         
-                                    <?php } elseif ('DB_PASS' === $fieldKey) { ?>
+                                    <?php elseif ($fieldKey === 'DB_PASS'): ?>
                                         <div class="input-group">
                                             <input type="password" class="form-control" 
                                                    name="<?php echo $fieldKey; ?>" 
@@ -189,26 +189,26 @@ function getFieldValue($fieldKey, $field, $currentSettings, $current)
                                             <?php echo __('settings_db_password_hint'); ?>
                                         </div>
                                         
-                                    <?php } else { ?>
+                                    <?php else: ?>
                                         <input type="<?php echo $field['type'] ?? 'text'; ?>" 
                                                class="form-control" 
                                                name="<?php echo $fieldKey; ?>" 
                                                id="<?php echo $fieldKey; ?>"
                                                value="<?php echo htmlspecialchars($fieldValue); ?>"
-                                               <?php echo isset($field['min']) ? 'min="'.$field['min'].'"' : ''; ?>
-                                               <?php echo isset($field['max']) ? 'max="'.$field['max'].'"' : ''; ?>
-                                               <?php echo isset($field['step']) ? 'step="'.$field['step'].'"' : ''; ?>
+                                               <?php echo isset($field['min']) ? 'min="' . $field['min'] . '"' : ''; ?>
+                                               <?php echo isset($field['max']) ? 'max="' . $field['max'] . '"' : ''; ?>
+                                               <?php echo isset($field['step']) ? 'step="' . $field['step'] . '"' : ''; ?>
                                                <?php echo !empty($field['required']) ? 'required' : ''; ?>
                                                placeholder="<?php echo $field['label'] ?? $fieldKey; ?>">
-                                    <?php } ?>
+                                    <?php endif; ?>
                                 </div>
                             </div>
-                        <?php } ?>
+                        <?php endforeach; ?>
                     </div>
                 </div>
             </div>
             <?php $first = false; ?>
-        <?php } ?>
+        <?php endforeach; ?>
         
         <!-- Вкладка с бэкапами -->
         <div class="tab-pane fade" id="backups" role="tabpanel">
@@ -220,12 +220,12 @@ function getFieldValue($fieldKey, $field, $currentSettings, $current)
                     </h5>
                 </div>
                 <div class="card-body">
-                    <?php if (empty($backups)) { ?>
+                    <?php if (empty($backups)): ?>
                         <p class="text-muted text-center py-4">
                             <i class="fas fa-folder-open fa-3x mb-3 d-block"></i>
                             <?php echo __('settings_backups_none'); ?>
                         </p>
-                    <?php } else { ?>
+                    <?php else: ?>
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead>
@@ -237,7 +237,7 @@ function getFieldValue($fieldKey, $field, $currentSettings, $current)
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($backups as $backup) { ?>
+                                    <?php foreach ($backups as $backup): ?>
                                         <tr>
                                             <td><?php echo $backup['date'] ?? ''; ?></td>
                                             <td><code><?php echo $backup['filename'] ?? ''; ?></code></td>
@@ -250,11 +250,11 @@ function getFieldValue($fieldKey, $field, $currentSettings, $current)
                                                 </button>
                                             </td>
                                         </tr>
-                                    <?php } ?>
+                                    <?php endforeach; ?>
                                 </tbody>
                             </table>
                         </div>
-                    <?php } ?>
+                    <?php endif; ?>
                 </div>
                 <div class="card-footer">
                     <small class="text-muted">

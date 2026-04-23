@@ -2,11 +2,11 @@
 
 class EnvLoader
 {
-    private static $env;
+    private static $env = null;
     private static $loaded = false;
 
     /**
-     * Загрузить переменные из .env файла.
+     * Загрузить переменные из .env файла
      */
     public static function load()
     {
@@ -15,12 +15,12 @@ class EnvLoader
         }
 
         self::$env = [];
-        $envFile = __DIR__.'/../config/.env';
+        $envFile = __DIR__ . '/../config/.env';
 
         if (file_exists($envFile)) {
             $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
             foreach ($lines as $line) {
-                if (false !== strpos($line, '=') && 0 !== strpos($line, '#')) {
+                if (strpos($line, '=') !== false && strpos($line, '#') !== 0) {
                     list($key, $value) = explode('=', $line, 2);
                     self::$env[trim($key)] = trim($value);
                 }
@@ -31,27 +31,25 @@ class EnvLoader
     }
 
     /**
-     * Получить значение переменной окружения.
+     * Получить значение переменной окружения
      */
     public static function get($key, $default = null)
     {
         self::load();
-
         return self::$env[$key] ?? $default;
     }
 
     /**
-     * Получить все переменные.
+     * Получить все переменные
      */
     public static function getAll()
     {
         self::load();
-
         return self::$env;
     }
 
     /**
-     * Сбросить загрузку (для тестов).
+     * Сбросить загрузку (для тестов)
      */
     public static function reset()
     {

@@ -1,8 +1,8 @@
 <?php
 // /install/diagnose_sqlite.php
 
-require_once __DIR__.'/../config/config.php';
-require_once __DIR__.'/../init.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../init.php';
 
 $path = $_GET['path'] ?? Config::getDbPath();
 $results = [];
@@ -17,7 +17,7 @@ function checkPath($path, $level = 0)
         'executable' => is_executable($path),
         'perms' => file_exists($path) ? substr(sprintf('%o', fileperms($path)), -4) : 'N/A',
         'owner' => file_exists($path) && function_exists('posix_getpwuid') ? posix_getpwuid(fileowner($path))['name'] : 'N/A',
-        'group' => file_exists($path) && function_exists('posix_getgrgid') ? posix_getgrgid(filegroup($path))['name'] : 'N/A',
+        'group' => file_exists($path) && function_exists('posix_getgrgid') ? posix_getgrgid(filegroup($path))['name'] : 'N/A'
     ];
 
     if (is_dir($path) && $level < 10) {
@@ -36,7 +36,7 @@ $results['current_user'] = get_current_user();
 $results['php_user'] = function_exists('posix_geteuid') ? posix_getpwuid(posix_geteuid())['name'] : 'N/A';
 $results['sapi'] = php_sapi_name();
 
-require_once __DIR__.'/templates/header.php';
+require_once __DIR__ . '/templates/header.php';
 ?>
 
 <div class="container mt-4">
@@ -63,33 +63,33 @@ require_once __DIR__.'/templates/header.php';
                     <td><?php echo __('diagnose_current_user'); ?></td>
                     <td><?php echo $results['current_user']; ?></td>
                     <td>
-                        <?php if ('www-data' === $results['current_user'] || 'apache' === $results['current_user']) { ?>
+                        <?php if ($results['current_user'] === 'www-data' || $results['current_user'] === 'apache'): ?>
                             <span class="badge bg-warning"><?php echo __('diagnose_webserver'); ?></span>
-                        <?php } else { ?>
+                        <?php else: ?>
                             <span class="badge bg-info"><?php echo $results['current_user']; ?></span>
-                        <?php } ?>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 <tr>
                     <td><?php echo __('diagnose_effective_user'); ?></td>
                     <td><?php echo $results['php_user']; ?></td>
                     <td>
-                        <?php if ('root' === $results['php_user']) { ?>
+                        <?php if ($results['php_user'] === 'root'): ?>
                             <span class="badge bg-danger">⚠️ <?php echo __('diagnose_root_warning'); ?></span>
-                        <?php } else { ?>
+                        <?php else: ?>
                             <span class="badge bg-secondary"><?php echo $results['php_user']; ?></span>
-                        <?php } ?>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 <tr>
                     <td><?php echo __('diagnose_sapi'); ?></td>
                     <td><?php echo $results['sapi']; ?></td>
                     <td>
-                        <?php if ('cli' === $results['sapi']) { ?>
+                        <?php if ($results['sapi'] === 'cli'): ?>
                             <span class="badge bg-success"><?php echo __('diagnose_command_line'); ?></span>
-                        <?php } else { ?>
+                        <?php else: ?>
                             <span class="badge bg-primary"><?php echo __('diagnose_web'); ?></span>
-                        <?php } ?>
+                        <?php endif; ?>
                     </td>
                 </tr>
             </table>
@@ -145,8 +145,8 @@ function displayPathCheck($item, $level = 0)
     $icon = $item['exists'] ? '✅' : '❌';
     $type = is_dir($item['path']) ? '📁' : '📄';
 
-    $html .= "<div class='p-2 ".($item['exists'] ? 'bg-light' : 'bg-danger bg-opacity-10')." rounded mb-1'>";
-    $html .= "$indent $icon $type <code>".basename($item['path']).'</code>';
+    $html .= "<div class='p-2 " . ($item['exists'] ? 'bg-light' : 'bg-danger bg-opacity-10') . " rounded mb-1'>";
+    $html .= "$indent $icon $type <code>" . basename($item['path']) . "</code>";
 
     if ($item['exists']) {
         $html .= " <span class='badge bg-secondary'><?php echo __('diagnose_permissions'); ?>: {$item['perms']}</span>";
@@ -154,14 +154,14 @@ function displayPathCheck($item, $level = 0)
         $html .= " <span class='badge bg-info'><?php echo __('diagnose_group'); ?>: {$item['group']}</span>";
 
         if (!is_dir($item['path'])) {
-            $html .= ' '.($item['readable'] ? '🔵 '.__('diagnose_readable') : '⚫ '.__('diagnose_not_readable'));
-            $html .= ' '.($item['writable'] ? '🟢 '.__('diagnose_writable') : '🔴 '.__('diagnose_not_writable'));
+            $html .= " " . ($item['readable'] ? '🔵 ' . __('diagnose_readable') : '⚫ ' . __('diagnose_not_readable'));
+            $html .= " " . ($item['writable'] ? '🟢 ' . __('diagnose_writable') : '🔴 ' . __('diagnose_not_writable'));
         } else {
-            $html .= ' '.($item['executable'] ? '🟢 '.__('diagnose_accessible') : '🔴 '.__('diagnose_not_accessible'));
+            $html .= " " . ($item['executable'] ? '🟢 ' . __('diagnose_accessible') : '🔴 ' . __('diagnose_not_accessible'));
         }
     }
 
-    $html .= '</div>';
+    $html .= "</div>";
 
     if (isset($item['children'])) {
         foreach ($item['children'] as $child) {
@@ -169,10 +169,9 @@ function displayPathCheck($item, $level = 0)
         }
     }
 
-    $html .= '</div>';
-
+    $html .= "</div>";
     return $html;
 }
 
-require_once __DIR__.'/templates/footer.php';
+require_once __DIR__ . '/templates/footer.php';
 ?>

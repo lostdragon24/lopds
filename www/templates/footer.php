@@ -38,11 +38,11 @@
                             <a href="favorites.php" class="btn btn-sm btn-outline-light">
                                 <i class="far fa-heart me-1"></i><?php echo __('favorites'); ?>
                             </a>
-                            <?php if (Config::ENABLE_CACHE) { ?>
+                            <?php if (Config::isCacheEnabled()): ?>
                             <a href="cache_stats.php" class="btn btn-sm btn-outline-warning">
                                 <i class="fas fa-bolt me-1"></i><?php echo __('cache'); ?>
                             </a>
-                            <?php } ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -56,7 +56,7 @@
                     $cacheKey = 'footer_stats';
                     $cached = Cache::get($cacheKey);
 
-                    if (null !== $cached) {
+                    if ($cached !== null) {
                         $totalBooks = $cached;
                     } else {
                         $stats = $db->getCollectionStats();
@@ -67,6 +67,7 @@
                     // Производительность
                     $memory_usage = round(memory_get_peak_usage(true) / 1024 / 1024, 2);
                     $execution_time = round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 3);
+
                 } catch (Exception $e) {
                     $totalBooks = 0;
                     $memory_usage = 0;
@@ -111,23 +112,23 @@
                     <small class="text-light" style="opacity: 0.7;">
                         <i class="fas fa-code me-1"></i>
                         PHP <?php echo PHP_VERSION; ?>
-                        <?php if (Config::ENABLE_CACHE && extension_loaded('apcu')) { ?>
+                        <?php if (Config::isCacheEnabled() && extension_loaded('apcu')): ?>
                         | <i class="fas fa-bolt me-1"></i>APCu
-                        <?php } ?>
-                        | <i class="fas fa-database me-1"></i><?php echo strtoupper(Config::DB_TYPE); ?>
+                        <?php endif; ?>
+                        | <i class="fas fa-database me-1"></i><?php echo Config::getDbType(); ?>
                     </small>
 
-                    <?php if (Config::ENABLE_CACHE) { ?>
+                    <?php if (Config::isCacheEnabled()): ?>
                     <span class="badge bg-warning text-dark">
                         <i class="fas fa-bolt me-1"></i><?php echo __('caching'); ?>
                     </span>
-                    <?php } ?>
+                    <?php endif; ?>
                     
                     <!-- Индикатор текущего языка -->
                     <span class="badge bg-info">
                         <?php
         $detector = LanguageDetector::getInstance();
-echo $detector->getLanguageFlag().' '.$detector->getLanguageName();
+echo $detector->getLanguageFlag() . ' ' . $detector->getLanguageName();
 ?>
                     </span>
                 </div>

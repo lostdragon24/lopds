@@ -2,20 +2,20 @@
 
 // admin/AdminController.php
 
-require_once __DIR__.'/../define.php';
-require_once __DIR__.'/../config/config.php';
-require_once __DIR__.'/../lib/Database.php';
-require_once __DIR__.'/../lib/Cache.php';
-require_once __DIR__.'/../lib/ScannerManager.php';
-require_once __DIR__.'/../lib/GenreManager.php';
-require_once __DIR__.'/../lib/EnvLoader.php';
+require_once __DIR__ . '/../define.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../lib/Database.php';
+require_once __DIR__ . '/../lib/Cache.php';
+require_once __DIR__ . '/../lib/ScannerManager.php';
+require_once __DIR__ . '/../lib/GenreManager.php';
+require_once __DIR__ . '/../lib/EnvLoader.php';
 
 // Подключаем классы админки
-require_once __DIR__.'/DashboardWidgets.php';
-require_once __DIR__.'/BookManager.php';
-require_once __DIR__.'/SettingsManager.php';
-require_once __DIR__.'/DatabaseManager.php';
-require_once __DIR__.'/LogManager.php';
+require_once __DIR__ . '/DashboardWidgets.php';
+require_once __DIR__ . '/BookManager.php';
+require_once __DIR__ . '/SettingsManager.php';
+require_once __DIR__ . '/DatabaseManager.php';
+require_once __DIR__ . '/LogManager.php';
 
 class AdminController
 {
@@ -42,11 +42,11 @@ class AdminController
     }
 
     /**
-     * Инициализация сессии с правильными параметрами.
+     * Инициализация сессии с правильными параметрами
      */
     private function initSession()
     {
-        if (PHP_SESSION_NONE === session_status()) {
+        if (session_status() === PHP_SESSION_NONE) {
             // Устанавливаем параметры сессии ДО её старта
             $cookieParams = session_get_cookie_params();
             session_set_cookie_params(
@@ -68,11 +68,11 @@ class AdminController
         $action = $_GET['action'] ?? 'dashboard';
         $postAction = $_POST['action'] ?? '';
 
-        error_log('=== HANDLE REQUEST ===');
-        error_log('Session ID: '.session_id());
-        error_log('Session data: '.print_r($_SESSION, true));
-        error_log('Action: '.$action);
-        error_log('POST Action: '.$postAction);
+        error_log("=== HANDLE REQUEST ===");
+        error_log("Session ID: " . session_id());
+        error_log("Session data: " . print_r($_SESSION, true));
+        error_log("Action: " . $action);
+        error_log("POST Action: " . $postAction);
 
         // ВАЖНО: сначала проверяем авторизацию для всех действий, кроме login
         $publicActions = ['login', 'do_login', 'debug_session'];
@@ -81,15 +81,13 @@ class AdminController
             if (!$this->checkAuth()) {
                 // Если не авторизован - показываем форму входа
                 $this->showLogin();
-
                 return;
             }
         }
 
         // Обработка POST запросов
-        if ('POST' === $_SERVER['REQUEST_METHOD'] && !empty($postAction)) {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($postAction)) {
             $this->handlePost($postAction);
-
             return;
         }
 
@@ -143,20 +141,20 @@ showBookEdit($id);
 
     private function handlePost($action)
     {
-        error_log('=== HANDLE POST DEBUG ===');
-        error_log('Action: '.$action);
-        error_log('POST data: '.print_r($_POST, true));
-        error_log('Session CSRF: '.($_SESSION['csrf_token'] ?? 'not set'));
-        error_log('POST CSRF: '.($_POST['csrf_token'] ?? 'not set'));
+        error_log("=== HANDLE POST DEBUG ===");
+        error_log("Action: " . $action);
+        error_log("POST data: " . print_r($_POST, true));
+        error_log("Session CSRF: " . ($_SESSION['csrf_token'] ?? 'not set'));
+        error_log("POST CSRF: " . ($_POST['csrf_token'] ?? 'not set'));
 
         // ВАЖНО: проверяем CSRF для всех действий кроме login
-        if ('do_login' !== $action) {
+        if ($action !== 'do_login') {
             $csrfToken = $_POST['csrf_token'] ?? '';
             if (empty($csrfToken)) {
-                error_log('CSRF token missing in POST');
+                error_log("CSRF token missing in POST");
                 $_SESSION['message'] = __('admin_error_csrf_missing');
                 $_SESSION['message_type'] = 'danger';
-                header('Location: '.($_SERVER['HTTP_REFERER'] ?? '?action=dashboard'));
+                header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '?action=dashboard'));
                 exit;
             }
 
@@ -164,11 +162,11 @@ showBookEdit($id);
                 error_log("CSRF validation failed. Token: $csrfToken");
                 $_SESSION['message'] = __('admin_error_csrf_invalid');
                 $_SESSION['message_type'] = 'danger';
-                header('Location: '.($_SERVER['HTTP_REFERER'] ?? '?action=dashboard'));
+                header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '?action=dashboard'));
                 exit;
             }
 
-            error_log('CSRF validation passed');
+            error_log("CSRF validation passed");
         }
 
         switch ($action) {
@@ -182,7 +180,7 @@ showBookEdit($id);
                     $file = $_FILES['book_file'] ?? null;
 
                     // Дополнительная проверка для файлов
-                    if ($file && UPLOAD_ERR_OK === $file['error']) {
+                    if ($file && $file['error'] === UPLOAD_ERR_OK) {
                         // Проверяем MIME-тип (для дополнительной безопасности)
                         $finfo = finfo_open(FILEINFO_MIME_TYPE);
                         $mimeType = finfo_file($finfo, $file['tmp_name']);
@@ -192,7 +190,7 @@ showBookEdit($id);
                             'fb2' => ['application/xml', 'text/xml', 'application/x-fictionbook+xml'],
                             'epub' => ['application/epub+zip', 'application/zip'],
                             'pdf' => ['application/pdf'],
-                            'txt' => ['text/plain'],
+                            'txt' => ['text/plain']
                         ];
 
                         $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
@@ -200,7 +198,7 @@ showBookEdit($id);
 
                         if (isset($allowedMimes[$extension])) {
                             foreach ($allowedMimes[$extension] as $allowedMime) {
-                                if (false !== strpos($mimeType, $allowedMime)) {
+                                if (strpos($mimeType, $allowedMime) !== false) {
                                     $isValid = true;
                                     break;
                                 }
@@ -208,7 +206,7 @@ showBookEdit($id);
                         }
 
                         // Для ZIP-архивов (EPUB) дополнительная проверка
-                        if ('epub' === $extension && 'application/zip' === $mimeType) {
+                        if ($extension === 'epub' && $mimeType === 'application/zip') {
                             $isValid = true;
                         }
 
@@ -223,7 +221,7 @@ showBookEdit($id);
                         $_SESSION['message_type'] = 'success';
                     }
                 } catch (Exception $e) {
-                    $_SESSION['message'] = __('admin_books_edit_error').': '.$e->getMessage();
+                    $_SESSION['message'] = __('admin_books_edit_error') . ': ' . $e->getMessage();
                     $_SESSION['message_type'] = 'danger';
 
                     // Сохраняем ошибку загрузки в сессию для отображения в форме
@@ -235,6 +233,7 @@ showBookEdit($id);
                 }
                 header('Location: ?action=books');
                 break;
+
 
             case 'book_delete':
                 if ($this->bookManager->deleteBook($_POST['id'] ?? 0)) {
@@ -260,17 +259,17 @@ showBookEdit($id);
 
             case 'scanner_start':
                 $mode = $_POST['mode'] ?? 'normal';
-                $background = isset($_POST['background']) && '1' == $_POST['background'];
+                $background = isset($_POST['background']) && $_POST['background'] == '1';
 
                 try {
                     $result = $this->scanner->start($background, $mode);
                     $_SESSION['scanner_message'] = $result['message'];
                     if (isset($result['pid'])) {
-                        $_SESSION['scanner_message'] .= ' (PID: '.$result['pid'].')';
+                        $_SESSION['scanner_message'] .= " (PID: " . $result['pid'] . ")";
                     }
                 } catch (Exception $e) {
                     $_SESSION['scanner_error'] = $e->getMessage();
-                    error_log('Scanner start error: '.$e->getMessage());
+                    error_log("Scanner start error: " . $e->getMessage());
                 }
                 header('Location: ?action=scanner');
                 break;
@@ -304,7 +303,7 @@ showBookEdit($id);
                         $_SESSION['message_type'] = 'success';
                     }
                 } catch (Exception $e) {
-                    $_SESSION['message'] = __('admin_settings_save_error').': '.$e->getMessage();
+                    $_SESSION['message'] = __('admin_settings_save_error') . ': ' . $e->getMessage();
                     $_SESSION['message_type'] = 'danger';
                 }
                 header('Location: ?action=settings');
@@ -331,7 +330,7 @@ showBookEdit($id);
                 if ($result['success']) {
                     $msg = __('admin_db_optimized');
                     if (isset($result['results']['saved_formatted'])) {
-                        $msg .= ' '.sprintf(__('admin_db_optimized_freed'), $result['results']['saved_formatted']);
+                        $msg .= ' ' . sprintf(__('admin_db_optimized_freed'), $result['results']['saved_formatted']);
                     }
                     $_SESSION['message'] = $msg;
                     $_SESSION['message_type'] = 'success';
@@ -347,7 +346,7 @@ showBookEdit($id);
                 if ($result['success']) {
                     $msg = __('admin_db_integrity_ok');
                     if (isset($result['results']['integrity'])) {
-                        $msg .= ' '.$result['results']['integrity'];
+                        $msg .= ' ' . $result['results']['integrity'];
                     }
                     $_SESSION['message'] = $msg;
                     $_SESSION['message_type'] = 'success';
@@ -382,7 +381,7 @@ showBookEdit($id);
                     $_SESSION['message'] = __('admin_error_missing_params');
                     $_SESSION['message_type'] = 'danger';
                 } else {
-                    $backupFile = Config::getBasePath().'/backups/database/'.basename($filename);
+                    $backupFile = Config::getBasePath() . '/backups/database/' . basename($filename);
                     if (file_exists($backupFile) && unlink($backupFile)) {
                         $_SESSION['message'] = __('admin_db_backup_deleted');
                         $_SESSION['message_type'] = 'success';
@@ -401,7 +400,7 @@ showBookEdit($id);
                     $_SESSION['message_type'] = 'danger';
                     header('Location: ?action=database');
                 } else {
-                    header('Location: ?action=browse_table&table='.urlencode($table));
+                    header('Location: ?action=browse_table&table=' . urlencode($table));
                 }
                 break;
             case 'library_backup_create':
@@ -421,7 +420,7 @@ showBookEdit($id);
                 break;
 
             default:
-                error_log('Unknown POST action: '.$action);
+                error_log("Unknown POST action: " . $action);
                 header('Location: ?action=dashboard');
         }
         exit;
@@ -429,15 +428,14 @@ showBookEdit($id);
 
     private function checkAuth()
     {
-        $isLogged = isset($_SESSION['admin_logged_in']) && true === $_SESSION['admin_logged_in'];
-        error_log('checkAuth() - Result: '.($isLogged ? 'true' : 'false'));
-
+        $isLogged = isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true;
+        error_log("checkAuth() - Result: " . ($isLogged ? 'true' : 'false'));
         return $isLogged;
     }
 
     private function doLogin($post)
     {
-        error_log('=== DO LOGIN ===');
+        error_log("=== DO LOGIN ===");
 
         $username = $post['username'] ?? '';
         $password = $post['password'] ?? '';
@@ -453,15 +451,16 @@ showBookEdit($id);
             // Регенерируем ID сессии для безопасности
             session_regenerate_id(true);
 
-            error_log('Login successful. Session: '.print_r($_SESSION, true));
+            error_log("Login successful. Session: " . print_r($_SESSION, true));
 
             header('Location: ?action=dashboard');
             exit;
+        } else {
+            error_log("Login failed for user: " . $username);
+            $_SESSION['login_error'] = __('login_error');
+            header('Location: ?action=login');
+            exit;
         }
-        error_log('Login failed for user: '.$username);
-        $_SESSION['login_error'] = __('login_error');
-        header('Location: ?action=login');
-        exit;
     }
 
     private function logout()
@@ -482,25 +481,25 @@ showBookEdit($id);
 
         $this->render('login', [
             'error' => $error,
-            'csrf_token' => $csrfToken,
+            'csrf_token' => $csrfToken
         ]);
     }
 
     private function debugSession()
     {
-        echo '<pre>';
-        echo 'Session ID: '.session_id()."\n";
-        echo 'Session data: ';
+        echo "<pre>";
+        echo "Session ID: " . session_id() . "\n";
+        echo "Session data: ";
         print_r($_SESSION);
         echo "\n\n";
-        echo 'POST data: ';
+        echo "POST data: ";
         print_r($_POST);
         echo "\n\n";
-        echo 'GET data: ';
+        echo "GET data: ";
         print_r($_GET);
-        echo '</pre>';
+        echo "</pre>";
 
-        echo '<br><a href="?action=login">'.__('back_to_list').'</a>';
+        echo '<br><a href="?action=login">' . __('back_to_list') . '</a>';
         exit;
     }
 
@@ -512,7 +511,7 @@ showBookEdit($id);
             'recent_books' => $this->widgets->getRecentBooks(10),
             'scanner_status' => $this->widgets->getScannerStatus(),
             'cache_stats' => $this->widgets->getCacheStats(),
-            'csrf_token' => Config::getCsrfToken(),
+            'csrf_token' => Config::getCsrfToken()
         ];
 
         $this->render('dashboard', $data);
@@ -527,7 +526,7 @@ showBookEdit($id);
             $fileTypesList = $this->bookManager->getAllFileTypes();
             $authorsList = $this->bookManager->getAllAuthors();
         } catch (Exception $e) {
-            error_log('Error loading filter data: '.$e->getMessage());
+            error_log("Error loading filter data: " . $e->getMessage());
             $genresList = [];
             $fileTypesList = [];
             $authorsList = [];
@@ -543,13 +542,14 @@ showBookEdit($id);
             'authorsList' => $authorsList,
             'message' => $_SESSION['message'] ?? '',
             'message_type' => $_SESSION['message_type'] ?? '',
-            'csrf_token' => Config::getCsrfToken(),
+            'csrf_token' => Config::getCsrfToken()
         ];
 
         unset($_SESSION['message'], $_SESSION['message_type']);
 
         $this->render('books', $data);
     }
+
 
     private function showBookEdit($id)
     {
@@ -571,7 +571,7 @@ showBookEdit($id);
             'genres' => GenreManager::getAllGenres(),
             'action' => $id ? 'edit' : 'add',
             'csrf_token' => Config::getCsrfToken(),
-            'upload_error' => $_SESSION['upload_error'] ?? '',
+            'upload_error' => $_SESSION['upload_error'] ?? ''
         ];
 
         unset($_SESSION['upload_error']);
@@ -594,13 +594,13 @@ showBookEdit($id);
         try {
             $stats = $this->scanner->getStats();
         } catch (Exception $e) {
-            error_log('Error getting scanner stats: '.$e->getMessage());
+            error_log("Error getting scanner stats: " . $e->getMessage());
         }
 
         // Объединяем данные
         $viewData = array_merge($status, [
             'stats' => $stats,
-            'scanner_info' => $scannerInfo,
+            'scanner_info' => $scannerInfo
         ]);
 
         // Получаем сообщения из сессии
@@ -621,7 +621,7 @@ showBookEdit($id);
             'csrf_token' => $csrf_token,
             'hasInpx' => $hasInpx,
             'scanner' => $this->scanner,
-            'scanner_info' => $scannerInfo,  // Добавляем отдельно для шаблона
+            'scanner_info' => $scannerInfo  // Добавляем отдельно для шаблона
         ];
 
         $this->render('scanner', $data);
@@ -634,7 +634,7 @@ showBookEdit($id);
             'backups' => $this->settingsManager->getBackups(),
             'message' => $_SESSION['message'] ?? '',
             'message_type' => $_SESSION['message_type'] ?? '',
-            'csrf_token' => Config::getCsrfToken(),
+            'csrf_token' => Config::getCsrfToken()
         ];
         unset($_SESSION['message'], $_SESSION['message_type']);
 
@@ -650,7 +650,7 @@ showBookEdit($id);
             'cache_stats' => Cache::getStats(),
             'message' => $_SESSION['message'] ?? '',
             'message_type' => $_SESSION['message_type'] ?? '',
-            'csrf_token' => Config::getCsrfToken(),
+            'csrf_token' => Config::getCsrfToken()
         ];
         unset($_SESSION['message'], $_SESSION['message_type']);
 
@@ -663,7 +663,7 @@ showBookEdit($id);
             'php_log' => $this->logManager->getPhpLog(100),
             'scanner_log' => $this->logManager->getScannerLog(100),
             'system_log' => $this->logManager->getSystemLog(100),
-            'csrf_token' => Config::getCsrfToken(),
+            'csrf_token' => Config::getCsrfToken()
         ];
 
         $this->render('logs', $data);
@@ -674,19 +674,20 @@ showBookEdit($id);
         extract($data);
 
         // Подключаем шапку
-        require __DIR__.'/../templates/admin/layout/header.php';
+        require __DIR__ . '/../templates/admin/layout/header.php';
 
         // Подключаем основной шаблон
-        $templateFile = __DIR__.'/../templates/admin/'.$template.'.php';
+        $templateFile = __DIR__ . '/../templates/admin/' . $template . '.php';
         if (file_exists($templateFile)) {
             require $templateFile;
         } else {
-            echo "<div class='alert alert-danger'>".__('admin_template_not_found')." $template</div>";
+            echo "<div class='alert alert-danger'>" . __('admin_template_not_found') . " $template</div>";
         }
 
         // Подключаем подвал
-        require __DIR__.'/../templates/admin/layout/footer.php';
+        require __DIR__ . '/../templates/admin/layout/footer.php';
     }
+
 
     private function showLibraryBackup()
     {
@@ -699,7 +700,7 @@ showBookEdit($id);
             'backup_stats' => $backupManager->getBackupStats(),
             'csrf_token' => Config::getCsrfToken(),
             'message' => $_SESSION['message'] ?? '',
-            'message_type' => $_SESSION['message_type'] ?? '',
+            'message_type' => $_SESSION['message_type'] ?? ''
         ];
 
         unset($_SESSION['message'], $_SESSION['message_type']);
@@ -714,7 +715,7 @@ showBookEdit($id);
             $result = $backupManager->createBackup();
 
             if ($result['success']) {
-                $_SESSION['message'] = $result['message'].': '.$result['filename'].' ('.$result['size_formatted'].')';
+                $_SESSION['message'] = $result['message'] . ': ' . $result['filename'] . ' (' . $result['size_formatted'] . ')';
                 $_SESSION['message_type'] = 'success';
             }
         } catch (Exception $e) {
@@ -787,6 +788,7 @@ showBookEdit($id);
 
             $backupManager = new LibraryBackupManager();
             $backupManager->downloadBackup($filename);
+
         } catch (Exception $e) {
             $_SESSION['message'] = $e->getMessage();
             $_SESSION['message_type'] = 'danger';
@@ -794,6 +796,9 @@ showBookEdit($id);
         }
         exit;
     }
+
+
+
 
     private function browseTable($tableName)
     {
@@ -803,11 +808,10 @@ showBookEdit($id);
             $_SESSION['message'] = __('admin_error_access_denied');
             $_SESSION['message_type'] = 'danger';
             header('Location: ?action=database');
-
             return;
         }
 
-        $page = isset($_GET['page']) ? max(1, (int) $_GET['page']) : 1;
+        $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
         $perPage = 50;
         $offset = ($page - 1) * $perPage;
 
@@ -831,7 +835,7 @@ showBookEdit($id);
                 $columnNames = array_keys($rows[0]);
             } else {
                 // Если нет данных, получаем структуру таблицы
-                if ('sqlite' === $this->db->getDbType()) {
+                if ($this->db->getDbType() === 'sqlite') {
                     $stmt = $pdo->query("PRAGMA table_info(\"$tableName\")");
                     $columns = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     $columnNames = array_column($columns, 'name');
@@ -855,14 +859,15 @@ showBookEdit($id);
                 'debug' => [
                     'has_rows' => !empty($rows),
                     'column_count' => count($columnNames),
-                    'row_count' => count($rows),
-                ],
+                    'row_count' => count($rows)
+                ]
             ];
 
             $this->render('browse_table', $data);
+
         } catch (Exception $e) {
-            error_log('Error browsing table: '.$e->getMessage());
-            $_SESSION['message'] = __('admin_error_database').': '.$e->getMessage();
+            error_log("Error browsing table: " . $e->getMessage());
+            $_SESSION['message'] = __('admin_error_database') . ': ' . $e->getMessage();
             $_SESSION['message_type'] = 'danger';
             header('Location: ?action=database');
         }

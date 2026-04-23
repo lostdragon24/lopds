@@ -15,13 +15,13 @@ $message_type = $message_type ?? '';
     <?php echo __('admin_library_backup'); ?>
 </h1>
 
-<?php if ($message) { ?>
+<?php if ($message): ?>
     <div class="alert alert-<?php echo $message_type; ?> alert-dismissible fade show">
-        <i class="fas fa-<?php echo 'success' === $message_type ? 'check-circle' : 'exclamation-circle'; ?> me-2"></i>
+        <i class="fas fa-<?php echo $message_type === 'success' ? 'check-circle' : 'exclamation-circle'; ?> me-2"></i>
         <?php echo htmlspecialchars($message); ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
-<?php } ?>
+<?php endif; ?>
 
 <!-- Информация о библиотеке -->
 <div class="row mb-4">
@@ -46,17 +46,17 @@ $message_type = $message_type ?? '';
                     <tr>
                         <th><?php echo __('backup_library_status'); ?>:</th>
                         <td>
-                            <?php if ($can_backup) { ?>
+                            <?php if ($can_backup): ?>
                                 <span class="badge bg-success">
                                     <i class="fas fa-check-circle me-1"></i>
                                     <?php echo __('backup_library_can_backup'); ?>
                                 </span>
-                            <?php } else { ?>
+                            <?php else: ?>
                                 <span class="badge bg-danger">
                                     <i class="fas fa-exclamation-triangle me-1"></i>
                                     <?php echo __('backup_library_too_large'); ?>
                                 </span>
-                            <?php } ?>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 </table>
@@ -108,12 +108,12 @@ $message_type = $message_type ?? '';
                     </button>
                 </form>
                 
-                <?php if (!$can_backup) { ?>
+                <?php if (!$can_backup): ?>
                     <div class="alert alert-warning mt-3 mb-0">
                         <i class="fas fa-exclamation-triangle me-2"></i>
                         <?php echo __('backup_library_too_large_desc'); ?>
                     </div>
-                <?php } ?>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -128,13 +128,13 @@ $message_type = $message_type ?? '';
         </h5>
     </div>
     <div class="card-body">
-        <?php if (empty($backups)) { ?>
+        <?php if (empty($backups)): ?>
             <div class="text-center text-muted py-5">
                 <i class="fas fa-folder-open fa-3x mb-3 d-block"></i>
                 <h5><?php echo __('backup_library_no_backups'); ?></h5>
                 <p><?php echo __('backup_library_no_backups_desc'); ?></p>
             </div>
-        <?php } else { ?>
+        <?php else: ?>
             <div class="table-responsive">
                 <table class="table table-hover">
                     <thead>
@@ -147,17 +147,17 @@ $message_type = $message_type ?? '';
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($backups as $backup) { ?>
+                        <?php foreach ($backups as $backup): ?>
                              <tr>
                                  <td><?php echo $backup['date']; ?></td>
                                  <td><code><?php echo htmlspecialchars($backup['filename']); ?></code></td>
                                  <td><?php echo $backup['size_formatted']; ?></td>
                                  <td>
-                                    <?php if ($backup['info'] && isset($backup['info']['books_count'])) { ?>
+                                    <?php if ($backup['info'] && isset($backup['info']['books_count'])): ?>
                                         <span class="badge bg-primary"><?php echo number_format($backup['info']['books_count']); ?></span>
-                                    <?php } else { ?>
+                                    <?php else: ?>
                                         <span class="text-muted">—</span>
-                                    <?php } ?>
+                                    <?php endif; ?>
                                  </td>
                                  <td>
                                      <div class="btn-group btn-group-sm">
@@ -181,7 +181,7 @@ $message_type = $message_type ?? '';
                                      </div>
                                  </td>
                              </tr>
-                        <?php } ?>
+                        <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
@@ -192,7 +192,7 @@ $message_type = $message_type ?? '';
                     <?php echo __('backup_library_retention'); ?>
                 </small>
             </div>
-        <?php } ?>
+        <?php endif; ?>
     </div>
 </div>
 

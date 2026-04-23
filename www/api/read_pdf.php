@@ -1,9 +1,9 @@
 <?php
 // api/read_pdf.php
 
-require_once __DIR__.'/../config/config.php';
-require_once __DIR__.'/../lib/Database.php';
-require_once __DIR__.'/../init.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../lib/Database.php';
+require_once __DIR__ . '/../init.php';
 
 // Определяем basePath
 $scriptPath = $_SERVER['SCRIPT_NAME'];
@@ -12,21 +12,21 @@ $basePath = rtrim(dirname(dirname($scriptPath)), '/');
 $db = Database::getInstance();
 
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
-    exit(__('error_invalid_id'));
+    die(__('error_invalid_id'));
 }
 
 $bookId = intval($_GET['id']);
 $book = $db->getBook($bookId);
 
-if (!$book || 'pdf' !== strtolower($book['file_type'])) {
-    exit(__('book_not_found'));
+if (!$book || strtolower($book['file_type']) !== 'pdf') {
+    die(__('book_not_found'));
 }
 
 // Получаем путь к PDF файлу
 if ($book['archive_path'] && $book['archive_internal_path']) {
-    $tempFile = tempnam(sys_get_temp_dir(), 'pdf_').'.pdf';
+    $tempFile = tempnam(sys_get_temp_dir(), 'pdf_') . '.pdf';
     $zip = new ZipArchive();
-    if (true === $zip->open($book['archive_path'])) {
+    if ($zip->open($book['archive_path']) === true) {
         $content = $zip->getFromName($book['archive_internal_path']);
         $zip->close();
         if ($content) {
@@ -34,14 +34,14 @@ if ($book['archive_path'] && $book['archive_internal_path']) {
             $pdfUrl = $tempFile;
             $isTemp = true;
         } else {
-            exit(__('error_extract_failed'));
+            die(__('error_extract_failed'));
         }
     } else {
-        exit(__('error_extract_failed'));
+        die(__('error_extract_failed'));
     }
 } else {
     if (!file_exists($book['file_path'])) {
-        exit(__('error_file_not_found'));
+        die(__('error_file_not_found'));
     }
     $pdfUrl = $book['file_path'];
     $isTemp = false;
@@ -351,11 +351,11 @@ if ($book['archive_path'] && $book['archive_internal_path']) {
     const loadingDiv = document.querySelector('.loading');
 
     // URL PDF
-    <?php if ($isTemp) { ?>
+    <?php if ($isTemp): ?>
     const pdfUrl = '<?php echo addslashes($pdfUrl); ?>';
-    <?php } else { ?>
+    <?php else: ?>
     const pdfUrl = './download.php?id=<?php echo $bookId; ?>';
-    <?php } ?>
+    <?php endif; ?>
 
     // Рендер страницы
     async function renderPage(pageNum) {

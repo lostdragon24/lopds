@@ -1,14 +1,14 @@
 <?php
 
-require_once __DIR__.'/Fb2Parser.php';
-require_once __DIR__.'/EpubParser.php';
+require_once __DIR__ . '/Fb2Parser.php';
+require_once __DIR__ . '/EpubParser.php';
 
 class CoverParserFactory
 {
     private static $instances = [];
 
     /**
-     * Получить парсер для типа файла.
+     * Получить парсер для типа файла
      */
     public static function getParser($fileType)
     {
@@ -33,7 +33,7 @@ class CoverParserFactory
     }
 
     /**
-     * Получить парсер для книги.
+     * Получить парсер для книги
      */
     public static function getParserForBook($book)
     {
@@ -41,7 +41,7 @@ class CoverParserFactory
     }
 
     /**
-     * Универсальный метод получения обложки.
+     * Универсальный метод получения обложки
      */
     public static function getCover($book, $thumb = false)
     {
@@ -55,7 +55,7 @@ class CoverParserFactory
     }
 
     /**
-     * Универсальная проверка наличия обложки.
+     * Универсальная проверка наличия обложки
      */
     public static function hasCover($book)
     {
@@ -69,7 +69,7 @@ class CoverParserFactory
     }
 
     /**
-     * Очистить кэш для книги.
+     * Очистить кэш для книги
      */
     public static function clearCache($bookId, $fileType = null)
     {

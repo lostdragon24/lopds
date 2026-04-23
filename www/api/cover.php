@@ -2,11 +2,11 @@
 
 // api/cover.php
 
-require_once __DIR__.'/../config/config.php';
-require_once __DIR__.'/../lib/Database.php';
-require_once __DIR__.'/../lib/CoverParser/Factory.php';
-require_once __DIR__.'/../lib/BookHelper.php';
-require_once __DIR__.'/../init.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../lib/Database.php';
+require_once __DIR__ . '/../lib/CoverParser/Factory.php';
+require_once __DIR__ . '/../lib/BookHelper.php';
+require_once __DIR__ . '/../init.php';
 
 $id = $_GET['id'] ?? '';
 $thumb = isset($_GET['thumb']);
@@ -27,24 +27,34 @@ if (!$book) {
 // ============================================
 // 1. СНАЧАЛА ПРОВЕРЯЕМ КЭШ НА ДИСКЕ
 // ============================================
-// $cacheDir = Config::getCoverCacheDir();
-// $cacheFile = $cacheDir . '/' . $book['id'] . ($thumb ? '_thumb.jpg' : '.jpg');
+//$cacheDir = Config::getCoverCacheDir();
+//$cacheFile = $cacheDir . '/' . $book['id'] . ($thumb ? '_thumb.jpg' : '.jpg');
+
 
 // === БЕЗОПАСНАЯ РАБОТА С ПУТЯМИ К КЭШУ ===
 $cacheDir = realpath(Config::getCoverCacheDir());
-if (false === $cacheDir) {
+if ($cacheDir === false) {
     serveDefaultCover($thumb);
     exit;
 }
 
 // Принудительно приводим к int, исключая любые символы
-$safeBookId = (int) $book['id'];
-$cacheFile = $cacheDir.'/'.$safeBookId.($thumb ? '_thumb.jpg' : '.jpg');
+$safeBookId = (int)$book['id'];
+$cacheFile = $cacheDir . '/' . $safeBookId . ($thumb ? '_thumb.jpg' : '.jpg');
+$realCacheDir = realpath($cacheDir);
+$realCacheFile = realpath($cacheFile);
+
+if ($realCacheFile !== false && strpos($realCacheFile, $realCacheDir . DIRECTORY_SEPARATOR . $safeBookId) === 0) {
+    // Только теперь можно безопасно читать файл
+    readfile($realCacheFile);
+    exit;
+}
 
 if (file_exists($cacheFile)) {
     // Дополнительная проверка: resolved path должен начинаться с cacheDir
     $realCacheFile = realpath($cacheFile);
-    if (false === $realCacheFile || 0 !== strpos($realCacheFile, $cacheDir)) {
+    
+    if ($realCacheFile === false || strpos($realCacheFile, $cacheDir) !== 0) {
         serveDefaultCover($thumb);
         exit;
     }
@@ -61,7 +71,7 @@ if (file_exists($cacheFile)) {
 // ============================================
 $coverData = null;
 
-if ('pdf' === strtolower($book['file_type'])) {
+if (strtolower($book['file_type']) === 'pdf') {
     // Пробуем извлечь обложку из PDF
     $coverData = BookHelper::extractPdfCover($book, $thumb);
 
@@ -71,12 +81,14 @@ if ('pdf' === strtolower($book['file_type'])) {
         //    chmod($cacheFile, 0644);
 
         // Перед записью снова проверяем, что путь безопасен
-        if (0 !== strpos(realpath($cacheDir).'/'.$safeBookId, $cacheDir)) {
+        if (strpos(realpath($cacheDir) . '/' . $safeBookId, $cacheDir) !== 0) {
             serveDefaultCover($thumb);
             exit;
         }
         file_put_contents($cacheFile, $coverData);
         chmod($cacheFile, 0644);
+
+
 
         header('Content-Type: image/jpeg');
         header('Cache-Control: public, max-age=86400');

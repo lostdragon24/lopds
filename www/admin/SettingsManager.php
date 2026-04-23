@@ -2,9 +2,9 @@
 
 // admin/SettingsManager.php
 
-require_once __DIR__.'/../lib/EnvManager.php';
-require_once __DIR__.'/../lib/BackupManager.php';
-require_once __DIR__.'/../lib/SettingsValidator.php';
+require_once __DIR__ . '/../lib/EnvManager.php';
+require_once __DIR__ . '/../lib/BackupManager.php';
+require_once __DIR__ . '/../lib/SettingsValidator.php';
 
 class SettingsManager
 {
@@ -22,7 +22,7 @@ class SettingsManager
     }
 
     /**
-     * Инициализация групп настроек.
+     * Инициализация групп настроек
      */
     private function initGroups()
     {
@@ -37,7 +37,7 @@ class SettingsManager
                         'default' => 'Моя домашняя библиотека',
                         'description' => __('settings_field_site_title_desc'),
                         'required' => true,
-                        'max_length' => 100,
+                        'max_length' => 100
                     ],
                     'ITEMS_PER_PAGE' => [
                         'label' => __('settings_field_items_per_page'),
@@ -46,53 +46,53 @@ class SettingsManager
                         'description' => __('settings_field_items_per_page_desc'),
                         'required' => true,
                         'min' => 5,
-                        'max' => 100,
-                    ],
-                ],
+                        'max' => 100
+                    ]
+                ]
             ],
 
-            'opds' => [
-                'title' => __('settings_group_opds'),
-                'icon' => 'fa-rss',
-                'fields' => [
-                    'OPDS_TITLE' => [
-                        'label' => __('settings_field_opds_title'),
-                        'type' => 'text',
-                        'default' => 'Моя библиотека',
-                        'description' => __('settings_field_opds_title_desc'),
-                        'required' => true,
-                    ],
-                    'OPDS_AUTHOR' => [
-                        'label' => __('settings_field_opds_author'),
-                        'type' => 'text',
-                        'default' => 'Book Lib',
-                        'description' => __('settings_field_opds_author_desc'),
-                        'required' => true,
-                    ],
-                    'OPDS_ID' => [
-                        'label' => __('settings_field_opds_id'),
-                        'type' => 'text',
-                        'default' => 'urn:uuid:your-uuid-here',
-                        'description' => __('settings_field_opds_id_desc'),
-                        'required' => true,
-                    ],
-                    // НОВОЕ ПОЛЕ: Язык OPDS по умолчанию
-                    'OPDS_DEFAULT_LANG' => [
-                        'label' => __('settings_field_opds_default_lang'),
-                        'type' => 'select',
-                        'options' => [
-                            'auto' => 'Авто (из сессии/куки)',
-                            'en' => 'English',
-                            'ru' => 'Русский',
-                            'ua' => 'Українська',
-                            'by' => 'Беларускі',
-                            'kz' => 'Қазақ',
-                        ],
-                        'default' => 'auto',
-                        'description' => __('settings_field_opds_default_lang_desc'),
-                    ],
-                ],
+'opds' => [
+    'title' => __('settings_group_opds'),
+    'icon' => 'fa-rss',
+    'fields' => [
+        'OPDS_TITLE' => [
+            'label' => __('settings_field_opds_title'),
+            'type' => 'text',
+            'default' => 'Моя библиотека',
+            'description' => __('settings_field_opds_title_desc'),
+            'required' => true
+        ],
+        'OPDS_AUTHOR' => [
+            'label' => __('settings_field_opds_author'),
+            'type' => 'text',
+            'default' => 'Book Lib',
+            'description' => __('settings_field_opds_author_desc'),
+            'required' => true
+        ],
+        'OPDS_ID' => [
+            'label' => __('settings_field_opds_id'),
+            'type' => 'text',
+            'default' => 'urn:uuid:your-uuid-here',
+            'description' => __('settings_field_opds_id_desc'),
+            'required' => true
+        ],
+        // НОВОЕ ПОЛЕ: Язык OPDS по умолчанию
+        'OPDS_DEFAULT_LANG' => [
+            'label' => __('settings_field_opds_default_lang'),
+            'type' => 'select',
+            'options' => [
+                'auto' => 'Авто (из сессии/куки)',
+                'en' => 'English',
+                'ru' => 'Русский',
+                'ua' => 'Українська',
+                'by' => 'Беларускі',
+                'kz' => 'Қазақ'
             ],
+            'default' => 'auto',
+            'description' => __('settings_field_opds_default_lang_desc')
+        ]
+    ]
+],
             'cache' => [
                 'title' => __('settings_group_cache'),
                 'icon' => 'fa-bolt',
@@ -101,13 +101,13 @@ class SettingsManager
                         'label' => __('settings_field_enable_cache'),
                         'type' => 'checkbox',
                         'default' => true,
-                        'description' => __('settings_field_enable_cache_desc'),
+                        'description' => __('settings_field_enable_cache_desc')
                     ],
                     'USE_APCU' => [
                         'label' => __('settings_field_use_apcu'),
                         'type' => 'checkbox',
                         'default' => true,
-                        'description' => __('settings_field_use_apcu_desc'),
+                        'description' => __('settings_field_use_apcu_desc')
                     ],
                     'CACHE_TTL' => [
                         'label' => __('settings_field_cache_ttl'),
@@ -115,15 +115,15 @@ class SettingsManager
                         'default' => 36000,
                         'description' => __('settings_field_cache_ttl_desc'),
                         'min' => 60,
-                        'max' => 86400,
+                        'max' => 86400
                     ],
                     'PAGE_CACHE_ENABLED' => [
                         'label' => __('settings_field_page_cache'),
                         'type' => 'checkbox',
                         'default' => true,
-                        'description' => __('settings_field_page_cache_desc'),
-                    ],
-                ],
+                        'description' => __('settings_field_page_cache_desc')
+                    ]
+                ]
             ],
 
             'database' => [
@@ -136,44 +136,44 @@ class SettingsManager
                         'options' => ['mysql' => 'MySQL', 'sqlite' => 'SQLite'],
                         'default' => 'mysql',
                         'description' => __('settings_field_db_type_desc'),
-                        'required' => true,
+                        'required' => true
                     ],
                     'DB_HOST' => [
                         'label' => __('settings_field_db_host'),
                         'type' => 'text',
                         'default' => 'localhost',
                         'description' => __('settings_field_db_host_desc'),
-                        'condition' => ['DB_TYPE' => 'mysql'],
+                        'condition' => ['DB_TYPE' => 'mysql']
                     ],
                     'DB_NAME' => [
                         'label' => __('settings_field_db_name'),
                         'type' => 'text',
                         'default' => 'mybook2',
                         'description' => __('settings_field_db_name_desc'),
-                        'condition' => ['DB_TYPE' => 'mysql'],
+                        'condition' => ['DB_TYPE' => 'mysql']
                     ],
                     'DB_USER' => [
                         'label' => __('settings_field_db_user'),
                         'type' => 'text',
                         'default' => 'root',
                         'description' => __('settings_field_db_user_desc'),
-                        'condition' => ['DB_TYPE' => 'mysql'],
+                        'condition' => ['DB_TYPE' => 'mysql']
                     ],
                     'DB_PASS' => [
                         'label' => __('settings_field_db_pass'),
                         'type' => 'password',
                         'default' => '',
                         'description' => __('settings_field_db_pass_desc'),
-                        'condition' => ['DB_TYPE' => 'mysql'],
+                        'condition' => ['DB_TYPE' => 'mysql']
                     ],
                     'DB_PATH' => [
                         'label' => __('settings_field_db_path'),
                         'type' => 'text',
                         'default' => '',
                         'description' => __('settings_field_db_path_desc'),
-                        'condition' => ['DB_TYPE' => 'sqlite'],
-                    ],
-                ],
+                        'condition' => ['DB_TYPE' => 'sqlite']
+                    ]
+                ]
             ],
 
             'paths' => [
@@ -185,27 +185,27 @@ class SettingsManager
                         'type' => 'text',
                         'default' => '',
                         'description' => __('settings_field_books_dir_desc'),
-                        'required' => true,
+                        'required' => true
                     ],
                     'CACHE_DIR' => [
                         'label' => __('settings_field_cache_dir'),
                         'type' => 'text',
                         'default' => '',
-                        'description' => __('settings_field_cache_dir_desc'),
+                        'description' => __('settings_field_cache_dir_desc')
                     ],
                     'COVER_CACHE_DIR' => [
                         'label' => __('settings_field_cover_cache_dir'),
                         'type' => 'text',
                         'default' => '',
-                        'description' => __('settings_field_cover_cache_dir_desc'),
+                        'description' => __('settings_field_cover_cache_dir_desc')
                     ],
                     'SCANNER_PATH' => [
                         'label' => __('settings_field_scanner_path'),
                         'type' => 'text',
                         'default' => '',
-                        'description' => __('settings_field_scanner_path_desc'),
-                    ],
-                ],
+                        'description' => __('settings_field_scanner_path_desc')
+                    ]
+                ]
             ],
 
             'performance' => [
@@ -216,7 +216,7 @@ class SettingsManager
                         'label' => __('settings_field_memory_limit'),
                         'type' => 'text',
                         'default' => '512M',
-                        'description' => __('settings_field_memory_limit_desc'),
+                        'description' => __('settings_field_memory_limit_desc')
                     ],
                     'MAX_SEARCH_RESULTS' => [
                         'label' => __('settings_field_max_search_results'),
@@ -224,9 +224,9 @@ class SettingsManager
                         'default' => 500,
                         'description' => __('settings_field_max_search_results_desc'),
                         'min' => 10,
-                        'max' => 5000,
-                    ],
-                ],
+                        'max' => 5000
+                    ]
+                ]
             ],
 
             'security' => [
@@ -239,27 +239,27 @@ class SettingsManager
                         'default' => 'admin',
                         'description' => __('settings_field_admin_user_desc'),
                         'required' => true,
-                        'min_length' => 3,
+                        'min_length' => 3
                     ],
                     'ADMIN_PASSWORD_HASH' => [
                         'label' => __('settings_field_admin_password'),
                         'type' => 'password_hash',
                         'default' => '',
-                        'description' => __('settings_field_admin_password_desc'),
+                        'description' => __('settings_field_admin_password_desc')
                     ],
                     'ADMIN_ALLOWED_IPS' => [
                         'label' => __('settings_field_admin_allowed_ips'),
                         'type' => 'text',
                         'default' => '127.0.0.1',
-                        'description' => __('settings_field_admin_allowed_ips_desc'),
-                    ],
-                ],
-            ],
+                        'description' => __('settings_field_admin_allowed_ips_desc')
+                    ]
+                ]
+            ]
         ];
     }
 
     /**
-     * Получить все настройки.
+     * Получить все настройки
      */
     public function getAll()
     {
@@ -274,14 +274,14 @@ class SettingsManager
                 'cache_dir' => Config::getCacheDir(),
                 'cover_cache_dir' => Config::getCoverCacheDir(),
                 'scanner_path' => Config::getScannerPath(),
-                'cache_enabled' => Config::ENABLE_CACHE,
-                'use_apcu' => Config::USE_APCU,
-            ],
+                'cache_enabled' => Config::isCacheEnabled(),
+                'use_apcu' => Config::isUseApcu()
+            ]
         ];
     }
 
     /**
-     * Получить значение настройки.
+     * Получить значение настройки
      */
     public function get($key, $default = null)
     {
@@ -289,11 +289,11 @@ class SettingsManager
     }
 
     /**
-     * Сохранить настройки.
+     * Сохранить настройки
      */
     public function saveSettings($post)
     {
-        error_log('=== SAVE SETTINGS ===');
+        error_log("=== SAVE SETTINGS ===");
 
         // 1. Сначала получаем текущие настройки
         $currentEnv = $this->envManager->getAll();
@@ -302,13 +302,13 @@ class SettingsManager
         $newSettings = $this->collectSettingsFromPost($post);
 
         // 3. ВАЖНО: Сохраняем пароль БД если он не был изменен
-        if (empty($post['DB_PASS']) || '********' === $post['DB_PASS']) {
+        if (empty($post['DB_PASS']) || $post['DB_PASS'] === '********') {
             if (isset($currentEnv['DB_PASS'])) {
                 $newSettings['DB_PASS'] = $currentEnv['DB_PASS'];
-                error_log('Keeping existing DB password');
+                error_log("Keeping existing DB password");
             }
         } else {
-            error_log('Updating DB password');
+            error_log("Updating DB password");
             // Пароль уже в $newSettings из POST
         }
 
@@ -337,7 +337,7 @@ class SettingsManager
     }
 
     /**
-     * Собрать настройки из POST.
+     * Собрать настройки из POST
      */
     private function collectSettingsFromPost($post)
     {
@@ -351,17 +351,17 @@ class SettingsManager
 
                     switch ($field['type']) {
                         case 'checkbox':
-                            $value = ('on' === $value || '1' === $value) ? 'true' : 'false';
+                            $value = ($value === 'on' || $value === '1') ? 'true' : 'false';
                             break;
                         case 'number':
-                            $value = (int) $value;
+                            $value = (int)$value;
                             break;
                         default:
                             $value = trim($value);
                     }
 
                     $settings[$fieldKey] = $value;
-                } elseif ('checkbox' === $field['type']) {
+                } elseif ($field['type'] === 'checkbox') {
                     $settings[$fieldKey] = 'false';
                 }
             }
@@ -371,7 +371,7 @@ class SettingsManager
     }
 
     /**
-     * Обработать пароль администратора.
+     * Обработать пароль администратора
      */
     private function processPassword($settings, $post)
     {
@@ -381,7 +381,6 @@ class SettingsManager
             if ($existing) {
                 $settings['ADMIN_PASSWORD_HASH'] = $existing;
             }
-
             return $settings;
         }
 
@@ -402,7 +401,7 @@ class SettingsManager
     }
 
     /**
-     * Получить список бэкапов.
+     * Получить список бэкапов
      */
     public function getBackups()
     {
@@ -410,11 +409,11 @@ class SettingsManager
     }
 
     /**
-     * Восстановить из бэкапа.
+     * Восстановить из бэкапа
      */
     public function restoreBackup($filename)
     {
-        $envFile = __DIR__.'/../config/.env';
+        $envFile = __DIR__ . '/../config/.env';
 
         // Создаём бэкап текущего файла
         $this->backupManager->createBackup($envFile);
@@ -431,7 +430,7 @@ class SettingsManager
     }
 
     /**
-     * Проверить подключение к БД.
+     * Проверить подключение к БД
      */
     public function testDatabaseConnection($settings)
     {
@@ -439,7 +438,7 @@ class SettingsManager
     }
 
     /**
-     * Очистить кэш конфигурации.
+     * Очистить кэш конфигурации
      */
     private function clearConfigCache()
     {

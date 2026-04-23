@@ -12,7 +12,7 @@ $inReader = true;
 
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     header('HTTP/1.0 400 Bad Request');
-    exit(__('book_invalid_id'));
+    die(__('book_invalid_id'));
 }
 
 $bookId = intval($_GET['id']);
@@ -20,7 +20,7 @@ $book = $db->getBook($bookId);
 
 if (!$book) {
     header('HTTP/1.0 404 Not Found');
-    exit(__('book_not_found'));
+    die(__('book_not_found'));
 }
 
 $fileType = strtolower($book['file_type']);
@@ -49,25 +49,25 @@ require 'templates/header.php';
 
     <!-- Область чтения -->
     <div class="reader-container" id="readerContainer">
-        <?php if ('fb2' === $fileType) { ?>
+        <?php if ($fileType === 'fb2'): ?>
             <iframe src="./api/read_fb2.php?id=<?php echo $bookId; ?>" 
                     class="fb2-iframe" 
                     id="readerFrame"
                     frameborder="0"
                     title="<?php echo __('reader_fb2_title'); ?>"></iframe>
-        <?php } elseif ('epub' === $fileType) { ?>
+        <?php elseif ($fileType === 'epub'): ?>
             <iframe src="./api/read_epub.php?id=<?php echo $bookId; ?>" 
                     class="epub-iframe" 
                     id="readerFrame"
                     frameborder="0"
                     title="<?php echo __('reader_epub_title'); ?>"></iframe>
-        <?php } elseif ('pdf' === $fileType) { ?>
+        <?php elseif ($fileType === 'pdf'): ?>
             <iframe src="./api/read_pdf.php?id=<?php echo $bookId; ?>" 
                     class="pdf-iframe" 
                     id="readerFrame"
                     frameborder="0"
                     title="<?php echo __('reader_pdf_title'); ?>"></iframe>
-        <?php } else { ?>
+        <?php else: ?>
             <div class="alert alert-warning m-4">
                 <h5><i class="fas fa-exclamation-triangle me-2"></i><?php echo __('reader_format_not_supported'); ?></h5>
                 <p><?php echo sprintf(__('reader_format_desc'), strtoupper($fileType)); ?></p>
@@ -75,7 +75,7 @@ require 'templates/header.php';
                     <i class="fas fa-download me-2"></i><?php echo __('reader_download'); ?>
                 </a>
             </div>
-        <?php } ?>
+        <?php endif; ?>
     </div>
 
     <!-- Нижняя панель управления -->

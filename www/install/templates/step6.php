@@ -7,7 +7,7 @@ $totalAuthors = 0;
 
 try {
     if (!class_exists('Database', false)) {
-        require_once __DIR__.'/../../lib/Database.php';
+        require_once __DIR__ . '/../../lib/Database.php';
     }
     $db = Database::getInstance();
     if ($db->isAvailable()) {
@@ -16,11 +16,11 @@ try {
         $totalAuthors = $stmt->fetchColumn();
     }
 } catch (Exception $e) {
-    error_log('Error getting stats: '.$e->getMessage());
+    error_log("Error getting stats: " . $e->getMessage());
 }
 
-$baseUrl = (isset($_SERVER['HTTPS']) && 'on' === $_SERVER['HTTPS'] ? 'https' : 'http').
-           '://'.$_SERVER['HTTP_HOST'].dirname(dirname($_SERVER['SCRIPT_NAME']));
+$baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") .
+           "://" . $_SERVER['HTTP_HOST'] . dirname(dirname($_SERVER['SCRIPT_NAME']));
 
 // Получаем информацию о языках для кнопок
 $detector = LanguageDetector::getInstance();
@@ -190,7 +190,7 @@ $currentLang = $detector->getCurrentLanguage();
     <div class="mt-4 text-muted small">
         <i class="fas fa-language me-1"></i>
         <?php echo __('install_step6_language'); ?>: 
-        <?php echo $detector->getLanguageFlag().' '.$detector->getLanguageName(); ?>
+        <?php echo $detector->getLanguageFlag() . ' ' . $detector->getLanguageName(); ?>
     </div>
 </div>
 

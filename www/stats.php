@@ -15,10 +15,10 @@ $db = Database::getInstance();
 $dbType = Config::getDbType();
 
 // Ключ кэша с учётом даты (обновляется раз в час)
-$cacheKey = 'stats_complete_data_'.date('YmdH');
+$cacheKey = 'stats_complete_data_' . date('YmdH');
 $cachedData = Cache::get($cacheKey, 'statistics');
 
-if (null !== $cachedData) {
+if ($cachedData !== null) {
     // Данные уже в кэше – отдаём их
     $stats = $cachedData['stats'];
     $topAuthors = $cachedData['topAuthors'];
@@ -30,7 +30,7 @@ if (null !== $cachedData) {
     $fileTypes = $cachedData['fileTypes'];
 } else {
     // ========== ОСНОВНОЙ ЗАПРОС – ВСЯ ОБЩАЯ СТАТИСТИКА ЗА РАЗ ==========
-    if ('mysql' === $dbType) {
+    if ($dbType === 'mysql') {
         $sql = "SELECT
                     (SELECT COUNT(*) FROM books) AS total_books,
                     (SELECT COUNT(DISTINCT author) FROM books WHERE author IS NOT NULL AND author != '') AS total_authors,
@@ -74,39 +74,39 @@ if (null !== $cachedData) {
 
     // Формируем массив stats из полученных данных
     $stats = [
-        'total_books' => (int) $basic['total_books'],
-        'total_authors' => (int) $basic['total_authors'],
-        'total_genres' => (int) $basic['total_genres'],
-        'total_series' => (int) $basic['total_series'],
-        'last_update' => $basic['last_update'],
-        'books_in_archives' => (int) $basic['books_in_archives'],
+        'total_books'       => (int)$basic['total_books'],
+        'total_authors'     => (int)$basic['total_authors'],
+        'total_genres'      => (int)$basic['total_genres'],
+        'total_series'      => (int)$basic['total_series'],
+        'last_update'       => $basic['last_update'],
+        'books_in_archives' => (int)$basic['books_in_archives'],
     ];
 
     $ratingStats = [
-        'rated_books' => (int) $basic['rated_books'],
-        'total_ratings' => (int) $basic['total_ratings'],
-        'avg_rating' => (float) $basic['avg_rating'],
-        'unique_voters' => (int) $basic['unique_voters'],
+        'rated_books'   => (int)$basic['rated_books'],
+        'total_ratings' => (int)$basic['total_ratings'],
+        'avg_rating'    => (float)$basic['avg_rating'],
+        'unique_voters' => (int)$basic['unique_voters'],
     ];
 
     $favoritesStats = [
-        'favorited_books' => (int) $basic['favorited_books'],
-        'total_favorites' => (int) $basic['total_favorites'],
-        'users_with_favorites' => (int) $basic['users_with_favorites'],
+        'favorited_books'     => (int)$basic['favorited_books'],
+        'total_favorites'     => (int)$basic['total_favorites'],
+        'users_with_favorites' => (int)$basic['users_with_favorites'],
     ];
 
     // ========== ФОРМАТЫ ФАЙЛОВ ==========
-    $stmt = $db->getConnection()->query('
+    $stmt = $db->getConnection()->query("
         SELECT file_type, COUNT(*) as count
         FROM books
         WHERE file_type IS NOT NULL
         GROUP BY file_type
         ORDER BY count DESC
-    ');
+    ");
     $fileTypes = $stmt->fetchAll();
 
     // ========== ТОП-20 АВТОРОВ ==========
-    if ('mysql' === Config::getDbType()) {
+    if (Config::getDbType() === 'mysql') {
         // Пробуем использовать индекс, но если его нет - просто выполняем запрос
         try {
             $sql = "SELECT author, COUNT(*) as count
@@ -118,7 +118,7 @@ if (null !== $cachedData) {
             $stmt = $db->getConnection()->query($sql);
         } catch (Exception $e) {
             // Если индекс не существует, выполняем запрос без подсказки
-            error_log('Index idx_author_count not found, using simple query: '.$e->getMessage());
+            error_log("Index idx_author_count not found, using simple query: " . $e->getMessage());
             $sql = "SELECT author, COUNT(*) as count
                 FROM books 
                 WHERE author IS NOT NULL AND author != ''
@@ -140,7 +140,7 @@ if (null !== $cachedData) {
 
     // ========== ТОП-50 ЖАНРОВ ==========
     try {
-        if ('mysql' === Config::getDbType()) {
+        if (Config::getDbType() === 'mysql') {
             try {
                 $sql = "SELECT genre, COUNT(*) as count
                     FROM books USE INDEX (idx_genre_count)
@@ -150,7 +150,7 @@ if (null !== $cachedData) {
                     LIMIT 50";
                 $stmt = $db->getConnection()->query($sql);
             } catch (Exception $e) {
-                error_log('Index idx_genre_count not found, using simple query: '.$e->getMessage());
+                error_log("Index idx_genre_count not found, using simple query: " . $e->getMessage());
                 $sql = "SELECT genre, COUNT(*) as count
                     FROM books 
                     WHERE genre IS NOT NULL AND genre != ''
@@ -176,13 +176,13 @@ if (null !== $cachedData) {
             $genre['readable_name'] = $db->getReadableGenre($genre['genre']);
         }
     } catch (Exception $e) {
-        error_log('Error loading genres in stats.php: '.$e->getMessage());
+        error_log("Error loading genres in stats.php: " . $e->getMessage());
         $genres = [];
     }
 
     // ========== ТОП-10 КНИГ ПО РЕЙТИНГУ ==========
-    if ('mysql' === $dbType) {
-        $sql = 'SELECT b.id, b.title, b.author,
+    if ($dbType === 'mysql') {
+        $sql = "SELECT b.id, b.title, b.author,
                        COALESCE(r.avg_rating, 0) as avg_rating,
                        COALESCE(r.votes_count, 0) as votes
                 FROM books b
@@ -194,9 +194,9 @@ if (null !== $cachedData) {
                     ORDER BY avg_rating DESC, votes_count DESC
                     LIMIT 10
                 ) r ON b.id = r.book_id
-                ORDER BY r.avg_rating DESC, r.votes_count DESC';
+                ORDER BY r.avg_rating DESC, r.votes_count DESC";
     } else {
-        $sql = 'SELECT b.id, b.title, b.author,
+        $sql = "SELECT b.id, b.title, b.author,
                        IFNULL(r.avg_rating, 0) as avg_rating,
                        IFNULL(r.votes_count, 0) as votes
                 FROM books b
@@ -208,38 +208,38 @@ if (null !== $cachedData) {
                     ORDER BY avg_rating DESC, votes_count DESC
                     LIMIT 10
                 ) r ON b.id = r.book_id
-                ORDER BY r.avg_rating DESC, r.votes_count DESC';
+                ORDER BY r.avg_rating DESC, r.votes_count DESC";
     }
     $topRatedBooks = $db->getConnection()->query($sql)->fetchAll();
 
     // ========== ТОП-10 ПОПУЛЯРНЫХ В ИЗБРАННОМ ==========
-    if ('mysql' === $dbType) {
-        $sql = 'SELECT b.id, b.title, b.author, COUNT(f.id) as favorites_count
+    if ($dbType === 'mysql') {
+        $sql = "SELECT b.id, b.title, b.author, COUNT(f.id) as favorites_count
                 FROM books b
                 STRAIGHT_JOIN book_favorites f ON b.id = f.book_id
                 GROUP BY b.id
                 ORDER BY favorites_count DESC
-                LIMIT 10';
+                LIMIT 10";
     } else {
-        $sql = 'SELECT b.id, b.title, b.author, COUNT(f.id) as favorites_count
+        $sql = "SELECT b.id, b.title, b.author, COUNT(f.id) as favorites_count
                 FROM books b
                 JOIN book_favorites f ON b.id = f.book_id
                 GROUP BY b.id
                 ORDER BY favorites_count DESC
-                LIMIT 10';
+                LIMIT 10";
     }
     $popularFavorites = $db->getConnection()->query($sql)->fetchAll();
 
     // ========== СОХРАНЯЕМ ВСЁ В КЭШ НА 1 ЧАС ==========
     $cachedData = [
-        'stats' => $stats,
-        'topAuthors' => $topAuthors,
-        'genres' => $genres,
-        'ratingStats' => $ratingStats,
-        'favoritesStats' => $favoritesStats,
-        'topRatedBooks' => $topRatedBooks,
-        'popularFavorites' => $popularFavorites,
-        'fileTypes' => $fileTypes,
+        'stats'             => $stats,
+        'topAuthors'        => $topAuthors,
+        'genres'            => $genres,
+        'ratingStats'       => $ratingStats,
+        'favoritesStats'    => $favoritesStats,
+        'topRatedBooks'     => $topRatedBooks,
+        'popularFavorites'  => $popularFavorites,
+        'fileTypes'         => $fileTypes,
     ];
     Cache::set($cacheKey, $cachedData, 'statistics', 3600);
 }
@@ -247,13 +247,13 @@ if (null !== $cachedData) {
 // Системная информация (не кэшируется)
 $executionTime = microtime(true) - ($_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true));
 $systemInfo = [
-    'memory_usage' => memory_get_peak_usage(true),
-    'memory_limit' => ini_get('memory_limit'),
-    'php_version' => PHP_VERSION,
-    'db_type' => $dbType,
-    'apcu_enabled' => extension_loaded('apcu') && apcu_enabled(),
+    'memory_usage'   => memory_get_peak_usage(true),
+    'memory_limit'   => ini_get('memory_limit'),
+    'php_version'    => PHP_VERSION,
+    'db_type'        => $dbType,
+    'apcu_enabled'   => extension_loaded('apcu') && apcu_enabled(),
     'execution_time' => $executionTime,
-    'query_count' => $db->getQueryCount(),
+    'query_count'    => $db->getQueryCount(),
 ];
 
 require 'templates/header.php';
@@ -377,7 +377,7 @@ require 'templates/header.php';
                             <div class="mt-2">
                                 <?php
                                 $avgRounded = round($ratingStats['avg_rating'] * 2) / 2;
-for ($i = 0; $i < floor($avgRounded); ++$i) {
+for ($i = 0; $i < floor($avgRounded); $i++) {
     echo '<i class="fas fa-star text-warning"></i>';
 }
 if ($avgRounded - floor($avgRounded) >= 0.5) {
@@ -410,7 +410,7 @@ if ($avgRounded - floor($avgRounded) >= 0.5) {
                     </div>
 
                     <!-- Топ книг по рейтингу -->
-                    <?php if (!empty($topRatedBooks)) { ?>
+                    <?php if (!empty($topRatedBooks)): ?>
                     <div class="mt-4">
                         <h6 class="font-weight-bold">🏆 <?php echo __('stats_top_rated_books'); ?></h6>
                         <div class="table-responsive">
@@ -424,11 +424,11 @@ if ($avgRounded - floor($avgRounded) >= 0.5) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($topRatedBooks as $book) { ?>
+                                    <?php foreach ($topRatedBooks as $book): ?>
                                     <tr>
                                         <td>
                                             <a href="book_detail.php?id=<?php echo $book['id']; ?>" class="text-decoration-none">
-                                                <?php echo htmlspecialchars(mb_substr($book['title'], 0, 30)).(mb_strlen($book['title']) > 30 ? '...' : ''); ?>
+                                                <?php echo htmlspecialchars(mb_substr($book['title'], 0, 30)) . (mb_strlen($book['title']) > 30 ? '...' : ''); ?>
                                             </a>
                                         </td>
                                         <td><?php echo htmlspecialchars(mb_substr($book['author'], 0, 20)); ?></td>
@@ -438,7 +438,7 @@ if ($avgRounded - floor($avgRounded) >= 0.5) {
                                                 <?php
                 $fullStars = floor($book['avg_rating']);
                                         $halfStar = $book['avg_rating'] - $fullStars >= 0.5;
-                                        for ($i = 0; $i < $fullStars; ++$i) {
+                                        for ($i = 0; $i < $fullStars; $i++) {
                                             echo '<i class="fas fa-star text-warning" style="font-size:0.8em;"></i>';
                                         }
                                         if ($halfStar) {
@@ -449,12 +449,12 @@ if ($avgRounded - floor($avgRounded) >= 0.5) {
                                         </td>
                                         <td><?php echo $book['votes']; ?></td>
                                     </tr>
-                                    <?php } ?>
+                                    <?php endforeach; ?>
                                 </tbody>
                             </table>
                         </div>
                     </div>
-                    <?php } ?>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -497,7 +497,7 @@ if ($avgRounded - floor($avgRounded) >= 0.5) {
                     </div>
 
                     <!-- Популярные книги в избранном -->
-                    <?php if (!empty($popularFavorites)) { ?>
+                    <?php if (!empty($popularFavorites)): ?>
                     <div class="mt-4">
                         <h6 class="font-weight-bold">🔥 <?php echo __('stats_popular_fav'); ?></h6>
                         <div class="table-responsive">
@@ -510,11 +510,11 @@ if ($avgRounded - floor($avgRounded) >= 0.5) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($popularFavorites as $book) { ?>
+                                    <?php foreach ($popularFavorites as $book): ?>
                                     <tr>
                                         <td>
                                             <a href="book_detail.php?id=<?php echo $book['id']; ?>" class="text-decoration-none">
-                                                <?php echo htmlspecialchars(mb_substr($book['title'], 0, 30)).(mb_strlen($book['title']) > 30 ? '...' : ''); ?>
+                                                <?php echo htmlspecialchars(mb_substr($book['title'], 0, 30)) . (mb_strlen($book['title']) > 30 ? '...' : ''); ?>
                                             </a>
                                         </td>
                                         <td><?php echo htmlspecialchars(mb_substr($book['author'], 0, 20)); ?></td>
@@ -524,12 +524,12 @@ if ($avgRounded - floor($avgRounded) >= 0.5) {
                                             </span>
                                         </td>
                                     </tr>
-                                    <?php } ?>
+                                    <?php endforeach; ?>
                                 </tbody>
                             </table>
                         </div>
                     </div>
-                    <?php } ?>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -554,7 +554,7 @@ if ($avgRounded - floor($avgRounded) >= 0.5) {
                             <tbody>
                                 <?php
                                 $totalBooks = $stats['total_books'];
-foreach ($fileTypes as $fileType) {
+foreach ($fileTypes as $fileType):
     $percentage = $totalBooks > 0 ? round(($fileType['count'] / $totalBooks) * 100, 1) : 0;
     $progressWidth = min($percentage, 100);
     $progressClass = $percentage > 50 ? 'bg-success' : ($percentage > 20 ? 'bg-info' : 'bg-warning');
@@ -581,7 +581,7 @@ foreach ($fileTypes as $fileType) {
                                         </div>
                                     </td>
                                 </tr>
-                                <?php } ?>
+                                <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>
@@ -597,7 +597,7 @@ foreach ($fileTypes as $fileType) {
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <?php foreach ($topAuthors as $index => $author) { ?>
+                        <?php foreach ($topAuthors as $index => $author): ?>
                         <div class="col-md-6 mb-3">
                             <div class="card border-left-primary h-100">
                                 <div class="card-body py-2">
@@ -617,13 +617,13 @@ foreach ($fileTypes as $fileType) {
                                 </div>
                             </div>
                         </div>
-                        <?php } ?>
+                        <?php endforeach; ?>
                     </div>
                 </div>
             </div>
 
             <!-- Топ-50 жанров -->
-            <?php if (!empty($genres)) { ?>
+            <?php if (!empty($genres)): ?>
             <div class="row mt-4">
                 <div class="col-12">
                     <div class="card shadow">
@@ -638,13 +638,13 @@ foreach ($fileTypes as $fileType) {
     $totalGenres = count($genres);
                 $columns = 3;
                 $genresPerColumn = ceil($totalGenres / $columns);
-                for ($col = 0; $col < $columns; ++$col) {
+                for ($col = 0; $col < $columns; $col++):
                     $start = $col * $genresPerColumn;
                     $end = min($start + $genresPerColumn, $totalGenres);
                     $columnGenres = array_slice($genres, $start, $end - $start);
                     ?>
                                 <div class="col-md-4">
-                                    <?php foreach ($columnGenres as $genre) { ?>
+                                    <?php foreach ($columnGenres as $genre): ?>
                                     <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
                                         <div>
                                             <a href="index.php?field=genre&q=<?php echo urlencode($genre['genre']); ?>" 
@@ -659,15 +659,15 @@ foreach ($fileTypes as $fileType) {
                                             </small>
                                         </div>
                                     </div>
-                                    <?php } ?>
+                                    <?php endforeach; ?>
                                 </div>
-                                <?php } ?>
+                                <?php endfor; ?>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            <?php } ?>
+            <?php endif; ?>
         </div>
 
         <!-- Правая колонка: системная информация -->
@@ -718,8 +718,8 @@ foreach ($fileTypes as $fileType) {
                             </div>
                             <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-0">
                                 <small><?php echo __('stats_caching'); ?></small>
-                                <span class="badge <?php echo Config::ENABLE_CACHE ? 'bg-success' : 'bg-danger'; ?>">
-                                    <?php echo Config::ENABLE_CACHE ? __('stats_enabled') : __('stats_disabled'); ?>
+                                <span class="badge <?php echo Config::isCacheEnabled() ? 'bg-success' : 'bg-danger'; ?>">
+                                    <?php echo Config::isCacheEnabled() ? __('stats_enabled') : __('stats_disabled'); ?>
                                 </span>
                             </div>
                         </div>
@@ -736,11 +736,11 @@ foreach ($fileTypes as $fileType) {
                             <a href="top_rated.php" class="btn btn-outline-warning">
                                 <i class="fas fa-star me-2"></i><?php echo __('top_rated'); ?>
                             </a>
-                            <?php if (Config::ENABLE_CACHE) { ?>
+                            <?php if (Config::isCacheEnabled()): ?>
                             <a href="cache_stats.php" class="btn btn-outline-info">
                                 <i class="fas fa-bolt me-2"></i><?php echo __('cache'); ?>
                             </a>
-                            <?php } ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -766,6 +766,7 @@ foreach ($fileTypes as $fileType) {
 </div>
 
 <?php
-PageCache::save();
+
 require 'templates/footer.php';
+PageCache::save();
 ?>

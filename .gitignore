@@ -61,4 +61,8 @@ www/quick_check.php
 *.user
 www/all_code.txt
 www/collect_php.sh
+scanner/collect_sourcess.sh
 www/.htaccess
+www/collect_php_recurce.sh
+www/config/.env
+www/config/config.ini

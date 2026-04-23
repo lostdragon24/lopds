@@ -15,13 +15,13 @@ $csrf_token = $csrf_token ?? '';
     <?php echo __('admin_db_title'); ?>
 </h1>
 
-<?php if ($message) { ?>
+<?php if ($message): ?>
     <div class="alert alert-<?php echo $message_type; ?> alert-dismissible fade show">
-        <i class="fas fa-<?php echo 'success' === $message_type ? 'check-circle' : 'exclamation-circle'; ?> me-2"></i>
+        <i class="fas fa-<?php echo $message_type === 'success' ? 'check-circle' : 'exclamation-circle'; ?> me-2"></i>
         <?php echo htmlspecialchars($message); ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
-<?php } ?>
+<?php endif; ?>
 
 <!-- Информация о БД -->
 <div class="row mb-4">
@@ -38,13 +38,13 @@ $csrf_token = $csrf_token ?? '';
                     <tr>
                         <th><?php echo __('admin_db_type'); ?></th>
                         <td>
-                            <span class="badge bg-<?php echo 'sqlite' === $info['type'] ? 'info' : 'success'; ?>">
+                            <span class="badge bg-<?php echo $info['type'] === 'sqlite' ? 'info' : 'success'; ?>">
                                 <?php echo strtoupper($info['type']); ?>
                             </span>
                         </td>
                     </tr>
                     
-                    <?php if ('sqlite' === $info['type']) { ?>
+                    <?php if ($info['type'] === 'sqlite'): ?>
                         <tr>
                             <th><?php echo __('admin_db_file'); ?></th>
                             <td><small><?php echo htmlspecialchars($info['path'] ?? ''); ?></small></td>
@@ -53,9 +53,9 @@ $csrf_token = $csrf_token ?? '';
                             <th><?php echo __('admin_db_size'); ?></th>
                             <td>
                                 <?php echo $info['size'] ? round($info['size'] / 1024 / 1024, 2) : 0; ?> MB
-                                <?php if (isset($info['wal_size']) && $info['wal_size'] > 0) { ?>
+                                <?php if (isset($info['wal_size']) && $info['wal_size'] > 0): ?>
                                     <br><small class="text-muted">WAL: <?php echo round($info['wal_size'] / 1024 / 1024, 2); ?> MB</small>
-                                <?php } ?>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <tr>
@@ -66,7 +66,7 @@ $csrf_token = $csrf_token ?? '';
                             <th><?php echo __('admin_db_journal_mode'); ?></th>
                             <td><code><?php echo $info['journal_mode'] ?? 'N/A'; ?></code></td>
                         </tr>
-                    <?php } else { ?>
+                    <?php else: ?>
                         <tr>
                             <th><?php echo __('admin_db_version_mysql'); ?></th>
                             <td><code><?php echo $info['version'] ?? 'N/A'; ?></code></td>
@@ -83,7 +83,7 @@ $csrf_token = $csrf_token ?? '';
                             <th>Buffer Pool:</th>
                             <td><?php echo isset($info['buffer_pool']) ? round($info['buffer_pool'] / 1024 / 1024 / 1024, 2) : 'N/A'; ?> GB</td>
                         </tr>
-                    <?php } ?>
+                    <?php endif; ?>
                     
                     <tr>
                         <th><?php echo __('admin_db_tables_count'); ?></th>
@@ -92,21 +92,21 @@ $csrf_token = $csrf_token ?? '';
                     <tr>
                         <th><?php echo __('admin_db_writable'); ?></th>
                         <td>
-                            <?php if ($info['is_writable'] ?? false) { ?>
+                            <?php if ($info['is_writable'] ?? false): ?>
                                 <span class="badge bg-success">✅ <?php echo __('admin_status_yes'); ?></span>
-                            <?php } else { ?>
+                            <?php else: ?>
                                 <span class="badge bg-danger">❌ <?php echo __('admin_status_no'); ?></span>
-                            <?php } ?>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <tr>
                         <th><?php echo __('admin_db_status'); ?></th>
                         <td>
-                            <?php if (($info['status'] ?? '') === 'active') { ?>
+                            <?php if (($info['status'] ?? '') === 'active'): ?>
                                 <span class="badge bg-success"><?php echo __('admin_status_active'); ?></span>
-                            <?php } else { ?>
+                            <?php else: ?>
                                 <span class="badge bg-danger"><?php echo __('admin_status_error'); ?></span>
-                            <?php } ?>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 </table>
@@ -123,7 +123,7 @@ $csrf_token = $csrf_token ?? '';
                 </h5>
             </div>
             <div class="card-body">
-                <?php if (!empty($cache_stats['apcu'])) { ?>
+                <?php if (!empty($cache_stats['apcu'])): ?>
                     <table class="table table-sm">
                         <tr>
                             <th><?php echo __('admin_cache_hits'); ?></th>
@@ -153,12 +153,12 @@ $csrf_token = $csrf_token ?? '';
                             <td><?php echo round($cache_stats['apcu']['memory_usage'] / 1024 / 1024, 2); ?> MB</td>
                         </tr>
                     </table>
-                <?php } else { ?>
+                <?php else: ?>
                     <p class="text-muted text-center py-4">
                         <i class="fas fa-info-circle fa-2x mb-2 d-block"></i>
                         <?php echo __('admin_cache_not_used'); ?>
                     </p>
-                <?php } ?>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -248,32 +248,32 @@ $csrf_token = $csrf_token ?? '';
                         <th><?php echo __('admin_table_name'); ?></th>
                         <th><?php echo __('admin_table_rows'); ?></th>
                         <th><?php echo __('admin_table_size'); ?></th>
-                        <?php if ('sqlite' !== $info['type']) { ?>
+                        <?php if ($info['type'] !== 'sqlite'): ?>
                             <th><?php echo __('admin_table_data'); ?></th>
                             <th><?php echo __('admin_table_indexes'); ?></th>
-                        <?php } ?>
+                        <?php endif; ?>
                         <th><?php echo __('admin_table_engine'); ?></th>
                         <th><?php echo __('admin_table_actions'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($tables as $table) { ?>
+                    <?php foreach ($tables as $table): ?>
                         <tr>
                             <td>
                                 <strong><?php echo htmlspecialchars($table['name']); ?></strong>
-                                <?php if (($table['indexes'] ?? 0) > 0) { ?>
+                                <?php if (($table['indexes'] ?? 0) > 0): ?>
                                     <span class="badge bg-info ms-1" title="<?php echo __('admin_table_indexes_count'); ?>: <?php echo $table['indexes']; ?>">
                                         <?php echo $table['indexes']; ?> idx
                                     </span>
-                                <?php } ?>
+                                <?php endif; ?>
                             </td>
                             <td><?php echo number_format($table['rows'] ?? 0); ?></td>
                             <td><?php echo isset($table['size']) ? round($table['size'] / 1024, 2) : 0; ?> KB</td>
                             
-                            <?php if ('sqlite' !== $info['type']) { ?>
+                            <?php if ($info['type'] !== 'sqlite'): ?>
                                 <td><?php echo isset($table['data_size']) ? round($table['data_size'] / 1024, 2) : 0; ?> KB</td>
                                 <td><?php echo isset($table['index_size']) ? round($table['index_size'] / 1024, 2) : 0; ?> KB</td>
-                            <?php } ?>
+                            <?php endif; ?>
                             
                             <td>
                                 <span class="badge bg-secondary"><?php echo $table['engine'] ?? 'SQLite'; ?></span>
@@ -291,7 +291,7 @@ $csrf_token = $csrf_token ?? '';
                                 </button>
                             </td>
                         </tr>
-                    <?php } ?>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
@@ -307,12 +307,12 @@ $csrf_token = $csrf_token ?? '';
         </h5>
     </div>
     <div class="card-body">
-        <?php if (empty($backups)) { ?>
+        <?php if (empty($backups)): ?>
             <p class="text-muted text-center py-4">
                 <i class="fas fa-folder-open fa-3x mb-3 d-block"></i>
                 <?php echo __('admin_backups_none'); ?>
             </p>
-        <?php } else { ?>
+        <?php else: ?>
             <div class="table-responsive">
                 <table class="table table-hover">
                     <thead>
@@ -325,13 +325,13 @@ $csrf_token = $csrf_token ?? '';
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($backups as $backup) { ?>
+                        <?php foreach ($backups as $backup): ?>
                             <tr>
                                 <td><?php echo $backup['date']; ?></td>
                                 <td><code><?php echo $backup['filename']; ?></code></td>
                                 <td><?php echo $backup['size_formatted']; ?></td>
                                 <td>
-                                    <span class="badge bg-<?php echo 'sql' === $backup['type'] ? 'success' : 'info'; ?>">
+                                    <span class="badge bg-<?php echo $backup['type'] === 'sql' ? 'success' : 'info'; ?>">
                                         <?php echo strtoupper($backup['type']); ?>
                                     </span>
                                 </td>
@@ -354,11 +354,11 @@ $csrf_token = $csrf_token ?? '';
                                     </button>
                                 </td>
                             </tr>
-                        <?php } ?>
+                        <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
-        <?php } ?>
+        <?php endif; ?>
     </div>
     <div class="card-footer">
         <small class="text-muted">

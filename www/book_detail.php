@@ -14,7 +14,7 @@ $db = Database::getInstance();
 
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     header('HTTP/1.0 400 Bad Request');
-    exit(__('book_invalid_id'));
+    die(__('book_invalid_id'));
 }
 
 $bookId = intval($_GET['id']);
@@ -22,7 +22,7 @@ $book = $db->getBook($bookId);
 
 if (!$book) {
     header('HTTP/1.0 404 Not Found');
-    exit(__('book_not_found'));
+    die(__('book_not_found'));
 }
 
 // Получаем данные для отображения
@@ -56,7 +56,7 @@ require 'templates/header.php';
                 <div class="card-body p-3 text-center">
                 
                   <div class="cover-container mb-3">
-                        <?php if ($hasCover) { ?>
+                        <?php if ($hasCover): ?>
                             <img src="./api/cover.php?id=<?php echo $book['id']; ?>" 
                                  class="img-fluid rounded shadow" 
                                  alt="Обложка книги <?php echo htmlspecialchars($book['title']); ?>"
@@ -67,14 +67,14 @@ require 'templates/header.php';
                                 <span class="badge bg-primary">
                                     <?php echo strtoupper($book['file_type']); ?>
                                 </span>
-                                <?php if ($book['archive_path']) { ?>
+                                <?php if ($book['archive_path']): ?>
                                 <span class="badge bg-secondary ms-1">
                                     📦 В архиве
                                 </span>
-                                <?php } ?>
+                                <?php endif; ?>
                             </div>
                             
-                        <?php } else { ?>
+                        <?php else: ?>
                             <div class="bg-light d-flex align-items-center justify-content-center rounded" 
                                  style="height: 300px;">
                                 <div class="text-center">
@@ -85,7 +85,7 @@ require 'templates/header.php';
                                     </p>
                                 </div>
                             </div>
-                        <?php } ?>
+                        <?php endif; ?>
                     </div>
                     
                    <!-- Действия -->
@@ -95,12 +95,12 @@ require 'templates/header.php';
                             <i class="fas fa-download me-2"></i><?php echo __('download_book'); ?>
                         </a>
 
-                        <?php if (in_array(strtolower($book['file_type']), ['fb2', 'epub', 'pdf'])) { ?>
+                        <?php if (in_array(strtolower($book['file_type']), ['fb2', 'epub', 'pdf'])): ?>
                             <a href="reader.php?id=<?php echo $book['id']; ?>" 
                                class="btn btn-lg btn-primary mt-2">
                                 <i class="fas fa-book-open me-2"></i><?php echo __('read_online'); ?>
                             </a>
-                        <?php } ?>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -134,7 +134,7 @@ require 'templates/header.php';
                 <div class="card-body">
                     <h1 class="h2 mb-3"><?php echo htmlspecialchars($book['title'] ?: __('book_untitled')); ?></h1>
                     
-                    <?php if (!empty($book['author'])) { ?>
+                    <?php if (!empty($book['author'])): ?>
                     <div class="mb-4">
                         <h5 class="text-muted mb-2"><?php echo __('book_author'); ?></h5>
                         <a href="index.php?field=author&q=<?php echo urlencode($book['author']); ?>" 
@@ -142,7 +142,7 @@ require 'templates/header.php';
                             <?php echo htmlspecialchars($book['author']); ?>
                         </a>
                     </div>
-                    <?php } ?>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -168,20 +168,20 @@ require 'templates/header.php';
 $halfStar = ($rating['average_rounded'] - $fullStars) >= 0.5;
 $emptyStars = 5 - $fullStars - ($halfStar ? 1 : 0);
 
-for ($i = 0; $i < $fullStars; ++$i) {
+for ($i = 0; $i < $fullStars; $i++) {
     echo '<i class="fas fa-star text-warning fa-2x"></i>';
 }
 if ($halfStar) {
     echo '<i class="fas fa-star-half-alt text-warning fa-2x"></i>';
 }
-for ($i = 0; $i < $emptyStars; ++$i) {
+for ($i = 0; $i < $emptyStars; $i++) {
     echo '<i class="far fa-star text-warning fa-2x"></i>';
 }
 ?>
                                             </div>
                                             <div>
                                                 <small class="text-muted" id="votes-count">
-                                                    <?php echo $rating['votes'].' '.(1 == $rating['votes'] ? __('rating_vote_1') : ($rating['votes'] < 5 ? __('rating_vote_2') : __('rating_vote_5'))); ?>
+                                                    <?php echo $rating['votes'] . ' ' . ($rating['votes'] == 1 ? __('rating_vote_1') : ($rating['votes'] < 5 ? __('rating_vote_2') : __('rating_vote_5'))); ?>
                                                 </small>
                                             </div>
                                         </div>
@@ -191,20 +191,20 @@ for ($i = 0; $i < $emptyStars; ++$i) {
                                         <h6 class="mb-2"><?php echo __('rating_your'); ?></h6>
                                         <div class="star-rating-select mb-3" id="user-rating-stars">
                                             <div class="d-flex justify-content-center">
-                                                <?php for ($star = 1; $star <= 5; ++$star) { ?>
+                                                <?php for ($star = 1; $star <= 5; $star++): ?>
                                                     <button type="button"
                                                             class="btn btn-link p-0 me-2 rating-star"
                                                             data-rating="<?php echo $star; ?>"
                                                             data-book-id="<?php echo $bookId; ?>">
                                                         <i class="<?php echo $userRating >= $star ? 'fas' : 'far'; ?> fa-star fa-2x <?php echo $userRating >= $star ? 'text-warning' : 'text-muted'; ?>"></i>
                                                     </button>
-                                                <?php } ?>
+                                                <?php endfor; ?>
                                             </div>
                                             <div class="text-center mt-2">
                                                 <small class="text-muted" id="user-rating-text">
                                                     <?php
     if ($userRating > 0) {
-        echo sprintf(__('rating_your_value'), $userRating, 1 == $userRating ? __('rating_star_1') : ($userRating < 5 ? __('rating_star_2') : __('rating_star_5')));
+        echo sprintf(__('rating_your_value'), $userRating, $userRating == 1 ? __('rating_star_1') : ($userRating < 5 ? __('rating_star_2') : __('rating_star_5')));
     } else {
         echo __('rating_click_to_rate');
     }
@@ -214,13 +214,13 @@ for ($i = 0; $i < $emptyStars; ++$i) {
                                         </div>
 
                                         <!-- Распределение оценок -->
-                                        <?php if ($rating['votes'] > 0) { ?>
+                                        <?php if ($rating['votes'] > 0): ?>
                                         <div class="mt-3">
                                             <h6 class="mb-2"><?php echo __('rating_distribution'); ?></h6>
                                             <div id="rating-distribution">
                                                 <?php
                                                 $distribution = $rating['distribution'] ?? [0, 0, 0, 0, 0];
-                                            for ($star = 5; $star >= 1; --$star) {
+                                            for ($star = 5; $star >= 1; $star--):
                                                 $index = 5 - $star;
                                                 $count = $distribution[$index] ?? 0;
                                                 $percent = $rating['votes'] > 0 ? ($count / $rating['votes'] * 100) : 0;
@@ -259,10 +259,10 @@ for ($i = 0; $i < $emptyStars; ++$i) {
                                                         <small class="text-muted star-count"><?php echo $count; ?></small>
                                                     </div>
                                                 </div>
-                                                <?php } ?>
+                                                <?php endfor; ?>
                                             </div>
                                         </div>
-                                        <?php } ?>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             </div>
@@ -301,7 +301,7 @@ for ($i = 0; $i < $emptyStars; ++$i) {
 
             <!-- Метаданные -->
             <div class="row g-3 mb-4">
-                <?php if ($readableGenre) { ?>
+                <?php if ($readableGenre): ?>
                 <div class="col-md-6">
                     <div class="card h-100 border-0 bg-light">
                         <div class="card-body">
@@ -313,9 +313,9 @@ for ($i = 0; $i < $emptyStars; ++$i) {
                         </div>
                     </div>
                 </div>
-                <?php } ?>
+                <?php endif; ?>
                 
-                <?php if (!empty($book['series'])) { ?>
+                <?php if (!empty($book['series'])): ?>
                 <div class="col-md-6">
                     <div class="card h-100 border-0 bg-light">
                         <div class="card-body">
@@ -324,15 +324,15 @@ for ($i = 0; $i < $emptyStars; ++$i) {
                                class="text-decoration-none">
                                 <span class="h5"><?php echo htmlspecialchars($book['series']); ?></span>
                             </a>
-                            <?php if (!empty($book['series_number'])) { ?>
+                            <?php if (!empty($book['series_number'])): ?>
                             <span class="badge bg-secondary"><?php echo sprintf(__('book_number'), $book['series_number']); ?></span>
-                            <?php } ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
-                <?php } ?>
+                <?php endif; ?>
                 
-                <?php if (!empty($book['year'])) { ?>
+                <?php if (!empty($book['year'])): ?>
                 <div class="col-md-4">
                     <div class="card h-100 border-0 bg-light">
                         <div class="card-body text-center">
@@ -341,7 +341,7 @@ for ($i = 0; $i < $emptyStars; ++$i) {
                         </div>
                     </div>
                 </div>
-                <?php } ?>
+                <?php endif; ?>
             </div>
             
             <!-- ОПИСАНИЕ КНИГИ -->
@@ -351,14 +351,14 @@ for ($i = 0; $i < $emptyStars; ++$i) {
                         <i class="fas fa-file-alt me-2"></i><?php echo __('book_description'); ?>
                     </h5>
                     <div class="book-description">
-                        <?php if (!empty($description)) { ?>
+                        <?php if (!empty($description)): ?>
                             <p><?php echo nl2br(htmlspecialchars($description)); ?></p>
-                        <?php } else { ?>
+                        <?php else: ?>
                             <div class="alert alert-info mb-0">
                                 <i class="fas fa-info-circle me-2"></i>
                                 <?php echo __('book_description_missing'); ?>
                             </div>
-                        <?php } ?>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -370,12 +370,12 @@ for ($i = 0; $i < $emptyStars; ++$i) {
                         <a href="index.php" class="btn btn-outline-primary">
                             <i class="fas fa-arrow-left me-2"></i><?php echo __('back_to_list'); ?>
                         </a>
-                        <?php if (!empty($book['author'])) { ?>
+                        <?php if (!empty($book['author'])): ?>
                         <a href="index.php?field=author&q=<?php echo urlencode($book['author']); ?>" 
                            class="btn btn-outline-secondary ms-2">
                             <i class="fas fa-user me-2"></i><?php echo __('all_books_by_author'); ?>
                         </a>
-                        <?php } ?>
+                        <?php endif; ?>
                         <a href="favorites.php" class="btn btn-outline-danger ms-2">
                             <i class="fas fa-heart me-2"></i><?php echo __('my_favorites'); ?>
                         </a>

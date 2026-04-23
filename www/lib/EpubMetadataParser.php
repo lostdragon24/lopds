@@ -5,7 +5,7 @@
 class EpubMetadataParser
 {
     /**
-     * Извлечь метаданные из EPUB файла.
+     * Извлечь метаданные из EPUB файла
      */
     public static function extractMetadata($book)
     {
@@ -16,7 +16,7 @@ class EpubMetadataParser
             'publisher' => '',
             'language' => '',
             'date' => '',
-            'identifier' => '',
+            'identifier' => ''
         ];
 
         // Получаем содержимое EPUB
@@ -26,12 +26,12 @@ class EpubMetadataParser
         }
 
         // Сохраняем во временный файл
-        $tempFile = tempnam(sys_get_temp_dir(), 'epub_').'.epub';
+        $tempFile = tempnam(sys_get_temp_dir(), 'epub_') . '.epub';
         file_put_contents($tempFile, $content);
 
         try {
             $zip = new ZipArchive();
-            if (true === $zip->open($tempFile)) {
+            if ($zip->open($tempFile) === true) {
                 // Читаем container.xml
                 $container = $zip->getFromName('META-INF/container.xml');
                 if ($container) {
@@ -64,7 +64,7 @@ class EpubMetadataParser
                 $zip->close();
             }
         } catch (Exception $e) {
-            error_log('EpubMetadataParser error: '.$e->getMessage());
+            error_log("EpubMetadataParser error: " . $e->getMessage());
         }
 
         // Удаляем временный файл
@@ -74,41 +74,39 @@ class EpubMetadataParser
     }
 
     /**
-     * Получить содержимое EPUB файла.
+     * Получить содержимое EPUB файла
      */
     private static function getEpubContent($book)
     {
         if (!empty($book['archive_path']) && !empty($book['archive_internal_path'])) {
             $zip = new ZipArchive();
-            if (true === $zip->open($book['archive_path'])) {
+            if ($zip->open($book['archive_path']) === true) {
                 $content = $zip->getFromName($book['archive_internal_path']);
                 $zip->close();
-
                 return $content;
             }
         } elseif (!empty($book['file_path']) && file_exists($book['file_path'])) {
             return file_get_contents($book['file_path']);
         }
-
         return null;
     }
 
     /**
-     * Извлечь элемент DC.
+     * Извлечь элемент DC
      */
     private static function extractDcElement($opfXml, $dc, $element)
     {
         $value = '';
 
         if (isset($opfXml->metadata->children($dc)->$element)) {
-            $value = (string) $opfXml->metadata->children($dc)->$element;
+            $value = (string)$opfXml->metadata->children($dc)->$element;
         }
 
         // Если есть несколько авторов, объединяем через запятую
-        if ('creator' === $element) {
+        if ($element === 'creator') {
             $creators = [];
             foreach ($opfXml->metadata->children($dc)->creator as $creator) {
-                $creators[] = (string) $creator;
+                $creators[] = (string)$creator;
             }
             if (count($creators) > 1) {
                 $value = implode(', ', $creators);
@@ -119,7 +117,7 @@ class EpubMetadataParser
     }
 
     /**
-     * Альтернативное извлечение описания из OPF.
+     * Альтернативное извлечение описания из OPF
      */
     private static function extractDescriptionFromOpf($opfXml)
     {
@@ -128,9 +126,9 @@ class EpubMetadataParser
 
         // В мета-тегах
         foreach ($opfXml->metadata->meta as $meta) {
-            $name = (string) $meta['name'];
-            if ('description' === $name) {
-                $description = (string) $meta;
+            $name = (string)$meta['name'];
+            if ($name === 'description') {
+                $description = (string)$meta;
                 break;
             }
         }

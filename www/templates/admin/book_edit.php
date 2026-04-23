@@ -7,30 +7,30 @@ $csrf_token = $csrf_token ?? '';
 $error = $_SESSION['upload_error'] ?? '';
 unset($_SESSION['upload_error']);
 
-$pageTitle = 'edit' === $action ? __('admin_book_edit_title') : __('admin_book_add_title');
+$pageTitle = $action === 'edit' ? __('admin_book_edit_title') : __('admin_book_add_title');
 ?>
 
 <h1 class="mb-4">
-    <i class="fas fa-<?php echo 'edit' === $action ? 'edit' : 'plus'; ?> me-2"></i>
+    <i class="fas fa-<?php echo $action === 'edit' ? 'edit' : 'plus'; ?> me-2"></i>
     <?php echo $pageTitle; ?>
 </h1>
 
-<?php if ($error) { ?>
+<?php if ($error): ?>
     <div class="alert alert-danger alert-dismissible fade show">
         <i class="fas fa-exclamation-circle me-2"></i>
         <?php echo htmlspecialchars($error); ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
-<?php } ?>
+<?php endif; ?>
 
 <div class="card">
     <div class="card-body">
         <form method="post" action="index.php" id="bookForm" enctype="multipart/form-data">
             <input type="hidden" name="action" value="book_save">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-            <?php if ($book && isset($book['id'])) { ?>
+            <?php if ($book && isset($book['id'])): ?>
                 <input type="hidden" name="id" value="<?php echo $book['id']; ?>">
-            <?php } ?>
+            <?php endif; ?>
             
             <div class="row">
                 <div class="col-md-6 mb-3">
@@ -83,12 +83,12 @@ $pageTitle = 'edit' === $action ? __('admin_book_edit_title') : __('admin_book_a
                     </label>
                     <select class="form-select" name="genre" id="genreSelect">
                         <option value=""><?php echo __('admin_book_field_genre_select'); ?></option>
-                        <?php foreach ($genres as $code => $name) { ?>
+                        <?php foreach ($genres as $code => $name): ?>
                             <option value="<?php echo htmlspecialchars($code); ?>"
                                 <?php echo ($book['genre'] ?? '') === $code ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($name); ?>
                             </option>
-                        <?php } ?>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 
@@ -154,7 +154,7 @@ $pageTitle = 'edit' === $action ? __('admin_book_edit_title') : __('admin_book_a
             </div>
             
             <!-- Поле для загрузки файла (только для новых книг) -->
-            <?php if ('add' === $action) { ?>
+            <?php if ($action === 'add'): ?>
             <div class="mb-3">
                 <label class="form-label required">
                     <?php echo __('admin_book_field_file'); ?>
@@ -170,7 +170,7 @@ $pageTitle = 'edit' === $action ? __('admin_book_edit_title') : __('admin_book_a
                 </div>
                 <div id="fileTypeError" class="text-danger mt-1" style="display: none;"></div>
             </div>
-            <?php } ?>
+            <?php endif; ?>
 
 
 
@@ -179,10 +179,10 @@ $pageTitle = 'edit' === $action ? __('admin_book_edit_title') : __('admin_book_a
                     <?php echo __('admin_book_field_description'); ?>
                 </label>
                 <textarea class="form-control" name="description" rows="6" 
-                          placeholder="<?php echo __('admin_book_description_placeholder'); ?>"><?php echo htmlspecialchars($book['description'] ?? ''); ?></textarea>
+                          placeholder="<?php echo __('admin_book_description_placeholder'); ?>"><?php echo htmlspecialchars($book['description'] ?? '');?></textarea>
             </div>
             
-            <?php if ($book && isset($book['file_path']) && $book['file_path']) { ?>
+            <?php if ($book && isset($book['file_path']) && $book['file_path']): ?>
             <div class="mb-3">
                 <label class="form-label">
                     <?php echo __('book_path'); ?>
@@ -191,18 +191,18 @@ $pageTitle = 'edit' === $action ? __('admin_book_edit_title') : __('admin_book_a
                     <input type="text" class="form-control bg-light" 
                            value="<?php echo htmlspecialchars($book['file_path']); ?>" 
                            readonly>
-                    <?php if (file_exists($book['file_path'])) { ?>
+                    <?php if (file_exists($book['file_path'])): ?>
                         <span class="input-group-text text-success">
                             <i class="fas fa-check-circle"></i>
                         </span>
-                    <?php } else { ?>
+                    <?php else: ?>
                         <span class="input-group-text text-danger">
                             <i class="fas fa-exclamation-triangle"></i>
                         </span>
-                    <?php } ?>
+                    <?php endif; ?>
                 </div>
             </div>
-            <?php } ?>
+            <?php endif; ?>
             
             <div class="mt-4 d-flex gap-2">
                 <button type="submit" class="btn btn-primary" id="submitBtn">
@@ -213,14 +213,14 @@ $pageTitle = 'edit' === $action ? __('admin_book_edit_title') : __('admin_book_a
                     <i class="fas fa-times me-2"></i>
                     <?php echo __('cancel'); ?>
                 </a>
-                <?php if ('edit' === $action && $book && isset($book['id'])) { ?>
+                <?php if ($action === 'edit' && $book && isset($book['id'])): ?>
                 <a href="../book_detail.php?id=<?php echo $book['id']; ?>" 
                    class="btn btn-info ms-auto"
                    target="_blank">
                     <i class="fas fa-eye me-2"></i>
                     <?php echo __('view'); ?>
                 </a>
-                <?php } ?>
+                <?php endif; ?>
             </div>
         </form>
     </div>
@@ -266,7 +266,7 @@ document.getElementById('bookForm')?.addEventListener('submit', function(e) {
     }
     
     // Проверка файла для новой книги
-    <?php if ('add' === $action) { ?>
+    <?php if ($action === 'add'): ?>
     const fileField = document.getElementById('bookFile');
     if (!fileField.files || fileField.files.length === 0) {
         e.preventDefault();
@@ -274,7 +274,7 @@ document.getElementById('bookForm')?.addEventListener('submit', function(e) {
         fileField.focus();
         return false;
     }
-    <?php } ?>
+    <?php endif; ?>
     
     // Блокируем кнопку после отправки
     const submitBtn = document.getElementById('submitBtn');
