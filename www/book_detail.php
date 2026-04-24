@@ -386,6 +386,54 @@ for ($i = 0; $i < $emptyStars; $i++) {
     </div>
 </div>
 
+
+<style>
+.table th {
+    width: 60%;
+    font-weight: 500;
+    color: #495057;
+}
+.table td {
+    width: 40%;
+}
+.progress {
+    border-radius: 12px;
+    overflow: hidden;
+}
+.progress-bar {
+    transition: width 0.6s ease;
+    font-weight: 600;
+}
+.badge {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+}
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+}
+@media (max-width: 768px) {
+    .table th {
+        width: 50%;
+    }
+    .table td {
+        width: 50%;
+    }
+    .btn {
+        width: 100%;
+        margin: 5px 0 !important;
+    }
+    .d-flex {
+        flex-direction: column;
+    }
+}
+</style>
+
+
+
 <!-- JavaScript для страницы книги -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {

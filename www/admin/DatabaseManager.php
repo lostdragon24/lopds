@@ -103,38 +103,44 @@ class DatabaseManager
 
         try {
             if ($this->dbType === 'sqlite') {
-                // Получаем список таблиц
-                $stmt = $this->db->getConnection()->query(
-                    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-                );
-                $rows = $stmt->fetchAll();
+    // Получаем список таблиц
+    $stmt = $this->db->getConnection()->query(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    );
+    $rows = $stmt->fetchAll();
 
-                foreach ($rows as $row) {
-                    $name = $row['name'];
+    foreach ($rows as $row) {
+        $name = $row['name'];
 
-                    // Количество записей
-                    $stmt2 = $this->db->getConnection()->query("SELECT COUNT(*) as count FROM \"$name\"");
-                    $count = $stmt2->fetchColumn();
+        // Пропускаем системные таблицы SQLite
+        if (strpos($name, 'sqlite_') === 0) {
+            continue;
+        }
 
-                    // Размер таблицы (приблизительно)
-                    $stmt2 = $this->db->getConnection()->query("SELECT SUM(length(*)) as size FROM \"$name\"");
-                    $size = $stmt2->fetchColumn();
+        // Количество записей
+        $stmt2 = $this->db->getConnection()->prepare("SELECT COUNT(*) as count FROM \"$name\"");
+        $stmt2->execute();
+        $count = $stmt2->fetchColumn();
 
-                    // Информация об индексах
-                    $stmt2 = $this->db->getConnection()->query(
-                        "SELECT COUNT(*) as idx_count FROM sqlite_master WHERE type='index' AND tbl_name = ?",
-                        [$name]
-                    );
-                    $indexes = $stmt2->fetchColumn();
+        // Размер таблицы - получаем через анализ страниц (более точный метод)
+        $size = $this->getTableSizeSQLite($name);
 
-                    $tables[] = [
-                        'name' => $name,
-                        'rows' => $count,
-                        'size' => $size ?: 0,
-                        'indexes' => $indexes,
-                        'engine' => 'SQLite'
-                    ];
-                }
+        // Информация об индексах
+        $stmt2 = $this->db->getConnection()->prepare(
+            "SELECT COUNT(*) as idx_count FROM sqlite_master WHERE type='index' AND tbl_name = ?"
+        );
+        $stmt2->execute([$name]);
+        $indexes = $stmt2->fetchColumn();
+
+        $tables[] = [
+            'name' => $name,
+            'rows' => $count,
+            'size' => $size,
+            'indexes' => $indexes,
+            'engine' => 'SQLite'
+        ];
+    }
+
             } else {
                 $stmt = $this->db->getConnection()->query("SHOW TABLE STATUS");
                 while ($row = $stmt->fetch()) {
@@ -158,6 +164,64 @@ class DatabaseManager
 
         return $tables;
     }
+
+    /**
+ * Получить размер SQLite таблицы в байтах
+ */
+private function getTableSizeSQLite($tableName)
+{
+    try {
+        // Метод 1: Через анализ страниц базы данных (более точный для SQLite)
+        $stmt = $this->db->getConnection()->prepare(
+            "SELECT SUM(pgsize) as size
+             FROM dbstat
+             WHERE name = ? AND aggregate = TRUE"
+        );
+        $stmt->execute([$tableName]);
+        $result = $stmt->fetchColumn();
+
+        if ($result !== false && $result !== null) {
+            return (int)$result;
+        }
+    } catch (Exception $e) {
+        // Таблица dbstat может быть недоступна, пробуем альтернативный метод
+    }
+
+    try {
+        // Метод 2: Приблизительный размер через LENGTH всех полей
+        // Получаем список колонок таблицы
+        $stmt = $this->db->getConnection()->prepare("PRAGMA table_info(\"$tableName\")");
+        $stmt->execute();
+        $columns = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($columns)) {
+            return 0;
+        }
+
+        // Строим запрос для вычисления суммы длин всех полей
+        $lengthParts = [];
+        foreach ($columns as $column) {
+            $colName = $column['name'];
+            $lengthParts[] = "LENGTH(IFNULL(\"$colName\", ''))";
+        }
+
+        $lengthExpr = implode(' + ', $lengthParts);
+
+        $stmt = $this->db->getConnection()->prepare(
+            "SELECT SUM($lengthExpr) as total_size FROM \"$tableName\""
+        );
+        $stmt->execute();
+        $size = $stmt->fetchColumn();
+
+        return $size ? (int)$size : 0;
+
+    } catch (Exception $e) {
+        error_log("Error calculating table size for $tableName: " . $e->getMessage());
+        return 0;
+    }
+}
+
+
 
     /**
      * Создать бэкап базы данных

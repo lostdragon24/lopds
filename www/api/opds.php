@@ -1,5 +1,4 @@
 <?php
-
 // api/opds.php
 
 require_once __DIR__ . '/../config/config.php';
@@ -8,14 +7,45 @@ require_once __DIR__ . '/../lib/OpdsGenerator.php';
 require_once __DIR__ . '/../lib/Cache.php';
 require_once __DIR__ . '/../init.php';
 
+// ============================================
+// ВАЖНО: Устанавливаем язык ДО инициализации Translator
+// ============================================
+
+// Получаем язык из настроек
+$opdsLang = Config::getOpdsDefaultLang();
+
+// Если указан конкретный язык (не 'auto')
+if ($opdsLang !== 'auto' && in_array($opdsLang, ['ru', 'en', 'ua', 'by', 'kz'])) {
+    // ВАЖНО: Устанавливаем язык в сессию ДО того, как Translator прочитает его
+    if (session_status() === PHP_SESSION_NONE) {
+        session_name('USER_SESSION');
+        session_start();
+    }
+    $_SESSION['user_lang'] = $opdsLang;
+
+    // Также устанавливаем в Translator (который уже инициализирован в init.php)
+    $translator = Translator::getInstance();
+    $translator->setLanguage($opdsLang);
+
+    // Перезагружаем жанры
+    if (class_exists('GenreManager')) {
+        GenreManager::reload();
+    }
+
+    error_log("OPDS: Language set to {$opdsLang} from config");
+} else {
+    error_log("OPDS: Using auto language detection");
+}
+
 // Базовый URL
 $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") .
            "://" . $_SERVER['HTTP_HOST'] . dirname(dirname($_SERVER['SCRIPT_NAME']));
 
 $generator = new OpdsGenerator($baseUrl);
 
-// Создаем ключ кэша для OPDS
-$cacheKey = 'opds_' . md5($_SERVER['REQUEST_URI']);
+// Создаем ключ кэша с учетом языка
+$cacheLang = $opdsLang !== 'auto' ? $opdsLang : 'auto';
+$cacheKey = 'opds_' . md5($_SERVER['REQUEST_URI'] . '_lang_' . $cacheLang);
 
 // Пробуем получить из кэша
 if (Config::isCacheEnabled()) {
@@ -23,6 +53,7 @@ if (Config::isCacheEnabled()) {
     if ($cached !== null) {
         header('Content-Type: application/atom+xml; charset=utf-8');
         header('X-Cache: HIT');
+        header('X-Language: ' . $opdsLang);
         echo $cached;
         exit;
     }
@@ -59,10 +90,11 @@ try {
 
     // Сохраняем в кэш
     if (Config::isCacheEnabled()) {
-        Cache::set($cacheKey, $content, 'opds_feeds');
+        Cache::set($cacheKey, $content, 'opds_feeds', 3600);
         header('X-Cache: MISS');
     }
 
+    header('X-Language: ' . $opdsLang);
     echo $content;
 
 } catch (Exception $e) {

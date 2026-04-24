@@ -1,5 +1,5 @@
 <?php
-// stats.php
+// stats.php - исправленная версия
 
 define('LOPDS_ROOT', __DIR__);
 
@@ -9,13 +9,13 @@ require_once 'lib/Cache.php';
 require_once 'lib/PageCache.php';
 require_once 'init.php';
 
-PageCache::start('stats_optimized_v2');
+PageCache::start('stats_optimized_v3');
 
 $db = Database::getInstance();
 $dbType = Config::getDbType();
 
 // Ключ кэша с учётом даты (обновляется раз в час)
-$cacheKey = 'stats_complete_data_' . date('YmdH');
+$cacheKey = 'stats_complete_data_v2_' . date('YmdH'); // Увеличиваем версию
 $cachedData = Cache::get($cacheKey, 'statistics');
 
 if ($cachedData !== null) {
@@ -38,14 +38,12 @@ if ($cachedData !== null) {
                     (SELECT COUNT(DISTINCT series) FROM books WHERE series IS NOT NULL AND series != '') AS total_series,
                     (SELECT MAX(added_date) FROM books) AS last_update,
                     (SELECT COUNT(*) FROM books WHERE archive_path IS NOT NULL AND archive_path != '') AS books_in_archives,
-                    
-                    -- Статистика рейтингов
+
                     (SELECT COUNT(DISTINCT book_id) FROM book_ratings) AS rated_books,
                     (SELECT COUNT(*) FROM book_ratings) AS total_ratings,
                     (SELECT COALESCE(AVG(rating), 0) FROM book_ratings) AS avg_rating,
                     (SELECT COUNT(DISTINCT user_ip) FROM book_ratings) AS unique_voters,
-                    
-                    -- Статистика избранного
+
                     (SELECT COUNT(DISTINCT book_id) FROM book_favorites) AS favorited_books,
                     (SELECT COUNT(*) FROM book_favorites) AS total_favorites,
                     (SELECT COUNT(DISTINCT user_ip) FROM book_favorites) AS users_with_favorites";
@@ -58,12 +56,12 @@ if ($cachedData !== null) {
                     (SELECT COUNT(DISTINCT series) FROM books WHERE series IS NOT NULL AND series != '') AS total_series,
                     (SELECT MAX(added_date) FROM books) AS last_update,
                     (SELECT COUNT(*) FROM books WHERE archive_path IS NOT NULL AND archive_path != '') AS books_in_archives,
-                    
+
                     (SELECT COUNT(DISTINCT book_id) FROM book_ratings) AS rated_books,
                     (SELECT COUNT(*) FROM book_ratings) AS total_ratings,
                     (SELECT COALESCE(AVG(rating), 0) FROM book_ratings) AS avg_rating,
                     (SELECT COUNT(DISTINCT user_ip) FROM book_ratings) AS unique_voters,
-                    
+
                     (SELECT COUNT(DISTINCT book_id) FROM book_favorites) AS favorited_books,
                     (SELECT COUNT(*) FROM book_favorites) AS total_favorites,
                     (SELECT COUNT(DISTINCT user_ip) FROM book_favorites) AS users_with_favorites";
@@ -105,80 +103,11 @@ if ($cachedData !== null) {
     ");
     $fileTypes = $stmt->fetchAll();
 
-    // ========== ТОП-20 АВТОРОВ ==========
-    if (Config::getDbType() === 'mysql') {
-        // Пробуем использовать индекс, но если его нет - просто выполняем запрос
-        try {
-            $sql = "SELECT author, COUNT(*) as count
-                FROM books USE INDEX (idx_author_count)
-                WHERE author IS NOT NULL AND author != ''
-                GROUP BY author
-                ORDER BY count DESC
-                LIMIT 20";
-            $stmt = $db->getConnection()->query($sql);
-        } catch (Exception $e) {
-            // Если индекс не существует, выполняем запрос без подсказки
-            error_log("Index idx_author_count not found, using simple query: " . $e->getMessage());
-            $sql = "SELECT author, COUNT(*) as count
-                FROM books 
-                WHERE author IS NOT NULL AND author != ''
-                GROUP BY author
-                ORDER BY count DESC
-                LIMIT 20";
-            $stmt = $db->getConnection()->query($sql);
-        }
-    } else {
-        $sql = "SELECT author, COUNT(*) as count
-            FROM books 
-            WHERE author IS NOT NULL AND author != ''
-            GROUP BY author
-            ORDER BY count DESC
-            LIMIT 20";
-        $stmt = $db->getConnection()->query($sql);
-    }
-    $topAuthors = $stmt->fetchAll();
+    // ========== ТОП-20 АВТОРОВ (используем исправленный метод) ==========
+    $topAuthors = $db->getTopAuthors(20);
 
-    // ========== ТОП-50 ЖАНРОВ ==========
-    try {
-        if (Config::getDbType() === 'mysql') {
-            try {
-                $sql = "SELECT genre, COUNT(*) as count
-                    FROM books USE INDEX (idx_genre_count)
-                    WHERE genre IS NOT NULL AND genre != ''
-                    GROUP BY genre
-                    ORDER BY count DESC
-                    LIMIT 50";
-                $stmt = $db->getConnection()->query($sql);
-            } catch (Exception $e) {
-                error_log("Index idx_genre_count not found, using simple query: " . $e->getMessage());
-                $sql = "SELECT genre, COUNT(*) as count
-                    FROM books 
-                    WHERE genre IS NOT NULL AND genre != ''
-                    GROUP BY genre
-                    ORDER BY count DESC
-                    LIMIT 50";
-                $stmt = $db->getConnection()->query($sql);
-            }
-        } else {
-            $sql = "SELECT genre, COUNT(*) as count
-                FROM books 
-                WHERE genre IS NOT NULL AND genre != ''
-                GROUP BY genre
-                ORDER BY count DESC
-                LIMIT 50";
-            $stmt = $db->getConnection()->query($sql);
-        }
-
-        $genres = $stmt->fetchAll();
-
-        // Добавляем читаемые названия жанров
-        foreach ($genres as &$genre) {
-            $genre['readable_name'] = $db->getReadableGenre($genre['genre']);
-        }
-    } catch (Exception $e) {
-        error_log("Error loading genres in stats.php: " . $e->getMessage());
-        $genres = [];
-    }
+    // ========== ТОП-50 ЖАНРОВ (используем исправленный метод) ==========
+    $genres = $db->getGenresWithCount(50);
 
     // ========== ТОП-10 КНИГ ПО РЕЙТИНГУ ==========
     if ($dbType === 'mysql') {
@@ -595,13 +524,20 @@ foreach ($fileTypes as $fileType):
                         👑 <?php echo __('stats_top_authors'); ?>
                     </h6>
                 </div>
+
                 <div class="card-body">
-                    <div class="row">
+
+                   <div class="row">
                         <?php foreach ($topAuthors as $index => $author): ?>
+
                         <div class="col-md-6 mb-3">
+
                             <div class="card border-left-primary h-100">
-                                <div class="card-body py-2">
+
+                               <div class="card-body py-2">
+
                                     <div class="d-flex justify-content-between align-items-center">
+
                                         <div>
                                             <span class="badge bg-primary me-2">#<?php echo $index + 1; ?></span>
                                             <a href="index.php?field=author&q=<?php echo urlencode($author['author']); ?>" 
@@ -609,31 +545,46 @@ foreach ($fileTypes as $fileType):
                                                 <?php echo htmlspecialchars($author['author']); ?>
                                             </a>
                                         </div>
+
                                         <div>
                                             <span class="badge bg-secondary"><?php echo $author['count']; ?></span>
                                             <small class="text-muted ms-1"><?php echo __('stats_books_count'); ?></small>
                                         </div>
+
                                     </div>
+
                                 </div>
+
                             </div>
+
                         </div>
+
                         <?php endforeach; ?>
                     </div>
+
                 </div>
             </div>
 
             <!-- Топ-50 жанров -->
             <?php if (!empty($genres)): ?>
-            <div class="row mt-4">
+
+         <div class="row mt-4">
+
                 <div class="col-12">
-                    <div class="card shadow">
+
+                    <div class="card border-left-primary h-100">
+
                         <div class="card-header py-3">
                             <h6 class="m-0 font-weight-bold text-primary">
                                 <i class="fas fa-tags me-2"></i><?php echo __('stats_genres_title'); ?>
                             </h6>
                         </div>
+
+
                         <div class="card-body">
+
                             <div class="row">
+
                                 <?php
     $totalGenres = count($genres);
                 $columns = 3;
@@ -645,28 +596,47 @@ foreach ($fileTypes as $fileType):
                     ?>
                                 <div class="col-md-4">
                                     <?php foreach ($columnGenres as $genre): ?>
+
                                     <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
+
                                         <div>
-                                            <a href="index.php?field=genre&q=<?php echo urlencode($genre['genre']); ?>" 
+                                            <a href="index.php?field=genre&q=<?php echo urlencode($genre['genre']); ?>"
                                                class="text-decoration-none">
                                                 <?php echo htmlspecialchars($genre['readable_name'] ?? $genre['genre']); ?>
                                             </a>
                                         </div>
+
+
                                         <div>
                                             <span class="badge bg-primary"><?php echo $genre['count']; ?></span>
                                             <small class="text-muted ms-1">
                                                 (<?php echo $totalBooks > 0 ? round(($genre['count'] / $totalBooks) * 100, 1) : 0; ?>%)
                                             </small>
                                         </div>
+
+
                                     </div>
+
+
                                     <?php endforeach; ?>
                                 </div>
+
+
+
                                 <?php endfor; ?>
                             </div>
+
+
                         </div>
+
+
+
                     </div>
                 </div>
             </div>
+
+
+
             <?php endif; ?>
         </div>
 
@@ -764,6 +734,53 @@ foreach ($fileTypes as $fileType):
         </div>
     </div>
 </div>
+
+
+<style>
+.table th {
+    width: 60%;
+    font-weight: 500;
+    color: #495057;
+}
+.table td {
+    width: 40%;
+}
+.progress {
+    border-radius: 12px;
+    overflow: hidden;
+}
+.progress-bar {
+    transition: width 0.6s ease;
+    font-weight: 600;
+}
+.badge {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+}
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+}
+@media (max-width: 768px) {
+    .table th {
+        width: 50%;
+    }
+    .table td {
+        width: 50%;
+    }
+    .btn {
+        width: 100%;
+        margin: 5px 0 !important;
+    }
+    .d-flex {
+        flex-direction: column;
+    }
+}
+</style>
+
 
 <?php
 

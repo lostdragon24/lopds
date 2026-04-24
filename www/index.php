@@ -72,7 +72,6 @@ if (!empty($searchQuery)) {
 
 $totalPages = ceil($totalBooks / $itemsPerPage);
 
-
 // Загружаем все данные одним пакетом
 $bookIds = array_column($books, 'id');
 
@@ -91,10 +90,11 @@ if (!empty($bookIds)) {
 require 'templates/header.php';
 ?>
 
+
 <div class="row">
     <div class="col-md-3">
 
-        <div class="shadow card search-form">
+        <div class="card search-form shadow-sm">
             <div class="card-body">
                 <h5 class="card-title"><?php echo __('search'); ?></h5>
                 <form method="get" action="index.php">
@@ -127,7 +127,7 @@ require 'templates/header.php';
             </div>
         </div>
 
-        <div class="shadow card mt-3">
+        <div class="card mt-3 shadow-sm">
             <div class="card-body">
                 <h5 class="card-title"><?php echo __('quick_search'); ?></h5>
                 <ul class="list-unstyled">
@@ -138,7 +138,8 @@ require 'templates/header.php';
             </div>
         </div>
 
-        <div class="shadow card mt-3">
+
+        <div class="card mt-3 shadow-sm">
             <div class="card-body">
                 <h5 class="card-title"><?php echo __('stats'); ?></h5>
             
@@ -348,6 +349,51 @@ if (isset($stats['total_books'])): ?>
         <?php endif; ?>
     </div>
 </div>
+
+<style>
+.table th {
+    width: 60%;
+    font-weight: 500;
+    color: #495057;
+}
+.table td {
+    width: 40%;
+}
+.progress {
+    border-radius: 12px;
+    overflow: hidden;
+}
+.progress-bar {
+    transition: width 0.6s ease;
+    font-weight: 600;
+}
+.badge {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+}
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+}
+@media (max-width: 768px) {
+    .table th {
+        width: 50%;
+    }
+    .table td {
+        width: 50%;
+    }
+    .btn {
+        width: 100%;
+        margin: 5px 0 !important;
+    }
+    .d-flex {
+        flex-direction: column;
+    }
+}
+</style>
 
 <?php
 PageCache::save();

@@ -127,11 +127,20 @@ public static function getOpdsId()
 }
 
    
-    public static function getOpdsDefaultLang()
-    {
-        return env('OPDS_LANG', 'ru');
-    } 
-
+public static function getOpdsDefaultLang()
+{
+    $lang = env('OPDS_DEFAULT_LANG', null);
+    
+    if ($lang === null) {
+        $lang = env('OPDS_LANG', 'ru');
+        
+        if ($lang !== 'ru') {
+            error_log("Using deprecated OPDS_LANG, please rename to OPDS_DEFAULT_LANG in .env");
+        }
+    }
+    
+    return $lang;
+}
 
 public static function isCacheEnabled()
 {

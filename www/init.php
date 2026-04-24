@@ -13,11 +13,11 @@ require_once LOPDS_ROOT . '/lib/SessionManager.php';
 // Определяем, в админке мы или нет
 $isAdmin = strpos($_SERVER['SCRIPT_NAME'], '/admin/') !== false;
 
-//if ($isAdmin) {
-//    session_name('ADMIN_SESSION');
-//} else {
-//    session_name('USER_SESSION');
-//}
+if ($isAdmin) {
+    session_name('ADMIN_SESSION');
+} else {
+    session_name('USER_SESSION');
+}
 
 SessionManager::start();
 

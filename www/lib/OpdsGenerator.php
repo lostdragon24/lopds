@@ -17,8 +17,112 @@ class OpdsGenerator
         $this->baseUrl = rtrim($baseUrl, '/');
     }
 
+
+private function setOpdsLanguageFromConfig()
+{
+    // Получаем язык из настроек
+    $defaultLang = Config::getOpdsDefaultLang();
+
+    // Если указан конкретный язык (не 'auto')
+    if ($defaultLang !== 'auto' && in_array($defaultLang, ['ru', 'en', 'ua', 'by', 'kz'])) {
+        // Принудительно устанавливаем язык в переводчике
+        if (class_exists('Translator')) {
+            $translator = Translator::getInstance();
+            $translator->setLanguage($defaultLang);
+
+            // Перезагружаем жанры
+            if (class_exists('GenreManager')) {
+                GenreManager::reload();
+            }
+        }
+        return $defaultLang;
+    }
+
+    // Если 'auto' - используем язык из сессии или браузера
+    return $this->getOpdsLanguage();
+}
+
+    /**
+ * Определить язык для OPDS-каталога
+ * Приоритет: 1. Параметр lang в URL, 2. Настройка OPDS_DEFAULT_LANG, 3. Язык браузера, 4. Русский
+ */
+private function getOpdsLanguage()
+{
+    // 1. Проверяем параметр lang в URL (позволяет OPDS-клиентам переключать язык)
+    if (isset($_GET['lang']) && !empty($_GET['lang'])) {
+        $requestedLang = $_GET['lang'];
+        $availableLangs = ['ru', 'en', 'ua', 'by', 'kz'];
+        if (in_array($requestedLang, $availableLangs)) {
+            return $requestedLang;
+        }
+    }
+
+    // 2. Получаем настройку из конфига
+    $defaultLang = Config::getOpdsDefaultLang();
+
+    // 3. Если 'auto' - определяем язык из сессии или браузера
+    if ($defaultLang === 'auto') {
+        // Пробуем получить из сессии
+        if (session_status() === PHP_SESSION_NONE) {
+            @session_start();
+        }
+        if (isset($_SESSION['user_lang'])) {
+            return $_SESSION['user_lang'];
+        }
+
+        // Пробуем получить из cookie
+        if (isset($_COOKIE['user_lang'])) {
+            return $_COOKIE['user_lang'];
+        }
+
+        // Определяем из заголовка Accept-Language
+        if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
+            $browserLangs = explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']);
+            foreach ($browserLangs as $langWithPriority) {
+                $langCode = substr(trim($langWithPriority), 0, 2);
+                $availableLangs = ['ru', 'en', 'ua', 'by', 'kz'];
+                if (in_array($langCode, $availableLangs)) {
+                    return $langCode;
+                }
+            }
+        }
+
+        return 'ru';
+    }
+
+    return $defaultLang;
+}
+
+/**
+ * Установить язык для OPDS-каталога
+ */
+private function setOpdsLanguage()
+{
+    $lang = $this->getOpdsLanguage();
+
+    // Устанавливаем язык в переводчике
+    if (class_exists('Translator')) {
+        $translator = Translator::getInstance();
+        $translator->setLanguage($lang);
+
+        // Перезагружаем жанры для нового языка
+        if (class_exists('GenreManager')) {
+            GenreManager::reload();
+        }
+    }
+
+    return $lang;
+}
+
+
+
+
     public function generateCatalog()
     {
+
+        // Устанавливаем язык для OPDS
+        $this->setOpdsLanguageFromConfig();
+
         header('Content-Type: application/atom+xml; charset=utf-8');
 
         $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
@@ -81,6 +185,9 @@ class OpdsGenerator
      */
     public function generateSearchResults($query, $page = 1)
     {
+        // Устанавливаем язык для OPDS
+        $this->setOpdsLanguageFromConfig();
+
         error_log('OPDS Search called with query: '.$query.', page: '.$page);
 
         header('Content-Type: application/atom+xml; charset=utf-8');
@@ -216,6 +323,9 @@ class OpdsGenerator
      */
     public function generateByAuthors($page = 1)
     {
+
+        // Устанавливаем язык для OPDS
+        $this->setOpdsLanguageFromConfig();
         header('Content-Type: application/atom+xml; charset=utf-8');
 
         $perPage = 50;
@@ -506,6 +616,8 @@ class OpdsGenerator
      */
     public function generateByGenres($page = 1)
     {
+        // Устанавливаем язык для OPDS
+        $this->setOpdsLanguageFromConfig();
         $view = $_GET['view'] ?? '';
         $category = $_GET['category'] ?? '';
 
@@ -523,6 +635,8 @@ class OpdsGenerator
      */
     public function generateByAuthor($author, $page = 1)
     {
+        // Устанавливаем язык для OPDS
+        $this->setOpdsLanguageFromConfig();
         header('Content-Type: application/atom+xml; charset=utf-8');
 
         $perPage = 25;
@@ -587,6 +701,8 @@ class OpdsGenerator
      */
     public function generateByGenre($genre, $page = 1)
     {
+        // Устанавливаем язык для OPDS
+        $this->setOpdsLanguageFromConfig();
         header('Content-Type: application/atom+xml; charset=utf-8');
 
         $perPage = 25;
@@ -654,6 +770,8 @@ class OpdsGenerator
      */
     public function generateBySeries($series, $page = 1)
     {
+        // Устанавливаем язык для OPDS
+        $this->setOpdsLanguageFromConfig();
         header('Content-Type: application/atom+xml; charset=utf-8');
 
         $perPage = 25;
@@ -823,78 +941,106 @@ class OpdsGenerator
         }
     }
 
-    private function addBookEntry($xml, $book)
-    {
-        $xml->startElement('entry');
+private function addBookEntry($xml, $book)
+{
+    $xml->startElement('entry');
 
-        $xml->writeElement('id', Config::getOpdsId().':book:'.$book['id']);
-        $xml->writeElement('title', htmlspecialchars($book['title'] ?: __('book_untitled')));
-        $xml->writeElement('updated', date('c', strtotime($book['added_date'])));
+    $xml->writeElement('id', Config::getOpdsId() . ':book:' . $book['id']);
+    $xml->writeElement('title', htmlspecialchars($book['title'] ?: __('book_untitled')));
+    $xml->writeElement('updated', date('c', strtotime($book['added_date'])));
 
-        if ($book['author']) {
-            $xml->startElement('author');
-            $xml->writeElement('name', htmlspecialchars($book['author']));
-            $xml->endElement();
-        }
-
-        // Описание
-        if ($book['description']) {
-            $description = substr($book['description'], 0, 500);
-            $xml->writeElement('summary', htmlspecialchars($description));
-            $xml->writeAttribute('type', 'text');
-        }
-
-        // Обложка
-        $coverUrl = $this->baseUrl.'/api/cover.php?id='.$book['id'];
-        $xml->startElement('link');
-        $xml->writeAttribute('rel', 'http://opds-spec.org/image');
-        $xml->writeAttribute('href', $coverUrl);
-        $xml->writeAttribute('type', 'image/jpeg');
-        $xml->endElement();
-
-        $xml->startElement('link');
-        $xml->writeAttribute('rel', 'http://opds-spec.org/image/thumbnail');
-        $xml->writeAttribute('href', $coverUrl.'&thumb=1');
-        $xml->writeAttribute('type', 'image/jpeg');
-        $xml->endElement();
-
-        // Ссылка для скачивания
-        $downloadUrl = $this->baseUrl.'/api/download.php?id='.$book['id'];
-        $xml->startElement('link');
-        $xml->writeAttribute('rel', 'http://opds-spec.org/acquisition/open-access');
-        $xml->writeAttribute('href', $downloadUrl);
-        $xml->writeAttribute('type', $this->getMimeType($book['file_type']));
-        $xml->endElement();
-
-        $xml->startElement('link');
-        $xml->writeAttribute('rel', 'http://opds-spec.org/acquisition');
-        $xml->writeAttribute('href', $downloadUrl);
-        $xml->writeAttribute('type', $this->getMimeType($book['file_type']));
-        $xml->endElement();
-
-        // Метаданные
-        if ($book['genre']) {
-            $readableGenre = GenreManager::getReadableName($book['genre']);
-            $xml->startElement('category');
-            $xml->writeAttribute('term', htmlspecialchars($book['genre']));
-            $xml->writeAttribute('label', htmlspecialchars($readableGenre ?: $book['genre']));
-            $xml->endElement();
-        }
-
-        if ($book['language']) {
-            $xml->writeElement('dc:language', htmlspecialchars($book['language']));
-        }
-
-        if ($book['publisher']) {
-            $xml->writeElement('dc:publisher', htmlspecialchars($book['publisher']));
-        }
-
-        if ($book['year']) {
-            $xml->writeElement('dc:issued', $book['year']);
-        }
-
+    if ($book['author']) {
+        $xml->startElement('author');
+        $xml->writeElement('name', htmlspecialchars($book['author']));
         $xml->endElement();
     }
+
+    // Описание
+    if ($book['description']) {
+        $description = substr($book['description'], 0, 500);
+        $xml->writeElement('summary', htmlspecialchars($description));
+        $xml->writeAttribute('type', 'text');
+    }
+
+    // Обложка
+    $coverUrl = $this->baseUrl . '/api/cover.php?id=' . $book['id'];
+    $xml->startElement('link');
+    $xml->writeAttribute('rel', 'http://opds-spec.org/image');
+    $xml->writeAttribute('href', $coverUrl);
+    $xml->writeAttribute('type', 'image/jpeg');
+    $xml->endElement();
+
+    $xml->startElement('link');
+    $xml->writeAttribute('rel', 'http://opds-spec.org/image/thumbnail');
+    $xml->writeAttribute('href', $coverUrl . '&thumb=1');
+    $xml->writeAttribute('type', 'image/jpeg');
+    $xml->endElement();
+
+    // Ссылка для скачивания
+    $downloadUrl = $this->baseUrl . '/api/download.php?id=' . $book['id'];
+    $xml->startElement('link');
+    $xml->writeAttribute('rel', 'http://opds-spec.org/acquisition/open-access');
+    $xml->writeAttribute('href', $downloadUrl);
+    $xml->writeAttribute('type', $this->getMimeType($book['file_type']));
+    $xml->endElement();
+
+    $xml->startElement('link');
+    $xml->writeAttribute('rel', 'http://opds-spec.org/acquisition');
+    $xml->writeAttribute('href', $downloadUrl);
+    $xml->writeAttribute('type', $this->getMimeType($book['file_type']));
+    $xml->endElement();
+
+    // ============================================
+    // КАТЕГОРИЯ ЖАНРА - ПРЯМОЕ ПОЛУЧЕНИЕ ПЕРЕВОДА
+    // ============================================
+    if ($book['genre']) {
+        // Получаем язык из настроек
+        $opdsLang = Config::getOpdsDefaultLang();
+
+        // Если язык указан и не 'auto'
+        if ($opdsLang !== 'auto') {
+            // Загружаем жанры напрямую для нужного языка
+            $genresFile = __DIR__ . "/../lang/genres/{$opdsLang}.php";
+            if (file_exists($genresFile)) {
+                $genres = include $genresFile;
+                $readableGenre = $genres[$book['genre']] ?? null;
+            } else {
+                $readableGenre = null;
+            }
+        } else {
+            // Используем стандартный GenreManager
+            $readableGenre = GenreManager::getReadableName($book['genre']);
+        }
+
+        // Если перевод не найден, используем код жанра
+        if (empty($readableGenre)) {
+            $readableGenre = $book['genre'];
+        }
+
+        $xml->startElement('category');
+        $xml->writeAttribute('term', htmlspecialchars($book['genre']));
+        $xml->writeAttribute('label', htmlspecialchars($readableGenre));
+        $xml->endElement();
+
+        error_log("OPDS Genre: {$book['genre']} -> {$readableGenre} (lang: {$opdsLang})");
+    }
+    // ============================================
+
+    // Метаданные
+    if ($book['language']) {
+        $xml->writeElement('dc:language', htmlspecialchars($book['language']));
+    }
+
+    if ($book['publisher']) {
+        $xml->writeElement('dc:publisher', htmlspecialchars($book['publisher']));
+    }
+
+    if ($book['year']) {
+        $xml->writeElement('dc:issued', $book['year']);
+    }
+
+    $xml->endElement();
+}
 
     private function getMimeType($fileType)
     {

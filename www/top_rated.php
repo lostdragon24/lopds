@@ -1,5 +1,5 @@
 <?php
-// top_rated.php
+// top_rated.php - исправленная версия
 
 define('LOPDS_ROOT', __DIR__);
 
@@ -20,8 +20,8 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) &&
 
     // Начинаем кэширование страницы
     $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-    $cacheKey = 'top_rated_page_' . $page;
-    PageCache::start($cacheKey);
+    $pageCacheKey = 'top_rated_page_' . $page;
+    PageCache::start($pageCacheKey);
 }
 
 $db = Database::getInstance();
@@ -32,16 +32,25 @@ $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
 $perPage = Config::getItemsPerPage();
 
 // ========== ПОЛУЧАЕМ ДАННЫЕ ИЗ КЭША ==========
-$cacheKey = 'top_rated_data_v2';
+// Используем актуальный ключ
+$cacheKey = 'top_rated_data_v3'; // <-- Убедитесь, что это v3, а не v2
 $allBooks = Cache::get($cacheKey, 'statistics');
 
+// Добавляем отладку
+error_log("=== TOP RATED CACHE CHECK ===");
+error_log("Cache key: " . $cacheKey);
+error_log("Cache type: statistics");
+error_log("Cache hit: " . ($allBooks !== null ? "YES" : "NO"));
+
 if ($allBooks === null) {
+    error_log("Cache MISS - executing query");
+
     // ОПТИМИЗИРОВАННЫЙ ЗАПРОС С ИСПОЛЬЗОВАНИЕМ ИНДЕКСОВ
     $startTime = microtime(true);
 
     if (Config::getDbType() === 'mysql') {
         // MySQL версия с подзапросом
-        $sql = "SELECT 
+        $sql = "SELECT
                     b.id,
                     b.title,
                     b.author,
@@ -54,9 +63,9 @@ if ($allBooks === null) {
                     COALESCE(r_stats.votes_count, 0) as votes_count
                 FROM books b
                 LEFT JOIN (
-                    SELECT 
-                        book_id, 
-                        AVG(rating) as avg_rating, 
+                    SELECT
+                        book_id,
+                        AVG(rating) as avg_rating,
                         COUNT(*) as votes_count
                     FROM book_ratings
                     GROUP BY book_id
@@ -66,7 +75,7 @@ if ($allBooks === null) {
                 LIMIT 100";
     } else {
         // SQLite версия
-        $sql = "SELECT 
+        $sql = "SELECT
                     b.id,
                     b.title,
                     b.author,
@@ -79,9 +88,9 @@ if ($allBooks === null) {
                     IFNULL(r_stats.votes_count, 0) as votes_count
                 FROM books b
                 LEFT JOIN (
-                    SELECT 
-                        book_id, 
-                        AVG(rating) as avg_rating, 
+                    SELECT
+                        book_id,
+                        AVG(rating) as avg_rating,
                         COUNT(*) as votes_count
                     FROM book_ratings
                     GROUP BY book_id
@@ -94,11 +103,13 @@ if ($allBooks === null) {
     $stmt = $db->getConnection()->query($sql);
     $allBooks = $stmt->fetchAll();
     $queryTime = microtime(true) - $startTime;
-    error_log("Top rated query time: " . round($queryTime, 2) . " sec");
+    error_log("Top rated query time: " . round($queryTime, 2) . " sec, found " . count($allBooks) . " books");
 
     // Кэшируем на 1 час
-    // Cache::set($cacheKey, $allBooks, 3600);
     Cache::set($cacheKey, $allBooks, 'statistics', 3600);
+    error_log("Cache SET: {$cacheKey}");
+} else {
+    error_log("Cache HIT - using cached data, books count: " . count($allBooks));
 }
 
 // ========== ПОЛУЧАЕМ СТАТУС ИЗБРАННОГО ОДНИМ ЗАПРОСОМ ==========
@@ -109,8 +120,8 @@ if (!empty($bookIds)) {
     $params = array_merge($bookIds, [$userIp]);
 
     $stmt = $db->getConnection()->prepare("
-        SELECT book_id 
-        FROM book_favorites 
+        SELECT book_id
+        FROM book_favorites
         WHERE book_id IN ($placeholders) AND user_ip = ?
     ");
     $stmt->execute($params);
@@ -127,7 +138,7 @@ $offset = ($page - 1) * $perPage;
 $currentBooks = array_slice($allBooks, $offset, $perPage);
 
 // ========== ОБЩАЯ СТАТИСТИКА РЕЙТИНГОВ ==========
-$statsCacheKey = 'rating_stats_global';
+$statsCacheKey = 'rating_stats_global_v2';
 $ratingStats = Cache::get($statsCacheKey, 'statistics');
 
 if ($ratingStats === null) {
@@ -139,7 +150,7 @@ if ($ratingStats === null) {
         FROM book_ratings
     ");
     $ratingStats = $stmt->fetch();
-    Cache::set($statsCacheKey, $ratingStats, 3600);
+    Cache::set($statsCacheKey, $ratingStats, 'statistics', 3600);
 }
 
 require 'templates/header.php';

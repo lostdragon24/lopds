@@ -146,7 +146,7 @@ class EnvManager
         // Секции для лучшей читаемости
         $sections = [
             'site' => ['SITE_TITLE', 'ITEMS_PER_PAGE'],
-            'opds' => ['OPDS_TITLE', 'OPDS_AUTHOR', 'OPDS_ID'],
+            'opds' => ['OPDS_TITLE', 'OPDS_AUTHOR', 'OPDS_ID', 'OPDS_DEFAULT_LANG'],
             'database' => ['DB_TYPE', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS', 'DB_PATH'],
             'cache' => ['ENABLE_CACHE', 'USE_APCU', 'CACHE_TTL', 'PAGE_CACHE_ENABLED'],
             'paths' => ['BOOKS_DIR', 'CACHE_DIR', 'COVER_CACHE_DIR', 'SCANNER_PATH'],

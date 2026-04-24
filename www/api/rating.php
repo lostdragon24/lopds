@@ -66,39 +66,37 @@ try {
     }
 
     switch ($action) {
-        case 'rate':
-            if (!isset($data['book_id'], $data['rating'])) {
-                throw new Exception(__('error_missing_params'));
-            }
+   case 'rate':
+    if (!isset($data['book_id'], $data['rating'])) {
+        throw new Exception(__('error_missing_params'));
+    }
 
-            $bookId = (int)$data['book_id'];
-            $rating = (int)$data['rating'];
+    $bookId = (int)$data['book_id'];
+    $rating = (int)$data['rating'];
 
-            if ($rating < 1 || $rating > 5) {
-                throw new Exception(__('error_invalid_rating'));
-            }
+    if ($rating < 1 || $rating > 5) {
+        throw new Exception(__('error_invalid_rating'));
+    }
 
-            // Проверяем существование книги
-            $book = $db->getBook($bookId);
-            if (!$book) {
-                throw new Exception(__('book_not_found'));
-            }
+    // Проверяем существование книги
+    $book = $db->getBook($bookId);
+    if (!$book) {
+        throw new Exception(__('book_not_found'));
+    }
 
-            // Проверяем, оценивал ли уже пользователь
-            $stmt = $db->getConnection()->prepare(
-                "SELECT id FROM book_ratings WHERE book_id = ? AND user_ip = ?"
-            );
-            $stmt->execute([$bookId, $userIp]);
+    // Проверяем, оценивал ли уже пользователь
+    $stmt = $db->getConnection()->prepare(
+        "SELECT id FROM book_ratings WHERE book_id = ? AND user_ip = ?"
+    );
+    $stmt->execute([$bookId, $userIp]);
 
-        if ($stmt->fetch()) {
-        // Обновляем (created_at не трогаем — это дата первой оценки)
+    if ($stmt->fetch()) {
         $stmt = $db->getConnection()->prepare(
             "UPDATE book_ratings SET rating = ? WHERE book_id = ? AND user_ip = ?"
         );
         $stmt->execute([$rating, $bookId, $userIp]);
         $result = 'updated';
     } else {
-        // Вставляем
         $stmt = $db->getConnection()->prepare(
             "INSERT INTO book_ratings (book_id, user_ip, rating, created_at)
              VALUES (?, ?, ?, CURRENT_TIMESTAMP)"
@@ -107,36 +105,58 @@ try {
         $result = 'added';
     }
 
-            // Сбрасываем кэш страниц
-            PageCache::invalidateUserPages($userIp);
+    // ========== ИНВАЛИДАЦИЯ КЭША ==========
+    // 1. Сбрасываем кэш страниц пользователя
+    PageCache::invalidateUserPages($userIp);
 
-            // Получаем обновленный рейтинг
-            $stmt = $db->getConnection()->prepare(
-                "SELECT COUNT(*) as votes, AVG(rating) as average 
-                 FROM book_ratings WHERE book_id = ?"
-            );
-            $stmt->execute([$bookId]);
-            $ratingData = $stmt->fetch();
+    // 2. Инвалидируем кэш рейтингов
+    Cache::invalidateByType('ratings');
+    Cache::invalidateByType('statistics');
 
-            // Получаем оценку пользователя
-            $stmt = $db->getConnection()->prepare(
-                "SELECT rating FROM book_ratings WHERE book_id = ? AND user_ip = ?"
-            );
-            $stmt->execute([$bookId, $userIp]);
-            $userRating = $stmt->fetch();
+    // 3. ВАЖНО: Очищаем кэш топ-100 книг
+    Cache::delete('top_rated_data_v2');
+    Cache::delete('top_rated_data_v3');
+    Cache::delete('top_rated_all_v3');
 
-            echo json_encode([
-                'success' => true,
-                'message' => __('rating_saved'),
-                'result' => $result,
-                'rating' => [
-                    'votes' => (int)$ratingData['votes'],
-                    'average' => (float)$ratingData['average'],
-                    'average_rounded' => round((float)$ratingData['average'] * 2) / 2
-                ],
-                'user_rating' => $userRating ? (int)$userRating['rating'] : $rating
-            ]);
-            break;
+    // 4. Очищаем кэш глобальной статистики рейтингов
+    Cache::delete('rating_stats_global');
+    Cache::delete('rating_stats_global_v2');
+
+    // 5. Очищаем кэш страниц топа (все страницы)
+    for ($i = 1; $i <= 20; $i++) {
+        Cache::delete('page_top_rated_page_' . $i);
+    }
+
+    error_log("Rating cache invalidated for book {$bookId}");
+    // =====================================
+
+    // Получаем обновленный рейтинг
+    $stmt = $db->getConnection()->prepare(
+        "SELECT COUNT(*) as votes, AVG(rating) as average
+         FROM book_ratings WHERE book_id = ?"
+    );
+    $stmt->execute([$bookId]);
+    $ratingData = $stmt->fetch();
+
+    // Получаем оценку пользователя
+    $stmt = $db->getConnection()->prepare(
+        "SELECT rating FROM book_ratings WHERE book_id = ? AND user_ip = ?"
+    );
+    $stmt->execute([$bookId, $userIp]);
+    $userRating = $stmt->fetch();
+
+    echo json_encode([
+        'success' => true,
+        'message' => __('rating_saved'),
+        'result' => $result,
+        'rating' => [
+            'votes' => (int)$ratingData['votes'],
+            'average' => (float)$ratingData['average'],
+            'average_rounded' => round((float)$ratingData['average'] * 2) / 2
+        ],
+        'user_rating' => $userRating ? (int)$userRating['rating'] : $rating
+    ]);
+    break;
 
         case 'toggle_favorite':
             if (!isset($data['book_id'])) {
