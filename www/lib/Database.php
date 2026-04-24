@@ -914,6 +914,66 @@ public function rateBook($bookId, $rating, $userIp, $csrfToken = null)
     }
 }
 
+
+   /**
+     * Получить топ книг по рейтингу (оптимизированная версия).
+     */
+    public function getTopRatedBooks($limit = 100, $minVotes = 1)
+    {
+        $cacheKey = 'top_rated_optimized_'.$limit.'_'.$minVotes;
+
+        $cached = Cache::get($cacheKey, 'statistics');
+        if (null !== $cached) {
+            ++$this->cacheHits;
+
+            return $cached;
+        }
+        ++$this->cacheMisses;
+
+        $dbType = Config::getDbType();
+
+
+        if ($dbType === 'mysql') {
+            // MySQL оптимизация с подзапросом и использованием индексов
+            $sql = 'SELECT b.id, b.title, b.author, b.series, b.series_number,
+                           b.genre, b.file_type, b.added_date,
+                           COALESCE(r_stats.avg_rating, 0) as avg_rating,
+                           COALESCE(r_stats.votes_count, 0) as votes_count
+                    FROM books b
+                    STRAIGHT_JOIN (
+                        SELECT book_id, AVG(rating) as avg_rating, COUNT(*) as votes_count
+                        FROM book_ratings
+                        GROUP BY book_id
+                        HAVING COUNT(*) >= ?
+                    ) r_stats ON b.id = r_stats.book_id
+                    ORDER BY r_stats.avg_rating DESC, r_stats.votes_count DESC, b.title
+                    LIMIT ?';
+        } else {
+            // SQLite оптимизация
+            $sql = 'SELECT b.id, b.title, b.author, b.series, b.series_number,
+                           b.genre, b.file_type, b.added_date,
+                           IFNULL(r_stats.avg_rating, 0) as avg_rating,
+                           IFNULL(r_stats.votes_count, 0) as votes_count
+                    FROM books b
+                    LEFT JOIN (
+                        SELECT book_id, AVG(rating) as avg_rating, COUNT(*) as votes_count
+                        FROM book_ratings
+                        GROUP BY book_id
+                    ) r_stats ON b.id = r_stats.book_id
+                    WHERE r_stats.votes_count >= ?
+                    ORDER BY r_stats.avg_rating DESC, r_stats.votes_count DESC, b.title
+                    LIMIT ?';
+        }
+
+        $stmt = $this->executeQuery($sql, [$minVotes, $limit]);
+        $result = $stmt->fetchAll();
+
+        Cache::set($cacheKey, $result, 'statistics', 1800); // Кэш на 30 минут
+
+        return $result;
+    }
+
+
     /**
      * Добавить/удалить книгу в избранное (с инвалидацией кэша)
      */
