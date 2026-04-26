@@ -60,6 +60,13 @@
 * OpenSSL \- вычисление хешей (MD5, SHA1, SHA256, SHA512)  
 * iconv \- конвертация кодировок (UTF-8, Windows-1251)
 
+⛽ Для WEB:
+* Bootstrap
+* Font Awesome
+* Epubjs
+* PDFjs
+
+
 ## **📦 Установка и запуск**
 
 ### **Зависимости**
