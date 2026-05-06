@@ -265,7 +265,7 @@ BookMeta *parse_metadata(const char *filepath, const char *file_type) {
     }
   }
 
-  // Fallback: если не удалось распарсить или неподдерживаемый формат
+  // если не удалось распарсить или неподдерживаемый формат
   if (!meta->title) {
     const char *filename = strrchr(filepath, '/');
     filename = filename ? filename + 1 : filepath;
@@ -594,10 +594,9 @@ char *extract_fb2_author(const char *xml) {
 }
 
 void free_book_meta(BookMeta *meta) {
-  if (!meta)
-    return;
+  if (!meta) return;
 
-  // Освобождаем все строковые поля с проверкой
+  // Безопасное освобождение всех полей
   if (meta->title) {
     free(meta->title);
     meta->title = NULL;
@@ -627,8 +626,8 @@ void free_book_meta(BookMeta *meta) {
     meta->description = NULL;
   }
 
-  // Освобождаем саму структуру
-  free(meta);
+  // Не освобождаем саму структуру, так как она может быть на стеке
+  // free(meta);  // НЕ ДЕЛАЙТЕ ЭТО!
 }
 
 BookMeta *parse_epub(const char *filepath) {
