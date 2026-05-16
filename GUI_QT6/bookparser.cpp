@@ -9,6 +9,20 @@
 #include <archive_entry.h>
 #include <QTemporaryFile>
 
+
+#ifdef QT_DEBUG
+#define DEBUG_LOG qDebug
+#else
+#define DEBUG_LOG if(false) qDebug
+#endif
+
+static inline QString cleanTagName(const QString& name) {
+    if (name.contains('}')) {
+        return name.split('}').last();
+    }
+    return name;
+}
+
 // Добавим структуру для работы с памятью
 struct MemoryReader {
     const char* data;
@@ -94,17 +108,35 @@ BookMeta BookParser::parseMetadataFromMemory(const QByteArray &data, const QStri
     return meta;
 }
 
+
+static QString extractTextFromElement(QXmlStreamReader& xml) {
+    QString result;
+    while (!xml.atEnd()) {
+        xml.readNext();
+        if (xml.isEndElement()) {
+            break;
+        }
+        if (xml.isCharacters()) {
+            result += xml.text().toString();
+        } else if (xml.isStartElement()) {
+            // Рекурсивно обрабатываем вложенные элементы
+            result += extractTextFromElement(xml);
+        }
+    }
+    return result.simplified();
+}
+
+
 BookMeta BookParser::parseFb2(const QString &filePath)
 {
     BookMeta meta;
-
     QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qDebug() << "Cannot open FB2 file:" << filePath;
-        return meta;
-    }
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return meta;
 
     QXmlStreamReader xml(&file);
+    bool inTitleInfo = false;    // флаг, что мы внутри <title-info>
+    bool inAuthor = false;
+    QString firstName, lastName, middleName;
 
     while (!xml.atEnd() && !xml.hasError()) {
         QXmlStreamReader::TokenType token = xml.readNext();
@@ -112,75 +144,60 @@ BookMeta BookParser::parseFb2(const QString &filePath)
         if (token == QXmlStreamReader::StartElement) {
             QString elementName = xml.name().toString();
 
-            if (elementName == "book-title") {
-                meta.title = xml.readElementText();
-                qDebug() << "Found title:" << meta.title;
+            if (elementName == "title-info") {
+                inTitleInfo = true;
             }
-            else if (elementName == "author") {
-                QString firstName, lastName, middleName;
-
-                while (!(xml.tokenType() == QXmlStreamReader::EndElement && xml.name().toString() == "author")) {
-                    xml.readNext();
-
-                    if (xml.tokenType() == QXmlStreamReader::StartElement) {
-                        QString nameElement = xml.name().toString();
-
-                        if (nameElement == "first-name") {
-                            firstName = xml.readElementText();
-                        }
-                        else if (nameElement == "last-name") {
-                            lastName = xml.readElementText();
-                        }
-                        else if (nameElement == "middle-name") {
-                            middleName = xml.readElementText();
-                        }
-                    }
+            else if (inTitleInfo && elementName == "author") {
+                inAuthor = true;
+                firstName.clear();
+                lastName.clear();
+                middleName.clear();
+            }
+            else if (inAuthor) {
+                if (elementName == "first-name") {
+                    firstName = xml.readElementText();
+                } else if (elementName == "last-name") {
+                    lastName = xml.readElementText();
+                } else if (elementName == "middle-name") {
+                    middleName = xml.readElementText();
                 }
-
-                // Формируем имя автора
+            }
+            else if (inTitleInfo && elementName == "book-title") {
+                meta.title = xml.readElementText();
+            }
+            else if (inTitleInfo && elementName == "sequence") {
+                QXmlStreamAttributes attrs = xml.attributes();
+                meta.series = attrs.value("name").toString();
+                meta.seriesNumber = attrs.value("number").toInt();
+                xml.readElementText();
+            }
+            else if (inTitleInfo && elementName == "annotation") {
+                meta.description = extractTextFromElement(xml);
+            }
+            else if (inTitleInfo && elementName == "genre") {
+                QString genre = xml.readElementText();
+                meta.genre = genreMap.value(genre, genre);
+            }
+            // Можно добавить обработку year, lang из title-info
+        }
+        else if (token == QXmlStreamReader::EndElement) {
+            QString elementName = xml.name().toString();
+            if (elementName == "title-info") {
+                // Завершили title-info — сохраняем автора
                 if (!lastName.isEmpty() && !firstName.isEmpty()) {
                     meta.author = QString("%1 %2").arg(lastName, firstName);
-                    if (!middleName.isEmpty()) {
-                        meta.author += " " + middleName;
-                    }
+                    if (!middleName.isEmpty()) meta.author += " " + middleName;
                 } else if (!lastName.isEmpty()) {
                     meta.author = lastName;
                 } else if (!firstName.isEmpty()) {
                     meta.author = firstName;
                 }
-
-                qDebug() << "Found author:" << meta.author;
+                inTitleInfo = false;
             }
-            else if (elementName == "sequence") {
-                QXmlStreamAttributes attributes = xml.attributes();
-                QString seriesName = attributes.value("name").toString();
-                QString seriesNum = attributes.value("number").toString();
-
-                if (!seriesName.isEmpty()) {
-                    meta.series = seriesName;
-                    qDebug() << "Found series:" << meta.series;
-                }
-                if (!seriesNum.isEmpty()) {
-                    meta.seriesNumber = seriesNum.toInt();
-                    qDebug() << "Found series number:" << meta.seriesNumber;
-                }
-
-                xml.readElementText(); // Пропускаем содержимое элемента
-            }
-            else if (elementName == "genre") {
-                QString genre = xml.readElementText();
-                if (genreMap.contains(genre)) {
-                    meta.genre = genreMap[genre];
-                } else {
-                    meta.genre = genre;
-                }
-                qDebug() << "Found genre:" << meta.genre;
+            else if (inTitleInfo && elementName == "author") {
+                inAuthor = false;
             }
         }
-    }
-
-    if (xml.hasError()) {
-        qDebug() << "XML parsing error:" << xml.errorString();
     }
 
     file.close();
@@ -190,15 +207,16 @@ BookMeta BookParser::parseFb2(const QString &filePath)
 BookMeta BookParser::parseFb2FromMemory(const QByteArray &data)
 {
     BookMeta meta;
-
     QBuffer buffer;
     buffer.setData(data);
-
     if (!buffer.open(QIODevice::ReadOnly | QIODevice::Text)) {
         return meta;
     }
 
     QXmlStreamReader xml(&buffer);
+    bool inTitleInfo = false;
+    bool inAuthor = false;
+    QString firstName, lastName, middleName;
 
     while (!xml.atEnd() && !xml.hasError()) {
         QXmlStreamReader::TokenType token = xml.readNext();
@@ -206,69 +224,58 @@ BookMeta BookParser::parseFb2FromMemory(const QByteArray &data)
         if (token == QXmlStreamReader::StartElement) {
             QString elementName = xml.name().toString();
 
-            if (elementName == "book-title") {
-                meta.title = xml.readElementText();
-                qDebug() << "Found title in memory:" << meta.title;
+            if (elementName == "title-info") {
+                inTitleInfo = true;
             }
-            else if (elementName == "author") {
-                QString firstName, lastName, middleName;
-
-                while (!(xml.tokenType() == QXmlStreamReader::EndElement && xml.name().toString() == "author")) {
-                    xml.readNext();
-
-                    if (xml.tokenType() == QXmlStreamReader::StartElement) {
-                        QString nameElement = xml.name().toString();
-
-                        if (nameElement == "first-name") {
-                            firstName = xml.readElementText();
-                        }
-                        else if (nameElement == "last-name") {
-                            lastName = xml.readElementText();
-                        }
-                        else if (nameElement == "middle-name") {
-                            middleName = xml.readElementText();
-                        }
-                    }
+            else if (inTitleInfo && elementName == "author") {
+                inAuthor = true;
+                firstName.clear();
+                lastName.clear();
+                middleName.clear();
+            }
+            else if (inAuthor) {
+                if (elementName == "first-name") {
+                    firstName = xml.readElementText();
+                } else if (elementName == "last-name") {
+                    lastName = xml.readElementText();
+                } else if (elementName == "middle-name") {
+                    middleName = xml.readElementText();
                 }
-
-                // Формируем имя автора
+            }
+            else if (inTitleInfo && elementName == "book-title") {
+                meta.title = xml.readElementText();
+            }
+            else if (inTitleInfo && elementName == "sequence") {
+                QXmlStreamAttributes attrs = xml.attributes();
+                meta.series = attrs.value("name").toString();
+                meta.seriesNumber = attrs.value("number").toInt();
+                xml.readElementText();
+            }
+            else if (inTitleInfo && elementName == "annotation") {
+                meta.description = extractTextFromElement(xml);
+            }
+            else if (inTitleInfo && elementName == "genre") {
+                QString genre = xml.readElementText();
+                meta.genre = genreMap.value(genre, genre);
+            }
+            // Можно добавить обработку year, lang
+        }
+        else if (token == QXmlStreamReader::EndElement) {
+            QString elementName = xml.name().toString();
+            if (elementName == "title-info") {
+                // Сохраняем автора, собранного внутри title-info
                 if (!lastName.isEmpty() && !firstName.isEmpty()) {
                     meta.author = QString("%1 %2").arg(lastName, firstName);
-                    if (!middleName.isEmpty()) {
-                        meta.author += " " + middleName;
-                    }
+                    if (!middleName.isEmpty()) meta.author += " " + middleName;
                 } else if (!lastName.isEmpty()) {
                     meta.author = lastName;
                 } else if (!firstName.isEmpty()) {
                     meta.author = firstName;
                 }
-
-                qDebug() << "Found author in memory:" << meta.author;
+                inTitleInfo = false;
             }
-            else if (elementName == "sequence") {
-                QXmlStreamAttributes attributes = xml.attributes();
-                QString seriesName = attributes.value("name").toString();
-                QString seriesNum = attributes.value("number").toString();
-
-                if (!seriesName.isEmpty()) {
-                    meta.series = seriesName;
-                    qDebug() << "Found series in memory:" << meta.series;
-                }
-                if (!seriesNum.isEmpty()) {
-                    meta.seriesNumber = seriesNum.toInt();
-                    qDebug() << "Found series number in memory:" << meta.seriesNumber;
-                }
-
-                xml.readElementText();
-            }
-            else if (elementName == "genre") {
-                QString genre = xml.readElementText();
-                if (genreMap.contains(genre)) {
-                    meta.genre = genreMap[genre];
-                } else {
-                    meta.genre = genre;
-                }
-                qDebug() << "Found genre in memory:" << meta.genre;
+            else if (inTitleInfo && elementName == "author") {
+                inAuthor = false;
             }
         }
     }
@@ -280,44 +287,6 @@ BookMeta BookParser::parseFb2FromMemory(const QByteArray &data)
     buffer.close();
     return meta;
 }
-
-//парсер формата epub
-
-
-BookMeta BookParser::parseEpub(const QString &filePath)
-{
-    BookMeta meta;
-
-    qDebug() << "Starting EPUB parsing:" << filePath;
-
-    // Сохраняем путь для использования в других методах
-    currentEpubPath = filePath;
-
-    // Шаг 1: Находим путь к OPF файлу через container.xml
-    QString opfPath = findOpfPathInEpub(filePath);
-    if (opfPath.isEmpty()) {
-        qDebug() << "Cannot find OPF path in EPUB";
-        return meta;
-    }
-
-    qDebug() << "Found OPF path:" << opfPath;
-
-    // Шаг 2: Читаем OPF файл
-    QString opfContent = readFileFromEpub(filePath, opfPath);
-    if (opfContent.isEmpty()) {
-        qDebug() << "Cannot read OPF file:" << opfPath;
-        return meta;
-    }
-
-    qDebug() << "Successfully read OPF file, size:" << opfContent.size();
-
-    // Шаг 3: Парсим OPF содержимое
-    parseOpfContent(opfContent, meta);
-
-    return meta;
-}
-
-
 
 QString BookParser::findOpfPathInEpub(const QString &filePath)
 {
@@ -495,38 +464,6 @@ void BookParser::parseOpfContent(const QString& opfContent, BookMeta& meta)
 }
 
 
-BookMeta BookParser::parseEpubFromMemory(const QByteArray &epubData)
-{
-    BookMeta meta;
-
-    qDebug() << "Starting EPUB parsing from memory, data size:" << epubData.size();
-
-    // Шаг 1: Находим путь к OPF файлу через container.xml
-    QString opfPath = findOpfPathInEpubData(epubData);
-    if (opfPath.isEmpty()) {
-        qDebug() << "Cannot find OPF path in EPUB data";
-        return meta;
-    }
-
-    qDebug() << "Found OPF path:" << opfPath;
-
-    // Шаг 2: Читаем OPF файл
-    QString opfContent = readFileFromEpubData(epubData, opfPath);
-    if (opfContent.isEmpty()) {
-        qDebug() << "Cannot read OPF file:" << opfPath;
-        return meta;
-    }
-
-    qDebug() << "Successfully read OPF file, size:" << opfContent.size();
-
-    // Шаг 3: Парсим OPF содержимое
-    parseOpfContent(opfContent, meta);
-
-    qDebug() << "EPUB parsing completed - Title:" << meta.title << "Author:" << meta.author;
-
-    return meta;
-}
-
 QString BookParser::findOpfPathInEpubData(const QByteArray &epubData)
 {
     qDebug() << "Looking for container.xml in EPUB data";
@@ -628,9 +565,6 @@ QByteArray BookParser::extractFileFromEpubData(const QByteArray &epubData, const
     return content;
 }
 
-
-
-
 //оконание парсера формата epub
 
 
@@ -699,6 +633,158 @@ QString BookParser::extractFromFileName(const QString &fileName)
     // Если ничего не подошло, возвращаем очищенное имя
     qDebug() << "Using cleaned filename as title:" << name;
     return name;
+}
+
+
+//парсер формата epub
+
+
+BookMeta BookParser::parseEpub(const QString &filePath)
+{
+    BookMeta meta;
+
+    qDebug() << "Starting EPUB parsing:" << filePath;
+
+    // Сохраняем путь для использования в других методах
+    currentEpubPath = filePath;
+
+    // Шаг 1: Находим путь к OPF файлу через container.xml
+    QString opfPath = findOpfPathInEpub(filePath);
+    if (opfPath.isEmpty()) {
+        qDebug() << "Cannot find OPF path in EPUB";
+        return meta;
+    }
+
+    qDebug() << "Found OPF path:" << opfPath;
+
+    // Шаг 2: Читаем OPF файл
+    QString opfContent = readFileFromEpub(filePath, opfPath);
+    if (opfContent.isEmpty()) {
+        qDebug() << "Cannot read OPF file:" << opfPath;
+        return meta;
+    }
+
+    qDebug() << "Successfully read OPF file, size:" << opfContent.size();
+
+    // Шаг 3: Парсим OPF содержимое
+    parseOpfContent(opfContent, meta);
+
+    return meta;
+}
+
+
+
+BookMeta BookParser::parseEpubFromMemory(const QByteArray &epubData)
+{
+    BookMeta meta;
+
+    if (epubData.isEmpty()) {
+        DEBUG_LOG() << "Empty EPUB data";
+        return meta;
+    }
+
+    DEBUG_LOG() << "Parsing EPUB from memory, size:" << epubData.size();
+
+    struct archive *a = archive_read_new();
+    if (!a) {
+        DEBUG_LOG() << "Failed to create archive";
+        return meta;
+    }
+
+    archive_read_support_format_zip(a);
+    archive_read_support_filter_all(a);
+
+    // Читаем архив из памяти
+    int r = archive_read_open_memory(a, const_cast<char*>(epubData.constData()), epubData.size());
+    if (r != ARCHIVE_OK) {
+        DEBUG_LOG() << "Failed to open EPUB from memory:" << archive_error_string(a);
+        archive_read_free(a);
+        return meta;
+    }
+
+    // Ищем OPF файл через container.xml
+    QString opfPath;
+    struct archive_entry *entry;
+
+    while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
+        const char* filename = archive_entry_pathname(entry);
+        if (filename) {
+            QString qfilename = QString::fromUtf8(filename);
+
+            if (qfilename == "META-INF/container.xml") {
+                // Читаем container.xml
+                QByteArray containerData;
+                const void *buff;
+                size_t size;
+                la_int64_t offset;
+
+                while (archive_read_data_block(a, &buff, &size, &offset) == ARCHIVE_OK) {
+                    containerData.append(static_cast<const char*>(buff), size);
+                }
+
+                QString containerXml = QString::fromUtf8(containerData);
+                opfPath = parseContainerXml(containerXml);
+
+                if (!opfPath.isEmpty()) {
+                    break;
+                }
+            }
+        }
+        archive_read_data_skip(a);
+    }
+
+    if (opfPath.isEmpty()) {
+        DEBUG_LOG() << "OPF path not found";
+        archive_read_free(a);
+        return meta;
+    }
+
+    DEBUG_LOG() << "Found OPF path:" << opfPath;
+
+    // Ищем OPF файл в архиве
+    archive_read_free(a);
+
+    a = archive_read_new();
+    archive_read_support_format_zip(a);
+    archive_read_open_memory(a, const_cast<char*>(epubData.constData()), epubData.size());
+
+    QString opfContent;
+    while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
+        const char* filename = archive_entry_pathname(entry);
+        if (filename && QString::fromUtf8(filename) == opfPath) {
+            QByteArray opfData;
+            const void *buff;
+            size_t size;
+            la_int64_t offset;
+
+            while (archive_read_data_block(a, &buff, &size, &offset) == ARCHIVE_OK) {
+                opfData.append(static_cast<const char*>(buff), size);
+            }
+
+            opfContent = QString::fromUtf8(opfData);
+            break;
+        }
+        archive_read_data_skip(a);
+    }
+
+    archive_read_free(a);
+
+    // Парсим OPF
+    if (!opfContent.isEmpty()) {
+        parseOpfContent(opfContent, meta);
+    }
+
+    // Fallback
+    if (meta.title.isEmpty()) {
+        meta.title = "Неизвестное название";
+    }
+    if (meta.author.isEmpty()) {
+        meta.author = "Неизвестный автор";
+    }
+
+    DEBUG_LOG() << "Parsed EPUB - Title:" << meta.title << "Author:" << meta.author;
+
+    return meta;
 }
 
 void BookParser::initGenreMap()

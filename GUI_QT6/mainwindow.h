@@ -80,6 +80,12 @@ private:
     ScannerDialog *m_scannerDialog;
     TreeViewMode currentTreeMode;
 
+    // Элементы UI для статуса
+    QProgressBar *progressBar;
+    QLabel *statusLabel;
+    QButtonGroup *ratingGroup;
+
+
     // Иконки для дерева
     QIcon authorIcon;
     QIcon bookIcon;
@@ -104,15 +110,15 @@ private:
         BookContent() = default;
     };
 
+    QString getCacheDir() const;
+    QString getCoverCachePath(int bookId) const;
+    void saveCoverToCache(int bookId, const QPixmap& cover);
+    QPixmap loadCoverFromCache(int bookId) const;
+
     // Кэш для содержимого книг
     QCache<QString, BookContent> *bookContentCache;
 
-    // Элементы UI для статуса
-    QProgressBar *progressBar;
-    QLabel *statusLabel;
-    QButtonGroup *ratingGroup;
-
-    void openDatabase();
+        void openDatabase();
     bool setupDatabaseConnection();
     void setupTreeView();
     void setupAlphabetButtons();
@@ -152,9 +158,12 @@ private:
 
 
 
-
+    const QString CACHE_DIR_NAME = ".cover";
     // Методы для загрузки обложки и описания
+    bool saveBookDescriptionToDb(int bookId, const QString& description);
     void loadBookCoverAndDescription(int bookId);
+    void extractAndCacheBookMetadata(int bookId, const QString& filePath, const QString& archivePath, const QString& internalPath);
+
     QPixmap loadBookCover(const QString& filePath, const QString& archivePath,const QString& internalPath);
     QPixmap parseCoverFromFB2(const QByteArray& content);
     QString loadFullDescription(const QString& filePath, const QString& archivePath,const QString& internalPath);

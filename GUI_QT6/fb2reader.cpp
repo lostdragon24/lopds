@@ -5,8 +5,8 @@
 #include <QFontDatabase>
 #include <QHBoxLayout>
 #include <QWidget>
-#include <QTextBlock> // Добавьте этот include
-#include <QTextCursor> // И этот
+#include <QTextBlock>
+#include <QTextCursor>
 
 FB2Reader::FB2Reader(QWidget *parent)
     : QMainWindow(parent)

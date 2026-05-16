@@ -17,8 +17,8 @@
 #include <QFontComboBox>
 #include <QSpinBox>
 #include <QComboBox>
-#include <QTextBlock> // Добавьте этот include
-#include <QTextCursor> // И этот
+#include <QTextBlock>
+#include <QTextCursor>
 
 class FB2Reader : public QMainWindow
 {

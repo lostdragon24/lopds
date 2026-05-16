@@ -66,3 +66,5 @@ www/.htaccess
 www/collect_php_recurce.sh
 www/config/.env
 www/config/config.ini
+GUI_QT6/BookScannerGUI.pro.user.09eb984
+/GUI_QT6/build

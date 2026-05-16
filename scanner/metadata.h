@@ -8,7 +8,7 @@ BookMeta *parse_metadata(const char *filepath, const char *file_type);
 BookMeta *parse_fb2(const char *filepath);
 BookMeta *parse_fb2_from_memory(const char *content, size_t content_size);
 
-// НОВОЕ: функции для EPUB
+// Функции парсинга для EPUB
 BookMeta *parse_epub(const char *filepath);
 BookMeta *parse_epub_from_memory(const char *content, size_t content_size);
 

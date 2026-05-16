@@ -2,6 +2,11 @@
 #include "ui_mainwindow.h"
 #include "settingsdialog.h"
 
+#include "archivehandler.h"
+#include "scannerdialog.h"
+#include "favoritesdialog.h"
+#include "fb2reader.h"
+
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QSqlError>
@@ -46,24 +51,27 @@
 #include <QHostInfo>
 #include <QHostAddress>
 #include <QAbstractSocket>
+#include <QStandardPaths>
+#include <QDir>
 
+constexpr int PlaceholderRole = Qt::UserRole + 100;
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     , booksModel(nullptr)
     , treeModel(nullptr)
-    , ratingGroup(nullptr)
     , letterButtonGroup(new QButtonGroup(this))
     , treeModeButtonGroup(new QButtonGroup(this))
     , settingsDialog(new SettingsDialog(this))
     , m_scannerDialog(nullptr)
     , currentTreeMode(TreeViewMode::Authors)
+    , progressBar(nullptr)
+    , statusLabel(nullptr)
+    , ratingGroup(nullptr)
     , coverCache(nullptr)
     , descriptionCache(nullptr)
     , bookContentCache(nullptr)
-    , progressBar(nullptr)
-    , statusLabel(nullptr)
     , fb2Reader(nullptr)
 {
     ui->setupUi(this);
@@ -148,6 +156,86 @@ MainWindow::MainWindow(QWidget *parent)
     openDatabase();
 }
 
+QString MainWindow::getCacheDir() const
+{
+    // Создаем каталог кэша рядом с исполняемым файлом
+    QString cachePath = QCoreApplication::applicationDirPath() + "/" + CACHE_DIR_NAME;
+    QDir dir;
+    if (!dir.exists(cachePath)) {
+        dir.mkpath(cachePath);
+    }
+    return cachePath;
+}
+
+QString MainWindow::getCoverCachePath(int bookId) const
+{
+    return QString("%1/cover_%2.png").arg(getCacheDir()).arg(bookId);
+}
+
+void MainWindow::saveCoverToCache(int bookId, const QPixmap& cover)
+{
+    if (cover.isNull()) return;
+
+    QString cachePath = getCoverCachePath(bookId);
+    cover.save(cachePath, "PNG");
+    qDebug() << "Cover saved to cache:" << cachePath;
+}
+
+QPixmap MainWindow::loadCoverFromCache(int bookId) const
+{
+    QString cachePath = getCoverCachePath(bookId);
+    if (QFile::exists(cachePath)) {
+        QPixmap cover;
+        if (cover.load(cachePath)) {
+            qDebug() << "Cover loaded from cache:" << cachePath;
+            return cover;
+        }
+    }
+    return QPixmap();
+}
+
+bool MainWindow::saveBookDescriptionToDb(int bookId, const QString& description)
+{
+    if (!isDatabaseOpen() || description.isEmpty()) return false;
+
+    QSqlQuery query(db);
+    query.prepare("UPDATE books SET description = ? WHERE id = ?");
+    query.addBindValue(description);
+    query.addBindValue(bookId);
+
+    if (query.exec()) {
+        qDebug() << "Description saved to DB for book ID:" << bookId;
+        return true;
+    } else {
+        qDebug() << "Failed to save description:" << query.lastError().text();
+        return false;
+    }
+}
+
+void MainWindow::extractAndCacheBookMetadata(int bookId, const QString& filePath,
+                                             const QString& archivePath, const QString& internalPath)
+{
+    qDebug() << "Extracting and caching metadata for book ID:" << bookId;
+
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+
+    BookContent content = extractBookContent(filePath, archivePath, internalPath);
+
+    // Сохраняем обложку в файловый кэш
+    if (content.hasCover && !content.cover.isNull()) {
+        saveCoverToCache(bookId, content.cover);
+    }
+
+    // Сохраняем описание в БД
+    if (content.hasDescription && !content.description.isEmpty()) {
+        saveBookDescriptionToDb(bookId, content.description);
+    }
+
+    QApplication::restoreOverrideCursor();
+}
+
+
+
 void MainWindow::setupTreeViewModeSelector()
 {
     // Создаем контейнер для радиокнопок
@@ -221,11 +309,11 @@ void MainWindow::setupTreeViewModeSelector()
 void MainWindow::about()
 {
     QMessageBox::about(this, "О программе",
-                      "<h3>Электронная библиотека v 1.13</h3>"
+                      "<h3>Электронная библиотека v 0.15</h3>"
                       "<p>Приложение для каталогизации электронных книг <br>в формате fb2</p>"
                       "<p><b>Поддерживаемые форматы:</b><br>"
-                      "• fb2, epub<br>"
-                      "• INPX (Могут быть ошибки при сканировании)<br>"
+                      "• fb2, epub, pdf (Только имя файла)<br>"
+                      "• INPX<br>"
                       "• zip, 7zip, rar, tar</p>"
                       "<p><b>Возможности:</b><br>"
                       "• Создание коллекции книг<br>"
@@ -478,16 +566,15 @@ void MainWindow::setupIcons()
     // qDebug() << "Icons setup completed successfully";
 }
 
-// Новые методы для загрузки серий
 void MainWindow::loadSeriesByLetter(const QString &letter)
 {
     if (!isDatabaseOpen()) return;
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
-
     treeModel->clear();
-    treeModel->setHorizontalHeaderLabels(QStringList() << QString("Серии на '%1'").arg(letter));
+    treeModel->setHorizontalHeaderLabels({QString("Серии на '%1'").arg(letter)});
 
+    // Только уникальные серии, без книг
     QSqlQuery query;
     query.prepare("SELECT DISTINCT series FROM books WHERE series IS NOT NULL AND series != '' AND series LIKE ? ORDER BY series");
     query.addBindValue(letter + "%");
@@ -498,47 +585,22 @@ void MainWindow::loadSeriesByLetter(const QString &letter)
         return;
     }
 
-    int seriesCount = 0;
     while (query.next()) {
         QString series = query.value(0).toString();
         QStandardItem *seriesItem = new QStandardItem(seriesIcon, series);
 
-        // ЗАГРУЖАЕМ КНИГИ СРАЗУ
-        QSqlQuery bookQuery;
-        bookQuery.prepare("SELECT id, title, author, series_number FROM books WHERE series = ? ORDER BY series_number, title LIMIT 100");
-        bookQuery.addBindValue(series);
-
-        if (bookQuery.exec()) {
-            while (bookQuery.next()) {
-                int bookId = bookQuery.value(0).toInt();
-                QString title = bookQuery.value(1).toString();
-                QString author = bookQuery.value(2).toString();
-                int seriesNumber = bookQuery.value(3).toInt();
-
-                QString displayText = title;
-                if (seriesNumber > 0) {
-                    displayText += QString(" (#%1)").arg(seriesNumber);
-                }
-                displayText += " - " + author;
-
-                QStandardItem *bookItem = new QStandardItem(bookIcon, displayText);
-                bookItem->setData(bookId, Qt::UserRole);
-                bookItem->setToolTip(QString("%1\nАвтор: %2\nСерия: %3").arg(title).arg(author).arg(series));
-
-                seriesItem->appendRow(bookItem);
-            }
-        }
+        // Placeholder-заглушка
+        QStandardItem *placeholder = new QStandardItem("Загрузка...");
+        placeholder->setData(true, PlaceholderRole);
+        placeholder->setFlags(placeholder->flags() & ~Qt::ItemIsEnabled);
+        seriesItem->appendRow(placeholder);
 
         treeModel->appendRow(seriesItem);
-        seriesCount++;
     }
 
     ui->treeView->setModel(treeModel);
-    ui->treeView->expandAll();
     updateSelectionStatistics(letter);
     QApplication::restoreOverrideCursor();
-
-    qDebug() << "Loaded" << seriesCount << "series for letter" << letter;
 }
 
 void MainWindow::loadAllSeries()
@@ -546,53 +608,28 @@ void MainWindow::loadAllSeries()
     if (!isDatabaseOpen()) return;
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
-
     treeModel->clear();
-    treeModel->setHorizontalHeaderLabels(QStringList() << "Все серии");
+    treeModel->setHorizontalHeaderLabels({"Все серии"});
 
     QSqlQuery query;
     query.exec("SELECT DISTINCT series FROM books WHERE series IS NOT NULL AND series != '' ORDER BY series");
 
-    int seriesCount = 0;
     while (query.next()) {
         QString series = query.value(0).toString();
         QStandardItem *seriesItem = new QStandardItem(seriesIcon, series);
 
-        // ЗАГРУЖАЕМ КНИГИ СРАЗУ
-        QSqlQuery bookQuery;
-        bookQuery.prepare("SELECT id, title, author, series_number FROM books WHERE series = ? ORDER BY series_number, title LIMIT 50");
-        bookQuery.addBindValue(series);
-
-        if (bookQuery.exec()) {
-            while (bookQuery.next()) {
-                int bookId = bookQuery.value(0).toInt();
-                QString title = bookQuery.value(1).toString();
-                QString author = bookQuery.value(2).toString();
-                int seriesNumber = bookQuery.value(3).toInt();
-
-                QString displayText = title;
-                if (seriesNumber > 0) {
-                    displayText += QString(" (#%1)").arg(seriesNumber);
-                }
-                displayText += " - " + author;
-
-                QStandardItem *bookItem = new QStandardItem(bookIcon, displayText);
-                bookItem->setData(bookId, Qt::UserRole);
-                bookItem->setToolTip(QString("%1\nАвтор: %2\nСерия: %3").arg(title).arg(author).arg(series));
-
-                seriesItem->appendRow(bookItem);
-            }
-        }
+        // Placeholder
+        QStandardItem *placeholder = new QStandardItem("Загрузка...");
+        placeholder->setData(true, PlaceholderRole);
+        placeholder->setFlags(placeholder->flags() & ~Qt::ItemIsEnabled);
+        seriesItem->appendRow(placeholder);
 
         treeModel->appendRow(seriesItem);
-        seriesCount++;
     }
 
     ui->treeView->setModel(treeModel);
     loadStatistics();
     QApplication::restoreOverrideCursor();
-
-    qDebug() << "Loaded" << seriesCount << "series with books";
 }
 
 void MainWindow::loadGenresByLetter(const QString &letter)
@@ -600,72 +637,48 @@ void MainWindow::loadGenresByLetter(const QString &letter)
     if (!isDatabaseOpen()) return;
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
-
     treeModel->clear();
-    treeModel->setHorizontalHeaderLabels(QStringList() << QString("Жанры на '%1'").arg(letter));
+    treeModel->setHorizontalHeaderLabels({QString("Жанры на '%1'").arg(letter)});
 
-    // Получаем ВСЕ жанры из базы и фильтруем их на клиентской стороне
+    // Получаем ВСЕ уникальные жанры, фильтруем на клиентской стороне по читаемому названию
     QSqlQuery query;
     query.prepare("SELECT DISTINCT genre FROM books WHERE genre IS NOT NULL AND genre != '' ORDER BY genre");
-
     if (!query.exec()) {
         showError("Ошибка загрузки жанров: " + query.lastError().text());
         QApplication::restoreOverrideCursor();
         return;
     }
 
-    int genreCount = 0;
-    QMap<QString, QString> filteredGenres; // Для сортировки по читаемым названиям
-
+    // Собираем жанры, подходящие по букве
+    QMap<QString, QString> filtered; // readableGenre -> genreCode
     while (query.next()) {
         QString genreCode = query.value(0).toString();
-        QString readableGenre = getReadableGenre(genreCode);
-
-        // Фильтруем по ПЕРВОЙ БУКВЕ читаемого названия
-        if (readableGenre.startsWith(letter, Qt::CaseInsensitive)) {
-            filteredGenres[readableGenre] = genreCode;
+        QString readable = getReadableGenre(genreCode);
+        if (readable.startsWith(letter, Qt::CaseInsensitive)) {
+            filtered[readable] = genreCode;
         }
     }
 
-    // Добавляем отфильтрованные жанры в дерево
-    for (auto it = filteredGenres.begin(); it != filteredGenres.end(); ++it) {
+    // Добавляем в дерево
+    for (auto it = filtered.begin(); it != filtered.end(); ++it) {
         QString readableGenre = it.key();
         QString genreCode = it.value();
 
         QStandardItem *genreItem = new QStandardItem(genreIcon, readableGenre);
-        genreItem->setData(genreCode, Qt::UserRole); // Сохраняем оригинальный код жанра
+        genreItem->setData(genreCode, Qt::UserRole); // сохраняем код для подгрузки книг
 
-        // ЗАГРУЖАЕМ КНИГИ СРАЗУ
-        QSqlQuery bookQuery;
-        bookQuery.prepare("SELECT id, title, author FROM books WHERE genre = ? ORDER BY title LIMIT 100");
-        bookQuery.addBindValue(genreCode);
-
-        if (bookQuery.exec()) {
-            while (bookQuery.next()) {
-                int bookId = bookQuery.value(0).toInt();
-                QString title = bookQuery.value(1).toString();
-                QString author = bookQuery.value(2).toString();
-
-                QString displayText = title + " - " + author;
-
-                QStandardItem *bookItem = new QStandardItem(bookIcon, displayText);
-                bookItem->setData(bookId, Qt::UserRole);
-                bookItem->setToolTip(QString("%1\nАвтор: %2\nЖанр: %3").arg(title).arg(author).arg(readableGenre));
-
-                genreItem->appendRow(bookItem);
-            }
-        }
+        // Placeholder-заглушка
+        QStandardItem *placeholder = new QStandardItem("Загрузка...");
+        placeholder->setData(true, PlaceholderRole);
+        placeholder->setFlags(placeholder->flags() & ~Qt::ItemIsEnabled);
+        genreItem->appendRow(placeholder);
 
         treeModel->appendRow(genreItem);
-        genreCount++;
     }
 
     ui->treeView->setModel(treeModel);
-    ui->treeView->expandAll();
     updateSelectionStatistics(letter);
     QApplication::restoreOverrideCursor();
-
-    qDebug() << "Loaded" << genreCount << "genres for letter" << letter;
 }
 
 void MainWindow::loadAllGenres()
@@ -673,61 +686,40 @@ void MainWindow::loadAllGenres()
     if (!isDatabaseOpen()) return;
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
-
     treeModel->clear();
-    treeModel->setHorizontalHeaderLabels(QStringList() << "Все жанры");
+    treeModel->setHorizontalHeaderLabels({"Все жанры"});
 
+    // Получаем все уникальные жанры (коды)
     QSqlQuery query;
     query.exec("SELECT DISTINCT genre FROM books WHERE genre IS NOT NULL AND genre != '' ORDER BY genre");
 
-    int genreCount = 0;
-    QMap<QString, QString> sortedGenres; // Для сортировки по читаемым названиям
-
-    // Сначала собираем все жанры и преобразуем их
+    // Сортируем по читаемому названию
+    QMap<QString, QString> sortedGenres; // readableGenre -> genreCode
     while (query.next()) {
         QString genreCode = query.value(0).toString();
-        QString readableGenre = getReadableGenre(genreCode);
-        sortedGenres[readableGenre] = genreCode;
+        QString readable = getReadableGenre(genreCode);
+        sortedGenres[readable] = genreCode;
     }
 
-    // Теперь добавляем в дерево уже отсортированные
     for (auto it = sortedGenres.begin(); it != sortedGenres.end(); ++it) {
         QString readableGenre = it.key();
         QString genreCode = it.value();
 
         QStandardItem *genreItem = new QStandardItem(genreIcon, readableGenre);
-        genreItem->setData(genreCode, Qt::UserRole); // Сохраняем оригинальный код
+        genreItem->setData(genreCode, Qt::UserRole); // сохраняем код для подгрузки книг
 
-        // ЗАГРУЖАЕМ КНИГИ СРАЗУ
-        QSqlQuery bookQuery;
-        bookQuery.prepare("SELECT id, title, author FROM books WHERE genre = ? ORDER BY title LIMIT 50");
-        bookQuery.addBindValue(genreCode);
-
-        if (bookQuery.exec()) {
-            while (bookQuery.next()) {
-                int bookId = bookQuery.value(0).toInt();
-                QString title = bookQuery.value(1).toString();
-                QString author = bookQuery.value(2).toString();
-
-                QString displayText = title + " - " + author;
-
-                QStandardItem *bookItem = new QStandardItem(bookIcon, displayText);
-                bookItem->setData(bookId, Qt::UserRole);
-                bookItem->setToolTip(QString("%1\nАвтор: %2\nЖанр: %3").arg(title).arg(author).arg(readableGenre));
-
-                genreItem->appendRow(bookItem);
-            }
-        }
+        // Placeholder
+        QStandardItem *placeholder = new QStandardItem("Загрузка...");
+        placeholder->setData(true, PlaceholderRole);
+        placeholder->setFlags(placeholder->flags() & ~Qt::ItemIsEnabled);
+        genreItem->appendRow(placeholder);
 
         treeModel->appendRow(genreItem);
-        genreCount++;
     }
 
     ui->treeView->setModel(treeModel);
     loadStatistics();
     QApplication::restoreOverrideCursor();
-
-    qDebug() << "Loaded" << genreCount << "genres with books";
 }
 
 void MainWindow::loadGenreBooks(const QString &genreCode, QStandardItem *genreItem)
@@ -800,62 +792,43 @@ void MainWindow::onTreeViewExpanded(const QModelIndex &index)
     if (!isDatabaseOpen()) return;
 
     QStandardItem *item = treeModel->itemFromIndex(index);
-    if (!item) return;
+    if (!item || item->parent() != nullptr) return; // Только корневые элементы
 
-    // qDebug() << "Tree view expanded. Current mode:" << static_cast<int>(currentTreeMode);
-    // qDebug() << "Item text:" << item->text() << "Parent:" << (item->parent() ? item->parent()->text() : "NULL");
-    // qDebug() << "Item data:" << item->data(Qt::UserRole).toString() << "Item data+1:" << item->data(Qt::UserRole + 1).toString();
+    // 🔍 Отладка (можно удалить после проверки)
+    qDebug() << "Expanded:" << item->text()
+             << "| rowCount:" << item->rowCount();
 
-    // Для режима "Все авторы/серии/жанры" загружаем книги при раскрытии
-    if (item->parent() == nullptr) {
-        QString itemText = item->text();
-        QString itemData = item->data(Qt::UserRole + 1).toString();
+    if (item->rowCount() == 1) {
+        QStandardItem *firstChild = item->child(0);
+        if (firstChild && firstChild->data(PlaceholderRole).toBool()) {
+            qDebug() << "Placeholder detected. Removing & loading...";
 
-        // qDebug() << "Processing top-level item. Text:" << itemText << "Data:" << itemData;
+            // 1. Сначала УДАЛЯЕМ заглушку
+            item->removeRow(0);
 
-        // Проверяем, есть ли placeholder
-        if (item->rowCount() == 1) {
-            QStandardItem *firstChild = item->child(0);
-            if (firstChild && firstChild->text() == "Загрузка..." && !firstChild->isEnabled()) {
-                // qDebug() << "Found placeholder, removing and loading content";
-
-                // Удаляем placeholder
-                item->removeRow(0);
-
-                // Загружаем книги в зависимости от режима
-                switch (currentTreeMode) {
-                case TreeViewMode::Authors:
-                    // qDebug() << "Loading author books for:" << itemText;
-                    loadAuthorBooks(itemText, item);
-                    break;
-                case TreeViewMode::Series:
-                    // qDebug() << "Loading series books for:" << itemText;
-                    loadSeriesBooks(itemText, item);
-                    break;
-                case TreeViewMode::Genres:
-                    // qDebug() << "Loading genre books for:" << itemData;
-                    loadGenreBooks(itemData.isEmpty() ? itemText : itemData, item);
-                    break;
-                }
-            }
-        }
-
-        // Если детей нет вообще (может быть в некоторых случаях)
-        if (item->rowCount() == 0) {
-            // qDebug() << "No children found, loading content";
-
-            // Загружаем книги в зависимости от режима
+            // 2. Загружаем реальные данные
             switch (currentTreeMode) {
             case TreeViewMode::Authors:
-                loadAuthorBooks(itemText, item);
+                loadAuthorBooks(item->text(), item);
                 break;
             case TreeViewMode::Series:
-                loadSeriesBooks(itemText, item);
+                loadSeriesBooks(item->text(), item);
                 break;
             case TreeViewMode::Genres:
-                loadGenreBooks(itemData.isEmpty() ? itemText : itemData, item);
+                loadGenreBooks(item->data(Qt::UserRole).toString(), item);
                 break;
             }
+
+            // 3. Если книг нет, показываем инфо-заглушку
+            if (item->rowCount() == 0) {
+                QStandardItem *noData = new QStandardItem("📭 Книги не найдены");
+                noData->setFlags(noData->flags() & ~Qt::ItemIsEnabled);
+                item->appendRow(noData);
+            }
+
+            // Гарантируем отрисовку
+            ui->treeView->viewport()->update();
+            return;
         }
     }
 }
@@ -960,23 +933,17 @@ void MainWindow::loadAuthorBooks(const QString &author, QStandardItem *authorIte
     QApplication::restoreOverrideCursor();
 }
 
-
-
-
-
-
 void MainWindow::loadAuthorsByLetter(const QString &letter)
 {
     if (!isDatabaseOpen()) return;
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
-
     treeModel->clear();
-    treeModel->setHorizontalHeaderLabels(QStringList() << QString("Авторы на '%1'").arg(letter));
+    treeModel->setHorizontalHeaderLabels({QString("Авторы на '%1'").arg(letter)});
 
-    // Загружаем авторов на указанную букву
+    // Только уникальные авторы, без книг
     QSqlQuery query;
-    query.prepare("SELECT DISTINCT author FROM books WHERE author IS NOT NULL AND author != '' AND author LIKE ? ORDER BY author");
+    query.prepare("SELECT DISTINCT author FROM books WHERE author LIKE ? ORDER BY author");
     query.addBindValue(letter + "%");
 
     if (!query.exec()) {
@@ -985,108 +952,52 @@ void MainWindow::loadAuthorsByLetter(const QString &letter)
         return;
     }
 
-    int authorCount = 0;
     while (query.next()) {
         QString author = query.value(0).toString();
         QStandardItem *authorItem = new QStandardItem(authorIcon, author);
 
-        // ЗАГРУЖАЕМ КНИГИ СРАЗУ (как было раньше)
-        QSqlQuery bookQuery;
-        bookQuery.prepare("SELECT id, title, series, series_number FROM books WHERE author = ? ORDER BY series, series_number, title LIMIT 100"); // Ограничиваем для скорости
-        bookQuery.addBindValue(author);
-
-        if (bookQuery.exec()) {
-            while (bookQuery.next()) {
-                int bookId = bookQuery.value(0).toInt();
-                QString title = bookQuery.value(1).toString();
-                QString series = bookQuery.value(2).toString();
-                int seriesNumber = bookQuery.value(3).toInt();
-
-                QString displayText = title;
-                if (seriesNumber > 0) {
-                    displayText += QString(" (#%1)").arg(seriesNumber);
-                }
-
-                QStandardItem *bookItem = new QStandardItem(bookIcon, displayText);
-                bookItem->setData(bookId, Qt::UserRole);
-                bookItem->setToolTip(title);
-
-                authorItem->appendRow(bookItem);
-            }
-        }
+        // Placeholder-заглушка
+        QStandardItem *placeholder = new QStandardItem("Загрузка...");
+        placeholder->setData(true, PlaceholderRole);
+        placeholder->setFlags(placeholder->flags() & ~Qt::ItemIsEnabled);
+        authorItem->appendRow(placeholder);
 
         treeModel->appendRow(authorItem);
-        authorCount++;
     }
 
     ui->treeView->setModel(treeModel);
-    ui->treeView->expandAll();
-
-    // Обновляем статистику для текущей выборки
     updateSelectionStatistics(letter);
-
     QApplication::restoreOverrideCursor();
-
-    qDebug() << "Loaded" << authorCount << "authors for letter" << letter;
 }
+
 
 void MainWindow::loadAllAuthors()
 {
     if (!isDatabaseOpen()) return;
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
-
     treeModel->clear();
-    treeModel->setHorizontalHeaderLabels(QStringList() << "Все авторы");
+    treeModel->setHorizontalHeaderLabels({"Все авторы"});
 
-    // Загружаем всех авторов
     QSqlQuery query;
     query.exec("SELECT DISTINCT author FROM books WHERE author IS NOT NULL AND author != '' ORDER BY author");
 
-    int authorCount = 0;
     while (query.next()) {
         QString author = query.value(0).toString();
         QStandardItem *authorItem = new QStandardItem(authorIcon, author);
 
-        // ЗАГРУЖАЕМ КНИГИ СРАЗУ (как было раньше)
-        QSqlQuery bookQuery;
-        bookQuery.prepare("SELECT id, title, series, series_number FROM books WHERE author = ? ORDER BY series, series_number, title LIMIT 50"); // Ограничиваем для скорости
-        bookQuery.addBindValue(author);
-
-        if (bookQuery.exec()) {
-            while (bookQuery.next()) {
-                int bookId = bookQuery.value(0).toInt();
-                QString title = bookQuery.value(1).toString();
-                QString series = bookQuery.value(2).toString();
-                int seriesNumber = bookQuery.value(3).toInt();
-
-                QString displayText = title;
-                if (seriesNumber > 0) {
-                    displayText += QString(" (#%1)").arg(seriesNumber);
-                }
-
-                QStandardItem *bookItem = new QStandardItem(bookIcon, displayText);
-                bookItem->setData(bookId, Qt::UserRole);
-                bookItem->setToolTip(title);
-
-                authorItem->appendRow(bookItem);
-            }
-        }
+        // Placeholder-заглушка
+        QStandardItem *placeholder = new QStandardItem("Загрузка...");
+        placeholder->setData(true, PlaceholderRole); // маркер placeholder
+        placeholder->setFlags(placeholder->flags() & ~Qt::ItemIsEnabled);
+        authorItem->appendRow(placeholder);
 
         treeModel->appendRow(authorItem);
-        authorCount++;
     }
 
     ui->treeView->setModel(treeModel);
-    // Не раскрываем автоматически в режиме "Все авторы" для скорости
-    // ui->treeView->expandAll();
-
-    // Обновляем статистику
     loadStatistics();
-
     QApplication::restoreOverrideCursor();
-
-    qDebug() << "Loaded" << authorCount << "authors with books";
 }
 
 
@@ -1540,7 +1451,7 @@ bool MainWindow::createDatabaseTables()
             "    last_modified DATETIME,"
             "    last_scanned DATETIME,"
             "    file_mtime INTEGER,"
-            "    UNIQUE(file_path, archive_path, archive_internal_path)"
+            "    UNIQUE(file_path, archive_path, archive_internal_path, file_hash)"
             ")";
 
         if (!query.exec(createBooksTable)) {
@@ -1596,12 +1507,9 @@ bool MainWindow::createDatabaseTables()
             return false;
         }
 
-
-
         // СОЗДАЕМ ИНДЕКСЫ ДЛЯ SQLite
         QStringList indexQueries;
         indexQueries
-            << "CREATE INDEX IF NOT EXISTS idx_books_file_hash ON books(file_hash)"
             << "CREATE INDEX IF NOT EXISTS idx_books_file_path ON books(file_path)"
             << "CREATE INDEX IF NOT EXISTS idx_books_archive_path ON books(archive_path)"
             << "CREATE INDEX IF NOT EXISTS idx_books_title ON books(title)"
@@ -1615,7 +1523,9 @@ bool MainWindow::createDatabaseTables()
             << "CREATE INDEX IF NOT EXISTS idx_books_series_number ON books(series_number)"
             << "CREATE INDEX IF NOT EXISTS idx_books_added_date ON books(added_date)"
             << "CREATE INDEX IF NOT EXISTS idx_books_last_scanned ON books(last_scanned)"
-            << "CREATE INDEX IF NOT EXISTS idx_books_title_author ON books(title, author)";
+            << "CREATE INDEX IF NOT EXISTS idx_books_title_author ON books(title, author)"
+            << "CREATE UNIQUE INDEX IF NOT EXISTS idx_books_file_hash ON books(file_hash)"
+            << "CREATE INDEX IF NOT EXISTS idx_books_description ON books(description)";
 
         for (const QString &indexQuery : indexQueries) {
             if (!query.exec(indexQuery)) {
@@ -2169,58 +2079,74 @@ void MainWindow::loadBookCoverAndDescription(int bookId)
 {
     if (!isDatabaseOpen()) return;
 
-    QSqlQuery query;
-    query.prepare("SELECT file_path, archive_path, archive_internal_path FROM books WHERE id = ?");
+    // 1. Пытаемся загрузить описание из БД
+    QSqlQuery query(db);
+    query.prepare("SELECT description FROM books WHERE id = ?");
     query.addBindValue(bookId);
 
-    if (!query.exec() || !query.next()) {
+    QString dbDescription;
+    if (query.exec() && query.next()) {
+        dbDescription = query.value(0).toString();
+    }
+
+    // 2. Пытаемся загрузить обложку из файлового кэша
+    QPixmap cachedCover = loadCoverFromCache(bookId);
+
+    bool hasCover = !cachedCover.isNull();
+    bool hasDescription = !dbDescription.isEmpty();
+
+    // 3. Если всё есть в кэше - просто отображаем
+    if (hasCover && hasDescription) {
+        qDebug() << "Using cached cover and description for book ID:" << bookId;
+        displayCover(cachedCover);
+        ui->txtDescription->setPlainText(dbDescription);
         return;
     }
 
-    QString filePath = query.value("file_path").toString();
-    QString archivePath = query.value("archive_path").toString();
-    QString internalPath = query.value("archive_internal_path").toString();
+    // 4. Если чего-то нет - извлекаем из файла книги
+    QSqlQuery bookQuery(db);
+    bookQuery.prepare("SELECT file_path, archive_path, archive_internal_path FROM books WHERE id = ?");
+    bookQuery.addBindValue(bookId);
 
-    // Сразу показываем placeholder
-    ui->lbl_cover->setText("Загрузка...");
-    ui->txtDescription->setPlainText("Загрузка описания...");
+    if (!bookQuery.exec() || !bookQuery.next()) {
+        ui->txtDescription->setPlainText("Не удалось получить информацию о книге");
+        return;
+    }
 
-    // Загружаем с индикацией прогресса
+    QString filePath = bookQuery.value("file_path").toString();
+    QString archivePath = bookQuery.value("archive_path").toString();
+    QString internalPath = bookQuery.value("archive_internal_path").toString();
+
+    // Показываем индикацию загрузки
     QApplication::setOverrideCursor(Qt::WaitCursor);
-    statusLabel->setText("Загрузка данных книги...");
-    progressBar->setVisible(true);
-    progressBar->setRange(0, 0); // indeterminate progress
 
-    // Получаем все данные книги за один раз
-    BookContent* content = getBookContent(filePath, archivePath, internalPath);
+    ui->lbl_cover->setText("Загрузка...");
+    ui->txtDescription->setPlainText("Извлечение метаданных...");
+    QApplication::processEvents();
 
-    if (content) {
-        // Отображаем обложку
-        if (content->hasCover && !content->cover.isNull()) {
-            displayCover(content->cover);
-        } else {
-            ui->lbl_cover->setText("Обложка\nне найдена");
-        }
+    // Извлекаем данные (сначала из файла, потом сохраняем в кэш)
+    BookContent content = extractBookContent(filePath, archivePath, internalPath);
 
-        // Отображаем описание
-        if (content->hasDescription && !content->description.isEmpty()) {
-            ui->txtDescription->setPlainText(content->description);
-
-            // Прокручиваем к началу текста
-            QTextCursor cursor = ui->txtDescription->textCursor();
-            cursor.setPosition(0);
-            ui->txtDescription->setTextCursor(cursor);
-        } else {
-            ui->txtDescription->setPlainText("Описание отсутствует");
-        }
+    // Сохраняем то, чего не было в кэше
+    if (!hasCover && content.hasCover && !content.cover.isNull()) {
+        saveCoverToCache(bookId, content.cover);
+        displayCover(content.cover);
+    } else if (hasCover) {
+        displayCover(cachedCover);
     } else {
-        ui->lbl_cover->setText("Ошибка\nзагрузки");
-        ui->txtDescription->setPlainText("Не удалось загрузить данные книги");
+        ui->lbl_cover->setText("Обложка\nне найдена");
+    }
+
+    if (!hasDescription && content.hasDescription && !content.description.isEmpty()) {
+        saveBookDescriptionToDb(bookId, content.description);
+        ui->txtDescription->setPlainText(content.description);
+    } else if (hasDescription) {
+        ui->txtDescription->setPlainText(dbDescription);
+    } else {
+        ui->txtDescription->setPlainText("Описание отсутствует");
     }
 
     QApplication::restoreOverrideCursor();
-    progressBar->setVisible(false);
-    statusLabel->setText("Готово");
 }
 
 
@@ -2305,7 +2231,8 @@ MainWindow::BookContent MainWindow::extractBookContent(const QString& filePath, 
 // Метод для генерации ключа кэша содержимого книги
 QString MainWindow::getBookContentCacheKey(const QString& filePath, const QString& archivePath, const QString& internalPath)
 {
-    return QString("book_content_%1_%2_%3").arg(filePath).arg(archivePath).arg(internalPath);
+     return QString("book_content_%1_%2_%3").arg(filePath).arg(archivePath).arg(internalPath);
+
 }
 
 
@@ -2722,6 +2649,13 @@ QByteArray MainWindow::extractFileFromArchive(const QString& archivePath, const 
     }
 
     bool found = false;
+
+    // === ЭТОТ БЛОК ДЛЯ ОТЛАДКИ ===
+    qDebug() << "=== SEARCHING IN ARCHIVE ===";
+    qDebug() << "Looking for:" << internalPath;
+    qDebug() << "InternalPath bytes:" << internalPath.toUtf8().toHex();
+    // =====================================
+
     while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
         const char* entry_path = archive_entry_pathname(entry);
         if (entry_path && QString(entry_path) == internalPath) {

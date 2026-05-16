@@ -1,6 +1,6 @@
 #include "config.h"
 #include "common.h"
-#include "utils.h" // Добавлено!
+#include "utils.h"
 #include <errno.h>
 #include <limits.h>
 #include <stdarg.h>
@@ -172,7 +172,7 @@ char *find_config_file(void) {
     if (access(possible_paths[i], R_OK) == 0) {
       fprintf(stderr, "Found config at: %s\n", possible_paths[i]);
       return safe_strdup(
-          possible_paths[i]); // Теперь используем safe_strdup из utils.h
+          possible_paths[i]);
     }
   }
 

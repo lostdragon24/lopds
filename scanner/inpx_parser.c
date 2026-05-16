@@ -31,6 +31,9 @@ static const FieldMapping field_mappings[] = {
     {flKeyWords, "KEYWORDS"}, {flNone, NULL}};
 
 void get_inpx_fields(const char *structure_info, TImportContext *ctx) {
+  //Инициализируем структуру в ноль
+  memset(ctx, 0, sizeof(TImportContext));
+
   const char *structure = structure_info && strlen(structure_info) > 0
                               ? structure_info
                               : DEFAULT_STRUCTURE;
@@ -41,10 +44,28 @@ void get_inpx_fields(const char *structure_info, TImportContext *ctx) {
       ctx->fields_count++;
   }
 
-  ctx->fields = malloc(ctx->fields_count * sizeof(TFields));
+  // Выделяем память ТОЛЬКО если есть поля
+  if (ctx->fields_count > 0) {
+    ctx->fields = malloc(ctx->fields_count * sizeof(TFields));
+    if (!ctx->fields) {
+      ctx->fields_count = 0;
+      return;
+    }
+  } else {
+    ctx->fields = NULL;
+    return;
+  }
+
   ctx->use_stored_folder = 0;
 
   char *s = strdup(structure);
+  if (!s) {
+    free(ctx->fields);
+    ctx->fields = NULL;
+    ctx->fields_count = 0;
+    return;
+  }
+
   char *token, *saveptr;
   int i = 0;
 
@@ -115,6 +136,11 @@ void parse_inpx_data(const char *input, TImportContext *ctx,
 
   if (!input || !ctx || !meta || !file_name_ptr || !file_ext_ptr)
     return;
+
+   // Проверка на валидность ctx
+  if (!ctx->fields || ctx->fields_count == 0) {
+    return;
+  }
 
   char *fields[20] = {0};
   int field_count = parse_csv_line(input, fields, 20);
@@ -502,9 +528,18 @@ int import_inpx_collection(const char *inpx_filename, DatabaseHandle *db_handle,
 }
 
 void free_import_context(TImportContext *ctx) {
-  if (ctx->fields)
+  if (!ctx) return;
+
+  // Безопасно освобождаем массив полей
+  if (ctx->fields) {
     free(ctx->fields);
-  memset(ctx, 0, sizeof(TImportContext));
+    ctx->fields = NULL;
+  }
+
+  // Сбрасываем счетчики
+  ctx->fields_count = 0;
+  ctx->use_stored_folder = 0;
+  ctx->genres_type = 0;
 }
 
 char **extract_strings(const char *content, char separator, int *count) {

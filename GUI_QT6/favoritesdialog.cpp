@@ -172,6 +172,7 @@ void FavoritesDialog::setupTable(QTableView *tableView, QStandardItemModel *mode
         header->setStretchLastSection(true);
         header->setSectionsClickable(true);
         header->setSortIndicatorShown(true);
+        header->setSectionResizeMode(QHeaderView::ResizeToContents);
     }
 
     // Настройки для таблицы избранного
@@ -589,7 +590,7 @@ void FavoritesDialog::downloadBooksBatch(const QVector<int> &bookIds, const QStr
 
 void FavoritesDialog::onDeleteSelected()
 {
-    QVector<int> selectedIds = getSelectedBookIds(); // Убрали параметр
+    QVector<int> selectedIds = getSelectedBookIds();
 
     if (selectedIds.isEmpty()) {
         QMessageBox::information(this, "Информация", "Выберите книги для удаления");

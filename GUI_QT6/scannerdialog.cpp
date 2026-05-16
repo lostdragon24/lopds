@@ -1,5 +1,8 @@
 #include "scannerdialog.h"
 #include "ui_scannerdialog.h"
+#include "bookparser.h"
+#include "archivehandler.h"
+#include "inpxparser.h"
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QDir>
@@ -12,6 +15,16 @@
 #include <QDirIterator>
 #include <QCryptographicHash>
 #include <QTemporaryFile>
+#include <QElapsedTimer>
+#include <QtConcurrent>
+#include <QCryptographicHash>
+
+// Отключаем отладочный вывод в release
+#ifdef QT_DEBUG
+#define DEBUG_LOG qDebug
+#else
+#define DEBUG_LOG if(false) qDebug
+#endif
 
 // BookScanner implementation
 BookScanner::BookScanner(QSqlDatabase database, const QString &booksDir, bool useInpx, const QString &inpxFile)
@@ -37,6 +50,46 @@ void BookScanner::cancelScanning()
     m_abort = true;
     qDebug() << "Scanning cancellation requested";
 }
+
+void BookScanner::saveBookMetadata(int bookId, const BookMeta& meta, const QString& filePath, const QString& archivePath, const QString& internalPath)
+{
+    // Извлекаем описание и обложку из книги
+    QByteArray content;
+
+    if (!archivePath.isEmpty() && !internalPath.isEmpty()) {
+        ArchiveHandler handler;
+        if (handler.openArchive(archivePath)) {
+            content = handler.readFile(internalPath);
+            handler.closeArchive();
+        }
+    } else if (!filePath.isEmpty()) {
+        QFile file(filePath);
+        if (file.open(QIODevice::ReadOnly)) {
+            content = file.readAll();
+            file.close();
+        }
+    }
+
+    if (content.isEmpty()) return;
+
+    // Парсим описание
+    BookParser parser;
+    BookMeta fullMeta = parser.parseMetadataFromMemory(content, QFileInfo(filePath).suffix());
+
+    if (!fullMeta.description.isEmpty()) {
+        // Сохраняем описание в БД
+        QSqlQuery updateQuery(m_database);
+        updateQuery.prepare("UPDATE books SET description = ? WHERE id = ?");
+        updateQuery.addBindValue(fullMeta.description);
+        updateQuery.addBindValue(bookId);
+        updateQuery.exec();
+        qDebug() << "Saved description for book ID:" << bookId;
+    }
+
+    // Обложку пока не сохраняем - она требует отдельной обработки
+
+}
+
 
 void BookScanner::forceRescanAllArchives()
 {
@@ -126,8 +179,6 @@ void BookScanner::updateArchiveInfo(const QString &archivePath, bool needsRescan
     }
 }
 
-
-
 void BookScanner::startScanning()
 {
     m_abort = false;
@@ -136,84 +187,185 @@ void BookScanner::startScanning()
     emit progressChanged(0);
 
     try {
-        // ПЕРВЫЙ ПРИОРИТЕТ: INPX импорт
+        // INPX импорт (если включен) - транзакция внутри importInpx
         if (m_useInpx && !m_inpxFile.isEmpty()) {
-            emit statusChanged("Запуск импорта из INPX файла...");
-            emit progressChanged(10);
-
+            emit statusChanged("Импорт INPX...");
             bool importResult = importInpx(m_inpxFile);
             if (importResult) {
-                // Если INPX импорт успешен, завершаем сканирование
                 emit progressChanged(100);
-                emit statusChanged("Импорт INPX завершен успешно");
                 emit finished();
                 return;
-            } else {
-                // Если INPX импорт не удался, продолжаем обычное сканирование
-                emit statusChanged("INPX импорт не удался, переходим к сканированию файлов...");
-                emit progressChanged(20);
             }
-        } else if (m_useInpx) {
-            emit statusChanged("INPX файл не указан, переходим к сканированию файлов...");
-            emit progressChanged(20);
-        } else {
-            emit statusChanged("INPX отключен, начинаем сканирование файлов...");
-            emit progressChanged(20);
         }
 
-        // РЕЗЕРВНЫЙ СПОСОБ: Сканирование директории
-        if (m_abort) return;
+        // Сканирование директории - здесь своя транзакция
+        if (!m_database.transaction()) {
+            emit errorOccurred("Failed to start transaction for directory scan");
+            return;
+        }
 
+        emit statusChanged("Сканирование файлов...");
         scanDirectory(m_booksDir);
+        flushBatch();
 
         if (!m_abort) {
-            emit progressChanged(100);
-            emit statusChanged("Сканирование завершено");
-            emit finished();
+            if (m_database.commit()) {
+                emit progressChanged(100);
+                emit statusChanged("Сканирование завершено");
+                emit finished();
+            } else {
+                emit errorOccurred("Failed to commit transaction");
+            }
+        } else {
+            m_database.rollback();
         }
 
     } catch (const std::exception &e) {
+        m_database.rollback();
         if (!m_abort) {
-            emit errorOccurred(QString("Ошибка сканирования: %1").arg(e.what()));
+            emit errorOccurred(QString("Ошибка: %1").arg(e.what()));
         }
     }
 }
 
 bool BookScanner::importInpx(const QString &inpxFile)
 {
-    qDebug() << "=== START INPX IMPORT ===";
-    qDebug() << "INPX file:" << inpxFile;
+    DEBUG_LOG() << "=== START INPX IMPORT ===";
+    DEBUG_LOG() << "INPX file:" << inpxFile;
 
     QFileInfo inpxInfo(inpxFile);
     if (!inpxInfo.exists()) {
-        qDebug() << "INPX file does not exist:" << inpxFile;
         emit errorOccurred("INPX файл не существует: " + inpxFile);
         return false;
     }
 
-    InpxParser parser(m_database);
+    // ========== ПРОВЕРЯЕМ, ОТКРЫТА ЛИ БД ==========
+    if (!m_database.isOpen()) {
+        emit errorOccurred("База данных не открыта");
+        return false;
+    }
 
-    // Подключаем callback для прогресса
+    // ========== ОПТИМИЗАЦИЯ 1: Настройка БД перед массовой вставкой ==========
+
+    // Для SQLite - оптимизируем настройки
+    if (m_database.driverName().contains("SQLITE")) {
+        QSqlQuery pragma(m_database);
+        pragma.exec("PRAGMA synchronous = OFF");           // Отключаем синхронную запись
+        pragma.exec("PRAGMA journal_mode = MEMORY");       // Журнал в памяти
+        pragma.exec("PRAGMA cache_size = 100000");         // Увеличиваем кэш до 100MB
+        pragma.exec("PRAGMA temp_store = MEMORY");         // Временные таблицы в памяти
+        pragma.exec("PRAGMA locking_mode = EXCLUSIVE");    // Эксклюзивная блокировка
+        DEBUG_LOG() << "SQLite optimized for bulk insert";
+    }
+
+    // Для MySQL - отключаем проверки
+    if (m_database.driverName().contains("MYSQL")) {
+        QSqlQuery mysqlOpt(m_database);
+        mysqlOpt.exec("SET autocommit=0");
+        mysqlOpt.exec("SET unique_checks=0");
+        mysqlOpt.exec("SET foreign_key_checks=0");
+        mysqlOpt.exec("SET sql_log_bin=0");
+        mysqlOpt.exec("SET innodb_flush_log_at_trx_commit=2");
+        DEBUG_LOG() << "MySQL optimized for bulk insert";
+    }
+
+    // ========== ОПТИМИЗАЦИЯ 2: Проверяем, не в транзакции ли уже ==========
+    // В SQLite нет прямого способа проверить, поэтому просто начинаем новую
+    // Если предыдущая транзакция не закрыта, сначала её закроем
+
+    // Сначала откатываем любую незавершенную транзакцию
+    if (!m_database.rollback()) {
+        DEBUG_LOG() << "Rollback failed or no active transaction";
+    }
+
+    // Теперь начинаем новую транзакцию
+    if (!m_database.transaction()) {
+        QString error = m_database.lastError().text();
+        DEBUG_LOG() << "Failed to start transaction:" << error;
+        emit errorOccurred("Ошибка начала транзакции: " + error);
+
+        // Восстанавливаем настройки БД
+        if (m_database.driverName().contains("SQLITE")) {
+            QSqlQuery pragma(m_database);
+            pragma.exec("PRAGMA synchronous = NORMAL");
+            pragma.exec("PRAGMA journal_mode = DELETE");
+        }
+        return false;
+    }
+    DEBUG_LOG() << "Transaction started successfully";
+
+    // ========== ОПТИМИЗАЦИЯ 3: Подготовленный запрос ==========
+    QSqlQuery insertQuery(m_database);
+    insertQuery.prepare(
+        "INSERT OR IGNORE INTO books (file_path, file_name, file_size, file_type, title, author, "
+        "series, series_number, genre, language, year, archive_path, archive_internal_path, "
+        "added_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+        );
+
+
+    // ========== ОПТИМИЗАЦИЯ 4: Кэш уже существующих книг ==========
+    QSet<QString> existingBooksCache;
+    QSqlQuery cacheQuery(m_database);
+    cacheQuery.exec("SELECT title || '|' || author FROM books");
+    while (cacheQuery.next()) {
+        existingBooksCache.insert(cacheQuery.value(0).toString());
+    }
+    DEBUG_LOG() << "Cached" << existingBooksCache.size() << "existing books";
+
+    InpxParser parser(m_database);
+    parser.setAbortFlag(&m_abort);
+
+    // Прогресс
     parser.setProgressCallback([this](int progress, const QString& status) {
-        // Масштабируем прогресс от 10% до 90% для INPX импорта
         int scaledProgress = 10 + (progress * 80 / 100);
         emit progressChanged(scaledProgress);
         emit statusChanged(status);
-
-        qDebug() << "INPX progress:" << progress << "% -" << status;
     });
 
-    emit statusChanged("Начинаем импорт из INPX: " + inpxInfo.fileName());
+    emit statusChanged("Начинаем импорт INPX: " + inpxInfo.fileName());
 
     QElapsedTimer timer;
     timer.start();
 
-    bool success = parser.importInpxCollection(inpxFile, m_booksDir);
+    // Импортируем с оптимизациями
+    bool success = parser.importInpxCollectionOptimized(inpxFile, m_booksDir, insertQuery, existingBooksCache);
 
-    qDebug() << "INPX import completed in" << timer.elapsed() << "ms, success:" << success;
+    // ========== ОПТИМИЗАЦИЯ 5: Финальный коммит ==========
+    if (success) {
+        if (m_database.commit()) {
+            DEBUG_LOG() << "Final commit successful";
+        } else {
+            DEBUG_LOG() << "Final commit failed:" << m_database.lastError().text();
+            success = false;
+        }
+    } else {
+        m_database.rollback();
+        DEBUG_LOG() << "Transaction rolled back due to errors";
+    }
+
+    // Восстанавливаем настройки БД
+    if (m_database.driverName().contains("SQLITE")) {
+        QSqlQuery pragma(m_database);
+        pragma.exec("PRAGMA synchronous = NORMAL");
+        pragma.exec("PRAGMA journal_mode = DELETE");
+    }
+
+    if (m_database.driverName().contains("MYSQL")) {
+        QSqlQuery mysqlOpt(m_database);
+        mysqlOpt.exec("SET autocommit=1");
+        mysqlOpt.exec("SET unique_checks=1");
+        mysqlOpt.exec("SET foreign_key_checks=1");
+        mysqlOpt.exec("SET sql_log_bin=1");
+        mysqlOpt.exec("SET innodb_flush_log_at_trx_commit=1");
+    }
+
+    DEBUG_LOG() << "INPX import completed in" << timer.elapsed() << "ms, success:" << success
+                << "Inserted:" << parser.m_insertedCount
+                << "Skipped:" << parser.m_skippedCount;
 
     if (success) {
-        emit statusChanged("INPX импорт завершен успешно");
+        emit statusChanged(QString("INPX импорт завершен. Добавлено: %1, Пропущено: %2")
+                               .arg(parser.m_insertedCount).arg(parser.m_skippedCount));
         return true;
     } else {
         emit errorOccurred("Не удалось выполнить импорт из INPX файла");
@@ -231,63 +383,60 @@ void BookScanner::scanDirectory(const QString &path)
         return;
     }
 
-    qDebug() << "Scanning directory:" << path;
-
-    // Поддерживаемые форматы (обычные файлы + архивы)
+    // Сначала собираем список файлов
     QStringList supportedFormats = {
         "*.fb2", "*.epub", "*.pdf", "*.txt", "*.mobi",
-        "*.zip", "*.rar", "*.7z", "*.tar", "*.gz", "*.bz2"
+        "*.zip", "*.rar", "*.7z", "*.tar"
     };
 
-    // Рекурсивный поиск файлов
+    QStringList files;
     QDirIterator it(path, supportedFormats, QDir::Files, QDirIterator::Subdirectories);
-    int totalFiles = 0;
-    QVector<QString> files;
 
-    // Сначала подсчитаем общее количество файлов
     emit statusChanged("Поиск файлов...");
     while (it.hasNext()) {
         files.append(it.next());
-        totalFiles++;
-
-        // Обновляем статус каждые 100 файлов
-        if (totalFiles % 100 == 0) {
-            emit statusChanged(QString("Найдено файлов: %1...").arg(totalFiles));
+        if (files.size() % 1000 == 0) {
+            emit statusChanged(QString("Найдено файлов: %1").arg(files.size()));
         }
     }
 
-    if (totalFiles == 0) {
+    if (files.isEmpty()) {
         emit statusChanged("Файлы не найдены");
-        emit errorOccurred("В указанной директории не найдено поддерживаемых файлов");
         return;
     }
 
-    emit statusChanged(QString("Найдено %1 файлов. Обработка...").arg(totalFiles));
-    qDebug() << "Found" << totalFiles << "files to process";
+    emit statusChanged(QString("Найдено %1 файлов. Обработка...").arg(files.size()));
 
     // Обрабатываем файлы
+    QElapsedTimer totalTimer;
+    totalTimer.start();
+
     for (int i = 0; i < files.size() && !m_abort; ++i) {
         const QString &filePath = files[i];
 
-        // Проверяем, является ли файл архивом
         if (isArchiveFile(filePath)) {
-            qDebug() << "Processing archive:" << filePath;
             processArchive(filePath);
         } else {
-            qDebug() << "Processing file:" << filePath;
             processFile(filePath);
         }
 
-        // Обновляем прогресс (от 20% до 100% для файлового сканирования)
-        int progress = 20 + (80 * i / files.size());
-        emit progressChanged(progress);
+        // Обновляем прогресс каждые 10 файлов
+        if (i % 10 == 0) {
+            int progress = (i * 100) / files.size();
+            emit progressChanged(progress);
+            emit statusChanged(QString("Обработано %1 из %2 файлов").arg(i + 1).arg(files.size()));
 
-        if (i % 10 == 0) { // Обновляем статус каждые 10 файлов
-            emit statusChanged(QString("Обработано %1 из %2 файлов").arg(i + 1).arg(totalFiles));
+            if (i % 100 == 0) {
+                DEBUG_LOG() << "Progress:" << i << "/" << files.size()
+                << "Time:" << totalTimer.elapsed() / 1000 << "s";
+            }
         }
+
     }
 
-    emit statusChanged(QString("Обработано %1 файлов").arg(totalFiles));
+
+
+    DEBUG_LOG() << "Scan completed in" << totalTimer.elapsed() << "ms";
 }
 
 void BookScanner::processFile(const QString &filePath)
@@ -295,336 +444,307 @@ void BookScanner::processFile(const QString &filePath)
     if (m_abort) return;
 
     QFileInfo fileInfo(filePath);
-    QString fileName = fileInfo.fileName();
     QString extension = fileInfo.suffix().toLower();
 
-    qDebug() << "Processing file:" << filePath;
+    // Поддерживаемые форматы
+    static const QSet<QString> supported = {"fb2", "epub", "pdf", "txt", "mobi"};
+    if (!supported.contains(extension)) return;
 
-    // Парсим метаданные из файла
+    // Парсим метаданные
     BookMeta meta = m_parser->parseMetadata(filePath);
 
-    // Если автор не распознан, пробуем извлечь из имени файла
-    if (meta.author == "Неизвестный автор") {
-        // Логика извлечения из имени файла
-        if (fileName.contains(" - ")) {
-            int separatorPos = fileName.indexOf(" - ");
-            meta.author = fileName.left(separatorPos).trimmed();
-            if (meta.title.isEmpty()) {
-                meta.title = fileName.mid(separatorPos + 3, fileName.lastIndexOf('.') - separatorPos - 3).trimmed();
+    // Fallback для пустых полей
+    if (meta.title.isEmpty()) meta.title = fileInfo.completeBaseName();
+    if (meta.author.isEmpty()) meta.author = QStringLiteral("Неизвестный автор");
+    meta.title = meta.title.replace(u'_', u' ').simplified();
+    meta.author = meta.author.replace(u'_', u' ').simplified();
+
+    // 🔥 Рассчитываем хеш файла
+    QString fileHash = calculateFileHash(filePath);
+
+    // 🔥 Проверяем дубликат по хешу (надёжнее, чем title+author)
+    if (!fileHash.isEmpty()) {
+        QSqlQuery checkQuery(m_database);
+        checkQuery.prepare("SELECT id, file_size FROM books WHERE file_hash = ? LIMIT 1");
+        checkQuery.addBindValue(fileHash);
+
+        if (checkQuery.exec() && checkQuery.next()) {
+            qint64 existingSize = checkQuery.value(1).toLongLong();
+            // Если размер совпадает — это точно дубликат
+            if (fileInfo.size() == existingSize) {
+                DEBUG_LOG() << "Skipping duplicate by hash:" << filePath;
+                return;
             }
+            // Если размер больше — удаляем старую запись (обновление)
+            int existingId = checkQuery.value(0).toInt();
+            QSqlQuery deleteQuery(m_database);
+            deleteQuery.prepare("DELETE FROM books WHERE id = ?");
+            deleteQuery.addBindValue(existingId);
+            deleteQuery.exec();
         }
     }
 
-    // Гарантируем, что есть название и автор
-    if (meta.title.isEmpty()) {
-        meta.title = fileName.left(fileName.lastIndexOf('.'));
-    }
-    if (meta.author.isEmpty()) {
-        meta.author = "Неизвестный автор";
-    }
+    // Добавляем в batch с хешем
+    PendingBook book;
+    book.meta = std::move(meta);
+    book.filePath = filePath;
+    book.fileSize = fileInfo.size();
+    book.fileType = extension;
+    book.fileHash = fileHash;  // Сохраняем хеш
+    book.archivePath.clear();
+    book.internalPath.clear();
 
-    // Очистка от лишних символов
-    meta.title = meta.title.replace('_', ' ').simplified();
-    meta.author = meta.author.replace('_', ' ').simplified();
-
-    qDebug() << "Parsed metadata - Title:" << meta.title << "Author:" << meta.author
-             << "Series:" << meta.series << "Genre:" << meta.genre;
-
-    // ПРОВЕРКА ДУБЛИКАТОВ С УЧЕТОМ РАЗМЕРА ФАЙЛА
-    QSqlQuery checkQuery(m_database);
-    checkQuery.prepare(
-        "SELECT id, file_size, file_path FROM books WHERE title = ? AND author = ?"
-    );
-    checkQuery.addBindValue(meta.title);
-    checkQuery.addBindValue(meta.author);
-
-    if (checkQuery.exec() && checkQuery.next()) {
-        // Книга уже существует в базе
-        int existingId = checkQuery.value(0).toInt();
-        qint64 existingSize = checkQuery.value(1).toLongLong();
-        QString existingPath = checkQuery.value(2).toString();
-
-        qDebug() << "Book already exists in database - ID:" << existingId
-                 << "Existing size:" << existingSize << "New size:" << fileInfo.size()
-                 << "Existing path:" << existingPath;
-
-        // ЕСЛИ НОВАЯ КНИГА БОЛЬШЕ ПО РАЗМЕРУ - ОБНОВЛЯЕМ
-        if (fileInfo.size() > existingSize) {
-            qDebug() << "New book is larger, updating record...";
-
-            QSqlQuery updateQuery(m_database);
-            updateQuery.prepare(
-                "UPDATE books SET file_path = ?, file_name = ?, file_size = ?, file_type = ?, "
-                "series = ?, series_number = ?, genre = ?, language = ?, year = ?, "
-                "last_modified = CURRENT_TIMESTAMP, file_mtime = ? "
-                "WHERE id = ?"
-            );
-
-            updateQuery.addBindValue(filePath);
-            updateQuery.addBindValue(fileName);
-            updateQuery.addBindValue(fileInfo.size());
-            updateQuery.addBindValue(extension);
-            updateQuery.addBindValue(meta.series);
-            updateQuery.addBindValue(meta.seriesNumber);
-            updateQuery.addBindValue(meta.genre);
-            updateQuery.addBindValue(meta.language);
-            updateQuery.addBindValue(meta.year);
-            updateQuery.addBindValue(fileInfo.lastModified().toSecsSinceEpoch());
-            updateQuery.addBindValue(existingId);
-
-            if (updateQuery.exec()) {
-                qDebug() << "Book updated (larger file):" << meta.title << "-" << meta.author
-                         << "New size:" << fileInfo.size() << "Old size:" << existingSize;
-                emit bookFound(meta.title + " [ОБНОВЛЕНО]", meta.author, fileName);
-            } else {
-                qDebug() << "Error updating book:" << updateQuery.lastError().text();
-            }
-        } else {
-            qDebug() << "Book already exists with same or larger size, skipping:" << meta.title << "-" << meta.author;
-        }
-        return; // Книга уже обработана (либо пропущена, либо обновлена)
-    }
-
-    // Если книга не найдена - добавляем новую
-    QSqlQuery insertQuery(m_database);
-    insertQuery.prepare(
-        "INSERT INTO books (file_path, file_name, file_size, file_type, title, author, "
-        "series, series_number, genre, language, year, added_date, file_mtime) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)"
-    );
-
-    insertQuery.addBindValue(filePath);
-    insertQuery.addBindValue(fileName);
-    insertQuery.addBindValue(fileInfo.size());
-    insertQuery.addBindValue(extension);
-    insertQuery.addBindValue(meta.title);
-    insertQuery.addBindValue(meta.author);
-    insertQuery.addBindValue(meta.series);
-    insertQuery.addBindValue(meta.seriesNumber);
-    insertQuery.addBindValue(meta.genre);
-    insertQuery.addBindValue(meta.language);
-    insertQuery.addBindValue(meta.year);
-    insertQuery.addBindValue(fileInfo.lastModified().toSecsSinceEpoch());
-
-    if (insertQuery.exec()) {
-        qDebug() << "Book added to database:" << meta.title << "-" << meta.author;
-        emit bookFound(meta.title, meta.author, fileName);
-    } else {
-        qDebug() << "Error adding book:" << insertQuery.lastError().text()
-                 << "-" << meta.title << "-" << meta.author;
-    }
+    addToBatch(book);
 }
 
-void BookScanner::processArchive(const QString &archivePath)
-{
+
+// void BookScanner::processFile(const QString &filePath)
+// {
+//     if (m_abort) return;
+
+//     QFileInfo fileInfo(filePath);
+//     QString extension = fileInfo.suffix().toLower();
+
+//     // Парсим метаданные
+//     BookMeta meta = m_parser->parseMetadata(filePath);
+
+
+//     // ОТЛАДКА: Выводим описание
+//     qDebug() << "=== BOOK METADATA ===";
+//     qDebug() << "Title:" << meta.title;
+//     qDebug() << "Author:" << meta.author;
+//     qDebug() << "Description length:" << meta.description.length();
+//     qDebug() << "Description preview:" << meta.description.left(200);
+//     qDebug() << "=== END BOOK METADATA ===";
+
+
+//     if (meta.title.isEmpty()) {
+//         meta.title = fileInfo.completeBaseName();
+//     }
+//     if (meta.author.isEmpty()) {
+//         meta.author = "Неизвестный автор";
+//     }
+
+//     // Очистка
+//     meta.title = meta.title.replace('_', ' ').simplified();
+//     meta.author = meta.author.replace('_', ' ').simplified();
+
+//     // Проверяем существование книги БЫСТРЫМ ЗАПРОСОМ
+//     QSqlQuery checkQuery(m_database);
+//     checkQuery.prepare("SELECT id FROM books WHERE title = ? AND author = ? LIMIT 1");
+//     checkQuery.addBindValue(meta.title);
+//     checkQuery.addBindValue(meta.author);
+
+//     if (checkQuery.exec() && checkQuery.next()) {
+//         // Книга существует - проверяем размер
+//         int existingId = checkQuery.value(0).toInt();
+
+//         QSqlQuery sizeQuery(m_database);
+//         sizeQuery.prepare("SELECT file_size FROM books WHERE id = ?");
+//         sizeQuery.addBindValue(existingId);
+
+//         if (sizeQuery.exec() && sizeQuery.next()) {
+//             qint64 existingSize = sizeQuery.value(0).toLongLong();
+//             if (fileInfo.size() <= existingSize) {
+//                 return; // Пропускаем
+//             }
+
+//             // Обновляем существующую книгу
+//             QSqlQuery updateQuery(m_database);
+//             updateQuery.prepare(
+//                 "UPDATE books SET file_path = ?, file_size = ?, last_modified = CURRENT_TIMESTAMP "
+//                 "WHERE id = ?"
+//                 );
+//             updateQuery.addBindValue(filePath);
+//             updateQuery.addBindValue(fileInfo.size());
+//             updateQuery.addBindValue(existingId);
+//             updateQuery.exec();
+//             return;
+//         }
+//     }
+
+//     // Добавляем в batch
+//     PendingBook book;
+//     book.meta = meta;
+//     book.filePath = filePath;
+//     book.fileSize = fileInfo.size();
+//     book.fileType = extension;
+//     book.archivePath = QString();
+//     book.internalPath = QString();
+
+//     addToBatch(book);
+// }
+
+void BookScanner::processArchive(const QString &archivePath) {
     if (m_abort) return;
 
-    qDebug() << "=== START PROCESS ARCHIVE ===";
-    qDebug() << "Archive:" << archivePath;
-
-    // ПРОВЕРЯЕМ, НУЖНО ЛИ СКАНИРОВАТЬ АРХИВ
+    // 1. Быстрая проверка: нужно ли вообще сканировать этот архив?
     if (!shouldRescanArchive(archivePath)) {
-        qDebug() << "Skipping archive (no changes):" << archivePath;
-        emit statusChanged("Пропускаем неизмененный архив: " + QFileInfo(archivePath).fileName());
+        DEBUG_LOG() << "Skipping unchanged archive:" << archivePath;
         return;
     }
 
+    DEBUG_LOG() << "=== START PROCESS ARCHIVE (Optimized) ===";
     QElapsedTimer timer;
     timer.start();
 
-    QFileInfo archiveInfo(archivePath);
-    emit statusChanged("Открытие архива: " + archiveInfo.fileName());
-
+    // 2. Открываем архив ОДИН РАЗ
     if (!m_archiveHandler->openArchive(archivePath)) {
-        QString error = m_archiveHandler->getLastError();
-        qDebug() << "Failed to open archive:" << error;
-        emit errorOccurred("Не удалось открыть архив: " + error);
-        updateArchiveInfo(archivePath, true);
+        emit errorOccurred("Не удалось открыть архив: " + m_archiveHandler->getLastError());
         return;
     }
 
-    qDebug() << "Archive opened successfully, listing files...";
-    emit statusChanged("Чтение содержимого архива...");
+    emit statusChanged("Чтение содержимого архива: " + QFileInfo(archivePath).fileName());
 
-    QVector<ArchiveFile> files = m_archiveHandler->listFiles();
-    qDebug() << "Total files in archive:" << files.size();
+    ArchiveFile fileInfo;
+    int processedCount = 0;
 
-    if (files.isEmpty()) {
-        qDebug() << "Archive is empty or no supported files found";
-        emit statusChanged("Архив пуст или не содержит поддерживаемых файлов");
-        m_archiveHandler->closeArchive();
-        updateArchiveInfo(archivePath, false);
-        return;
-    }
 
-    int processedFiles = 0;
-    int addedBooks = 0;
-    int updatedBooks = 0;
-    int skippedBooks = 0;
+    // 3. Итерируемся по файлам БЕЗ переоткрытия
+    while (m_archiveHandler->readNextHeader(fileInfo)) {
+        if (m_abort) break;
 
-    for (int i = 0; i < files.size() && !m_abort; ++i) {
-        const ArchiveFile &file = files[i];
+        DEBUG_LOG() << "Processing file inside archive:" << fileInfo.path;
 
-        // Проверяем поддерживаемые форматы
-        QString extension = QFileInfo(file.name).suffix().toLower();
-        if (extension != "fb2" && extension != "epub" && extension != "txt" && extension != "pdf") {
-            processedFiles++;
+        // Читаем данные файла (мы уже стоим на нем)
+        QByteArray content = m_archiveHandler->readCurrentData();
+        QString fileHash = calculateMemoryHash(content);
+
+        if (content.isEmpty()) {
+            DEBUG_LOG() << "Empty content for:" << fileInfo.name;
             continue;
         }
 
-        qDebug() << "Processing file in archive:" << file.name << "type:" << extension;
+        // 4. Парсим метаданные из памяти
+        BookMeta meta;
+        QString extension = QFileInfo(fileInfo.name).suffix().toLower();
 
-        QByteArray content = m_archiveHandler->readFile(file.path);
-        if (!content.isEmpty()) {
-            qDebug() << "Successfully read file:" << file.name << "size:" << content.size();
-
-            BookMeta meta;
-
-            // ОСОБАЯ ОБРАБОТКА ДЛЯ EPUB В АРХИВЕ
-            if (extension == "epub") {
-                meta = parseEpubFromMemory(content, file.name);
-            } else {
-                // Для других форматов используем обычный парсер
-                meta = m_parser->parseMetadataFromMemory(content, extension);
-            }
-
-            // Если не удалось распарсить, используем имя файла
-            if (meta.title.isEmpty()) {
-                meta.title = m_parser->extractFromFileName(file.name);
-            }
-            if (meta.author.isEmpty()) {
-                meta.author = "Неизвестный автор";
-            }
-
-            // Очистка от лишних символов
-            meta.title = meta.title.replace('_', ' ').simplified();
-            meta.author = meta.author.replace('_', ' ').simplified();
-
-            qDebug() << "Parsed metadata - Title:" << meta.title << "Author:" << meta.author;
-
-            // ПРОВЕРКА ДУБЛИКАТОВ ДЛЯ АРХИВНЫХ ФАЙЛОВ С УЧЕТОМ РАЗМЕРА
-            QSqlQuery checkQuery(m_database);
-            checkQuery.prepare(
-                "SELECT id, file_size, file_path FROM books WHERE title = ? AND author = ?"
-            );
-            checkQuery.addBindValue(meta.title);
-            checkQuery.addBindValue(meta.author);
-
-            bool bookExists = false;
-            bool shouldUpdate = false;
-            int existingId = -1;
-            qint64 existingSize = 0;
-            QString existingPath;
-
-            if (checkQuery.exec() && checkQuery.next()) {
-                bookExists = true;
-                existingId = checkQuery.value(0).toInt();
-                existingSize = checkQuery.value(1).toLongLong();
-                existingPath = checkQuery.value(2).toString();
-
-                qDebug() << "Book exists in database - ID:" << existingId
-                         << "Existing size:" << existingSize << "New size:" << file.size
-                         << "Existing path:" << existingPath;
-
-                // Проверяем размер - если новый файл больше, обновляем
-                if (file.size > existingSize) {
-                    shouldUpdate = true;
-                    qDebug() << "Larger version found in archive, will update - New size:"
-                             << file.size << "Old size:" << existingSize;
-                } else {
-                    qDebug() << "Existing book is same size or larger, skipping";
-                }
-            }
-
-            if (!bookExists) {
-                // Добавляем новую книгу
-                if (addBookToDatabase(meta, file, archivePath, archiveInfo)) {
-                    addedBooks++;
-                }
-            } else if (shouldUpdate) {
-                // Обновляем существующую книгу (больший размер)
-                if (updateBookInDatabase(meta, file, archivePath, archiveInfo, existingId)) {
-                    updatedBooks++;
-                }
-            } else {
-                qDebug() << "Book from archive already exists (same or smaller size):" << meta.title << "-" << meta.author;
-                skippedBooks++;
-            }
+        if (extension == "epub") {
+            meta = m_parser->parseEpubFromMemory(content);
         } else {
-            qDebug() << "Failed to read file from archive:" << file.name;
+            // Для FB2 и TXT используем общий парсер, передав расширение
+            meta = m_parser->parseMetadataFromMemory(content, extension);
         }
 
-        processedFiles++;
+        if (meta.title.isEmpty()) {
+            meta.title = fileInfo.name;
+        }
+        if (meta.author.isEmpty()) meta.author = "Неизвестный автор";
 
-        // Обновляем статус каждые 5 файлов
-        if (processedFiles % 5 == 0) {
-            emit statusChanged(QString("Обработано %1 из %2 файлов в архиве (Добавлено: %3, Обновлено: %4)")
-                              .arg(processedFiles).arg(files.size()).arg(addedBooks).arg(updatedBooks));
+        // Очистка
+        meta.title = meta.title.replace('_', ' ').simplified();
+        meta.author = meta.author.replace('_', ' ').simplified();
+
+        // 5. Проверка наличия в БД (оптимизация, чтобы не вставлять дубли)
+        QSqlQuery checkQuery(m_database);
+        checkQuery.prepare("SELECT id, file_size FROM books WHERE title = ? AND author = ? LIMIT 1");
+        checkQuery.addBindValue(meta.title);
+        checkQuery.addBindValue(meta.author);
+
+        bool shouldAdd = true;
+        if (checkQuery.exec() && checkQuery.next()) {
+            qint64 existingSize = checkQuery.value(1).toLongLong();
+            // Если размер совпадает или новый меньше — скорее всего это дубль, пропускаем
+            if (fileInfo.size <= existingSize) {
+                shouldAdd = false;
+            } else {
+                // Если новый файл больше, удаляем старый (обновление)
+                int existingId = checkQuery.value(0).toInt();
+                QSqlQuery deleteQuery(m_database);
+                deleteQuery.prepare("DELETE FROM books WHERE id = ?");
+                deleteQuery.addBindValue(existingId);
+                deleteQuery.exec();
+            }
+        }
+
+        if (shouldAdd) {
+            // Вставляем в БД
+            PendingBook book;
+            book.meta = meta;
+            book.filePath = archivePath; // Для архива путь — это сам архив
+            book.archivePath = archivePath;
+            book.internalPath = fileInfo.path;
+            book.fileSize = fileInfo.size;
+            book.fileType = extension;
+            book.fileHash = fileHash;
+
+            addToBatch(book);
+            processedCount++;
+        }
+
+        // Обновляем статус каждые 10 файлов
+        if (processedCount % 100 == 0) {
+            emit statusChanged(QString("Обработано %1 файлов в архиве...").arg(processedCount));
         }
     }
 
     m_archiveHandler->closeArchive();
     updateArchiveInfo(archivePath, false);
 
-    qDebug() << "=== ARCHIVE PROCESSING COMPLETE ===" << timer.elapsed() << "ms"
-             << "Processed files:" << processedFiles
-             << "Added:" << addedBooks
-             << "Updated:" << updatedBooks
-             << "Skipped:" << skippedBooks;
-
-    emit statusChanged(QString("Архив обработан: %1 файлов (Добавлено: %2, Обновлено: %3, Пропущено: %4)")
-                      .arg(processedFiles).arg(addedBooks).arg(updatedBooks).arg(skippedBooks));
+    DEBUG_LOG() << "=== ARCHIVE COMPLETE === Files:" << processedCount
+                << "Time:" << timer.elapsed() << "ms";
 }
 
-//EPUB сканер из архива
 
-BookMeta BookScanner::parseEpubFromMemory(const QByteArray &epubData, const QString &fileName)
+void BookScanner::addToBatch(const PendingBook &book)
 {
-    qDebug() << "=== FULL EPUB PARSING FROM MEMORY ===";
-    qDebug() << "File:" << fileName << "Size:" << epubData.size();
+    m_pendingBatch.append(book);
 
-    // Используем полноценный парсер EPUB из памяти
-    BookMeta meta = m_parser->parseEpubFromMemory(epubData);
-
-    // Если парсинг не удался, используем имя файла как fallback
-    if (meta.title.isEmpty()) {
-        qDebug() << "EPUB parsing failed, using filename fallback";
-
-        QString baseName = QFileInfo(fileName).completeBaseName();
-
-        // Простая логика извлечения из имени файла
-        if (baseName.contains('.')) {
-            QStringList parts = baseName.split('.');
-            bool isNumber = false;
-            if (parts.size() > 0) {
-                parts[0].trimmed().toInt(&isNumber);
-            }
-
-            if (isNumber && parts.size() >= 2) {
-                meta.title = parts.mid(1).join('.').trimmed();
-            } else {
-                meta.title = baseName;
-            }
-        } else {
-            meta.title = baseName;
-        }
-
-        if (meta.author.isEmpty()) {
-            meta.author = "Неизвестный автор";
-        }
+    if (m_pendingBatch.size() >= m_batchSize) {
+        flushBatch();
     }
-
-    // Очистка
-    meta.title = meta.title.replace('_', ' ').simplified();
-    meta.author = meta.author.replace('_', ' ').simplified();
-
-    qDebug() << "=== FINAL METADATA ===";
-    qDebug() << "Title:" << meta.title;
-    qDebug() << "Author:" << meta.author;
-    qDebug() << "Genre:" << meta.genre;
-
-    return meta;
 }
+
+void BookScanner::flushBatch()
+{
+    if (m_pendingBatch.isEmpty()) return;
+
+    insertBookBatch();
+    m_pendingBatch.clear();
+}
+
+bool BookScanner::insertBookBatch()
+{
+    if (m_pendingBatch.isEmpty()) return true;
+
+    QSqlQuery query(m_database);
+    query.prepare(
+        "INSERT INTO books (file_path, file_name, file_size, file_type, file_hash, "
+        "title, author, series, series_number, genre, language, year, description, "
+        "archive_path, archive_internal_path, added_date) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+        );
+
+    for (const PendingBook &book : m_pendingBatch) {
+        query.addBindValue(book.filePath);              // file_path
+        query.addBindValue(book.meta.title);            // file_name (или QFileInfo(book.filePath).fileName())
+        query.addBindValue(book.fileSize);              // file_size
+        query.addBindValue(book.fileType);              // file_type
+        query.addBindValue(book.fileHash);              // 🔥 file_hash
+        query.addBindValue(book.meta.title);            // title
+        query.addBindValue(book.meta.author);           // author
+        query.addBindValue(book.meta.series);           // series
+        query.addBindValue(book.meta.seriesNumber);     // series_number
+        query.addBindValue(book.meta.genre);            // genre
+        query.addBindValue(book.meta.language);         // language
+        query.addBindValue(book.meta.year);             // year
+        query.addBindValue(book.meta.description);      // description
+        query.addBindValue(book.archivePath);           // archive_path
+        query.addBindValue(book.internalPath);          // archive_internal_path
+
+        if (query.exec()) {
+            emit bookFound(book.meta.title, book.meta.author,
+                           book.archivePath.isEmpty() ? book.meta.title :
+                               book.meta.title + " [архив]");
+        } else {
+            DEBUG_LOG() << "Failed to insert book:" << query.lastError().text();
+        }
+
+    }
+    m_pendingBatch.clear();
+    return true;
+}
+
 
 bool BookScanner::addBookToDatabase(const BookMeta &meta, const ArchiveFile &file,
                                    const QString &archivePath, const QFileInfo &archiveInfo)
@@ -632,9 +752,9 @@ bool BookScanner::addBookToDatabase(const BookMeta &meta, const ArchiveFile &fil
     QSqlQuery insertQuery(m_database);
     insertQuery.prepare(
         "INSERT INTO books (file_path, file_name, file_size, file_type, title, author, "
-        "series, series_number, genre, language, year, archive_path, archive_internal_path, "
+        "series, series_number, genre, language, year, description, archive_path, archive_internal_path, "
         "added_date, file_mtime) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)"
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)"
     );
 
     QString extension = QFileInfo(file.name).suffix().toLower();
@@ -651,8 +771,9 @@ bool BookScanner::addBookToDatabase(const BookMeta &meta, const ArchiveFile &fil
     insertQuery.addBindValue(meta.genre);
     insertQuery.addBindValue(meta.language);
     insertQuery.addBindValue(meta.year);
+    insertQuery.addBindValue(meta.description);
     insertQuery.addBindValue(archivePath);
-    insertQuery.addBindValue(file.name);
+    insertQuery.addBindValue(file.path);
     insertQuery.addBindValue(archiveInfo.lastModified().toSecsSinceEpoch());
 
     if (insertQuery.exec()) {
@@ -788,6 +909,64 @@ ScannerDialog::ScannerDialog(QSqlDatabase database, QWidget *parent) :
     qDebug() << "Force rescan button visible:" << ui->btnForceRescan->isVisible();
 }
 
+QString BookScanner::calculateFileHash(const QString &filePath)
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) return QString();
+
+    QCryptographicHash hash(QCryptographicHash::Md5);
+    const qint64 CHUNK = 10 * 1024 * 1024; // 10 MB
+    const qint64 bufferSize = 65536;
+    char buffer[bufferSize];
+
+    qint64 fileSize = file.size();
+
+    // Маленький файл — хешируем целиком
+    if (fileSize <= CHUNK * 2) {
+        while (!file.atEnd()) {
+            qint64 bytesRead = file.read(buffer, bufferSize);
+            if (bytesRead <= 0) break;
+            hash.addData(buffer, bytesRead);
+        }
+    }
+    // Большой файл — начало + конец
+    else {
+        // Первые 10 MB
+        qint64 remaining = CHUNK;
+        while (remaining > 0) {
+            qint64 toRead = qMin(remaining, bufferSize);
+            qint64 bytesRead = file.read(buffer, toRead);
+            if (bytesRead <= 0) break;
+            hash.addData(buffer, bytesRead);
+            remaining -= bytesRead;
+        }
+        // Последние 10 MB
+        if (file.seek(fileSize - CHUNK)) {
+            remaining = CHUNK;
+            while (remaining > 0) {
+                qint64 toRead = qMin(remaining, bufferSize);
+                qint64 bytesRead = file.read(buffer, toRead);
+                if (bytesRead <= 0) break;
+                hash.addData(buffer, bytesRead);
+                remaining -= bytesRead;
+            }
+        }
+    }
+    file.close();
+    return QString::fromLatin1(hash.result().toHex());
+}
+
+QString BookScanner::calculateMemoryHash(const QByteArray &data)
+{
+    return QString::fromLatin1(
+        QCryptographicHash::hash(data, QCryptographicHash::Md5).toHex()
+        );
+}
+
+
+
+
+
 void ScannerDialog::onForceRescanClicked()
 {
     if (QMessageBox::question(this, "Подтверждение",
@@ -878,6 +1057,8 @@ void ScannerDialog::on_btnStartScan_clicked()
     connect(m_scanner, &BookScanner::progressChanged, this, &ScannerDialog::onProgressChanged);
     connect(m_scanner, &BookScanner::statusChanged, this, &ScannerDialog::onStatusChanged);
     connect(m_scanner, &BookScanner::bookFound, this, &ScannerDialog::onBookFound);
+    qDebug() << "🔗 Signal connected, scanner thread:" << m_scanner->thread() << "dialog thread:" << this->thread();
+
     connect(m_scanner, &BookScanner::finished, this, &ScannerDialog::onFinished);
     connect(m_scanner, &BookScanner::errorOccurred, this, &ScannerDialog::onErrorOccurred);
 
@@ -947,17 +1128,16 @@ void ScannerDialog::onFinished()
     updateControls(false);
     ui->statusLabel->setText("Сканирование завершено");
 
+    // Используем deleteLater для безопасной очистки
     if (m_scannerThread) {
         m_scannerThread->quit();
-        m_scannerThread->wait();
-        m_scannerThread->deleteLater();
+        // Не ждём вручную. Поток завершится сам, объекты удалятся через deleteLater
         m_scannerThread = nullptr;
     }
-    m_scanner = nullptr;
+    m_scanner = nullptr; // deleteLater уже подключен к finished потока
 
+    // Показываем результат
     QMessageBox::information(this, "Готово", "Сканирование коллекции завершено!");
-
-    // Сигнализируем главному окну об обновлении данных
     emit booksUpdated();
 }
 

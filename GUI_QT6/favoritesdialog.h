@@ -46,10 +46,10 @@ private slots:
     // Новые слоты для поиска и экспорта
     void onSearchTextChanged(const QString &text);
     void onExportToCsv();
-    // void onSortChanged(int logicalIndex); // УБИРАЕМ или комментируем
+    // void onSortChanged(int logicalIndex);
 
     // Слот для прогресса скачивания (оставляем объявление, но не используем в сигналах)
-    // void onDownloadProgress(int value, const QString &status); // УБИРАЕМ или комментируем
+    // void onDownloadProgress(int value, const QString &status);
 
 private:
     Ui::FavoritesDialog *ui;

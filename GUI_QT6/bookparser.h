@@ -27,10 +27,7 @@ public:
     BookParser();
     BookMeta parseMetadata(const QString &filePath);
     BookMeta parseMetadataFromMemory(const QByteArray &data, const QString &fileExtension);
-
     BookMeta parseEpubFromMemory(const QByteArray &epubData);
-
-    // Сделать метод публичным
     QString extractFromFileName(const QString &fileName);
 
 private:
@@ -47,7 +44,6 @@ private:
     QByteArray extractFileFromEpubData(const QByteArray &epubData, const QString &internalPath);
     QString findOpfPathInEpubData(const QByteArray &epubData);
     QString readFileFromEpubData(const QByteArray &epubData, const QString &internalPath);
-
 
     QHash<QString, QString> genreMap;
     void initGenreMap();

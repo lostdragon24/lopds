@@ -1,4 +1,4 @@
-QT += core gui sql network widgets xml
+QT += core gui sql network widgets xml concurrent
 
 QMAKE_CXXFLAGS += -Wl,--stack,16777216  # 16MB stack
 
@@ -41,9 +41,9 @@ unix {
 
 # Для MySQL
 unix {
-    LIBS += -lmariadb
+    LIBS += -lmysqlclient
     # Или для MySQL:
-    # LIBS += -lmysqlclient
+    # LIBS += -lmariadb
 }
 
 # Для OpenSSL (хеширование)

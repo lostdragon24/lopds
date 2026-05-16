@@ -8,7 +8,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <iconv.h>
-#include <limits.h> // Добавляем для LONG_MAX
+#include <limits.h>
 #include <locale.h>
 #include <openssl/evp.h>
 #include <string.h>
@@ -16,7 +16,7 @@
 #include <unistd.h>
 
 const char *supported_formats[SUPPORTED_FORMATS] = {
-    ".epub", ".fb2", ".pdf", ".mobi", ".txt", ".zip", ".rar", ".7z"};
+    ".epub", ".fb2", ".pdf", ".txt", ".zip", ".rar", ".7z"};
 
 // Определения функций проверки форматов
 int is_supported_format(const char *filename) {
@@ -216,7 +216,7 @@ void process_archive(const char *archive_path, DatabaseHandle *db_handle,
     }
 
     // Для очень больших файлов внутри архива (>100MB) пропускаем
-    if (size > 100 * 1024 * 1024) {
+    if (size > 200 * 1024 * 1024) {
       log_message(config, "DEBUG",
                   "Skipping very large file in archive: %s (%lld MB)", filename,
                   size / (1024 * 1024));

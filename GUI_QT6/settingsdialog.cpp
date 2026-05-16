@@ -5,8 +5,8 @@
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
-#include <QDir>  // Добавлено для QDir
-#include <QFileInfo>  // Добавлено для QFileInfo
+#include <QDir>
+#include <QFileInfo>
 
 
 SettingsDialog::SettingsDialog(QWidget *parent) :

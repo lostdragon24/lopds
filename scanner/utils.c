@@ -188,7 +188,7 @@ char *read_file_content(const char *filepath) {
 
   rewind(file);
 
-  // Ограничиваем размер читаемого файла (10 MB для текстовых файлов)
+  // Ограничиваем размер читаемого файла (80 MB для текстовых файлов)
   long read_size = file_size;
   if (read_size > 80 * 1024 * 1024) {
     read_size = 80 * 1024 * 1024;
@@ -1065,7 +1065,7 @@ int is_already_running(const char *lockfile_path, Config *config) {
 
     // ВАЖНО: НЕ закрываем файл! Он должен оставаться открытым,
     // чтобы блокировка сохранялась на всё время работы программы.
-    // close(lockfile); // ❌ НЕ ДЕЛАЕМ!
+    // close(lockfile); // НЕ ДЕЛАЕМ!
 
     return 1; // Успешно создали блокировку
   }

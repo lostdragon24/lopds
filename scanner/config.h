@@ -3,9 +3,6 @@
 
 #include <stdio.h>
 
-// УБИРАЕМ определение MAX_PATH здесь, так как оно уже в common.h
-// #define MAX_PATH 4096
-
 #define MAX_LINE 1024
 
 // Уровни логирования

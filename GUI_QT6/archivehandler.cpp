@@ -5,12 +5,21 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QElapsedTimer>
-#include <QCryptographicHash>
+
+// Макрос для отключения отладки в release
+#ifdef QT_DEBUG
+#define DEBUG_LOG qDebug
+#else
+#define DEBUG_LOG if(false) qDebug
+#endif
 
 ArchiveHandler::ArchiveHandler()
     : m_archive(nullptr)
     , m_isOpen(false)
+    , m_hasCachedFileList(false)
 {
+    // Кеш файлов - максимум 50MB
+    m_fileCache.setMaxCost(50 * 1024 * 1024);
 }
 
 ArchiveHandler::~ArchiveHandler()
@@ -18,11 +27,35 @@ ArchiveHandler::~ArchiveHandler()
     closeArchive();
 }
 
+void ArchiveHandler::clearCache()
+{
+    m_fileCache.clear();
+    m_cachedFileList.clear();
+    m_hasCachedFileList = false;
+}
+
+void ArchiveHandler::invalidateCache()
+{
+    clearCache();
+}
+
 bool ArchiveHandler::openArchive(const QString &archivePath)
 {
-    closeArchive();
+    // Если уже открыт этот же архив, просто возвращаем успех
+    if (m_isOpen && m_archivePath == archivePath) {
+        DEBUG_LOG() << "Archive already open:" << archivePath;
+        return true;
+    }
 
-    qDebug() << "ArchiveHandler: Opening archive:" << archivePath;
+    // Закрываем текущий архив если открыт другой
+    if (m_isOpen) {
+        closeArchive();
+    }
+
+    // Очищаем кеш при открытии нового архива
+    clearCache();
+
+    DEBUG_LOG() << "ArchiveHandler: Opening archive:" << archivePath;
 
     m_archive = archive_read_new();
     if (!m_archive) {
@@ -30,20 +63,17 @@ bool ArchiveHandler::openArchive(const QString &archivePath)
         return false;
     }
 
-    // Более специфичные настройки как в C коде
+    // Поддержка всех форматов как в C версии
     archive_read_support_format_zip(m_archive);
     archive_read_support_format_rar(m_archive);
     archive_read_support_format_7zip(m_archive);
     archive_read_support_format_tar(m_archive);
     archive_read_support_format_iso9660(m_archive);
     archive_read_support_format_cpio(m_archive);
-
     archive_read_support_filter_all(m_archive);
 
-    // Устанавливаем более агрессивные таймауты
-    archive_read_set_option(m_archive, "zip", "read_consume", "1");
-
-    int r = archive_read_open_filename(m_archive, archivePath.toLocal8Bit().constData(), 10240);
+    // Оптимизация: устанавливаем буфер побольше
+    int r = archive_read_open_filename(m_archive, archivePath.toLocal8Bit().constData(), 1024 * 1024); // 1MB буфер
     if (r != ARCHIVE_OK) {
         setError(QString("Failed to open archive: %1").arg(archive_error_string(m_archive)));
         archive_read_free(m_archive);
@@ -54,56 +84,59 @@ bool ArchiveHandler::openArchive(const QString &archivePath)
     m_archivePath = archivePath;
     m_isOpen = true;
 
-    qDebug() << "ArchiveHandler: Archive opened successfully";
+    DEBUG_LOG() << "ArchiveHandler: Archive opened successfully";
     return true;
 }
 
 void ArchiveHandler::closeArchive()
 {
     if (m_archive) {
-        qDebug() << "ArchiveHandler: Closing archive";
         archive_read_close(m_archive);
         archive_read_free(m_archive);
         m_archive = nullptr;
     }
     m_isOpen = false;
-    // НЕ очищаем m_archivePath здесь!
+    clearCache();
+    m_archivePath.clear();
 }
 
 QVector<ArchiveFile> ArchiveHandler::listFiles()
 {
+    // Возвращаем кешированный список если есть
+    if (m_hasCachedFileList && !m_cachedFileList.isEmpty()) {
+        DEBUG_LOG() << "Returning cached file list, size:" << m_cachedFileList.size();
+        return m_cachedFileList;
+    }
+
     QVector<ArchiveFile> files;
+    m_cachedFileList.clear();
 
     if (!m_isOpen || !m_archive) {
         setError("Archive is not open");
         return files;
     }
 
-    qDebug() << "ArchiveHandler: Listing files in archive:" << m_archivePath;
+    DEBUG_LOG() << "ArchiveHandler: Listing files in archive:" << m_archivePath;
 
     struct archive_entry *entry;
-    int fileCount = 0;
-    int skippedCount = 0;
+    int r;
+
+    // Сохраняем текущую позицию
+    // Для libarchive нужно переоткрыть архив для повторного чтения
+    // Но мы уже открыты, поэтому просто читаем с начала
+    // Сбрасываем позицию чтения - переоткрываем архив
+    QString currentPath = m_archivePath;
+    closeArchive();
+    if (!openArchive(currentPath)) {
+        return files;
+    }
 
     QElapsedTimer timer;
     timer.start();
 
-    // Сбросим позицию чтения архива
-    archive_read_free(m_archive);
-    m_archive = archive_read_new();
-    archive_read_support_format_all(m_archive);
-    archive_read_support_filter_all(m_archive);
-
-    int r = archive_read_open_filename(m_archive, m_archivePath.toLocal8Bit().constData(), 10240);
-    if (r != ARCHIVE_OK) {
-        setError(QString("Failed to reopen archive: %1").arg(archive_error_string(m_archive)));
-        return files;
-    }
-
     while (true) {
         r = archive_read_next_header(m_archive, &entry);
         if (r == ARCHIVE_EOF) {
-            qDebug() << "ArchiveHandler: End of archive reached";
             break;
         }
         if (r != ARCHIVE_OK) {
@@ -116,37 +149,23 @@ QVector<ArchiveFile> ArchiveHandler::listFiles()
         mode_t filetype = archive_entry_filetype(entry);
 
         if (!filename) {
-            qDebug() << "ArchiveHandler: Skipping entry with null filename";
             archive_read_data_skip(m_archive);
             continue;
         }
 
         QString qfilename = QString::fromUtf8(filename);
 
-        qDebug() << "ArchiveHandler: Found entry:" << qfilename
-                 << "type:" << filetype << "size:" << size;
-
-        // Пропускаем директории и специальные файлы
+        // Пропускаем директории
         if (filetype != AE_IFREG) {
-            qDebug() << "ArchiveHandler: Skipping non-regular file:" << qfilename;
-            skippedCount++;
             archive_read_data_skip(m_archive);
             continue;
         }
 
-        // Пропускаем файлы больше 100MB
-        if (size > 104857600) {
-            qDebug() << "ArchiveHandler: Skipping large file:" << qfilename << "size:" << size;
-            skippedCount++;
-            archive_read_data_skip(m_archive);
-            continue;
-        }
-
-        // Проверяем поддерживаемые форматы
+        // Поддерживаемые форматы как в C версии
         QString extension = QFileInfo(qfilename).suffix().toLower();
-        QStringList supportedFormats = {"fb2", "epub", "pdf", "mobi", "txt"};
+        QStringList supportedFormats = {"fb2", "epub", "pdf", "mobi", "txt", "fb2.zip"};
 
-        if (supportedFormats.contains(extension)) {
+        if (supportedFormats.contains(extension) || qfilename.endsWith(".fb2.zip", Qt::CaseInsensitive)) {
             ArchiveFile file;
             file.name = QFileInfo(qfilename).fileName();
             file.path = qfilename;
@@ -154,124 +173,122 @@ QVector<ArchiveFile> ArchiveHandler::listFiles()
             file.isDirectory = false;
 
             files.append(file);
-            fileCount++;
-
-            qDebug() << "ArchiveHandler: Added supported file:" << file.name << "size:" << file.size;
-        } else {
-            qDebug() << "ArchiveHandler: Skipping unsupported format:" << qfilename << "extension:" << extension;
-            skippedCount++;
+            m_cachedFileList.append(file);  // Кешируем
         }
 
         archive_read_data_skip(m_archive);
 
-        // Защита от бесконечного цикла
-        if (fileCount + skippedCount > 10000) {
-            qDebug() << "ArchiveHandler: Too many files in archive, stopping";
-            break;
-        }
-
-        // Прерывание по времени для очень больших архивов
-        if (timer.elapsed() > 30000) { // 30 секунд
-            qDebug() << "ArchiveHandler: Timeout while listing archive files";
+        // Защита от слишком больших архивов
+        if (files.size() > 10000) {
+            DEBUG_LOG() << "Too many files in archive, stopping at 10000";
             break;
         }
     }
 
-    qDebug() << "ArchiveHandler: Found" << fileCount << "supported files,"
-             << skippedCount << "files skipped. Time:" << timer.elapsed() << "ms";
+    m_hasCachedFileList = true;
+
+    DEBUG_LOG() << "ArchiveHandler: Found" << files.size() << "supported files. Time:" << timer.elapsed() << "ms";
 
     return files;
+}
+
+QByteArray ArchiveHandler::readFileCached(const QString &internalPath)
+{
+    // Проверяем кеш
+    if (m_fileCache.contains(internalPath)) {
+        DEBUG_LOG() << "Cache hit for:" << internalPath;
+        QByteArray *cached = m_fileCache[internalPath];
+        if (cached) {
+            return *cached;
+        }
+    }
+
+    // Читаем файл
+    QByteArray content = readFile(internalPath);
+
+    // Кешируем только маленькие файлы (< 500KB)
+    if (!content.isEmpty() && content.size() < 500 * 1024) {
+        int cost = content.size();
+        m_fileCache.insert(internalPath, new QByteArray(content), cost);
+        DEBUG_LOG() << "Cached file:" << internalPath << "size:" << cost;
+    }
+
+    return content;
 }
 
 QByteArray ArchiveHandler::readFile(const QString &internalPath)
 {
     QByteArray content;
 
-    if (!m_archivePath.isEmpty()) {
-        qDebug() << "ArchiveHandler: Looking for file in archive:" << internalPath;
+    if (!m_isOpen || !m_archive) {
+        setError("Archive is not open");
+        return content;
+    }
 
-        // Сохраняем текущий путь архива
-        QString currentArchivePath = m_archivePath;
+    DEBUG_LOG() << "ArchiveHandler: Looking for file:" << internalPath;
 
-        // Закрываем текущий архив если открыт
-        if (m_isOpen) {
-            closeArchive();
+    // Сохраняем текущий путь и переоткрываем архив для поиска
+    QString currentArchivePath = m_archivePath;
+    // bool wasOpen = m_isOpen;
+
+    // Закрываем текущий архив
+    closeArchive();
+
+    // Открываем заново
+    if (!openArchive(currentArchivePath)) {
+        return content;
+    }
+
+    struct archive_entry *entry;
+    bool found = false;
+    QElapsedTimer timer;
+    timer.start();
+
+    while (true) {
+        int r = archive_read_next_header(m_archive, &entry);
+        if (r == ARCHIVE_EOF) {
+            break;
+        }
+        if (r != ARCHIVE_OK) {
+            break;
         }
 
-        // Открываем архив заново с правильным путем
-        if (!openArchive(currentArchivePath)) {
-            return content;
-        }
-
-        struct archive_entry *entry;
-        bool found = false;
-        QElapsedTimer timer;
-        timer.start();
-
-        while (true) {
-            int r = archive_read_next_header(m_archive, &entry);
-            if (r == ARCHIVE_EOF) {
-                break;
-            }
-            if (r != ARCHIVE_OK) {
-                setError(QString("Failed to read archive header: %1").arg(archive_error_string(m_archive)));
-                break;
-            }
-
-            const char* filename = archive_entry_pathname(entry);
-            if (!filename) {
-                archive_read_data_skip(m_archive);
-                continue;
-            }
-
-            QString entryPath = QString::fromUtf8(filename);
-            la_int64_t size = archive_entry_size(entry);
-            mode_t filetype = archive_entry_filetype(entry);
-
-            // Пропускаем директории и большие файлы
-            if (filetype != AE_IFREG || size > 104857600) {
-                archive_read_data_skip(m_archive);
-                continue;
-            }
-
-            qDebug() << "ArchiveHandler: Checking:" << entryPath;
-
-            if (entryPath == internalPath) {
-                qDebug() << "ArchiveHandler: Found target file:" << internalPath << "size:" << size;
-
-                if (size > 0 && size < 104857600) { // До 10MB
-                    content.resize(size);
-                    la_ssize_t read_size = archive_read_data(m_archive, content.data(), size);
-                    qDebug() << "ArchiveHandler: Read" << read_size << "bytes, expected:" << size;
-
-                    if (read_size != size) {
-                        setError(QString("Failed to read file: expected %1 bytes, got %2").arg(size).arg(read_size));
-                        content.clear();
-                    } else {
-                        found = true;
-                        qDebug() << "ArchiveHandler: Successfully read file:" << internalPath;
-                    }
-                } else {
-                    qDebug() << "ArchiveHandler: Invalid file size:" << size;
-                }
-                break;
-            }
-
+        const char* filename = archive_entry_pathname(entry);
+        if (!filename) {
             archive_read_data_skip(m_archive);
+            continue;
+        }
 
-            // Таймаут для поиска
-            if (timer.elapsed() > 10000) { // 10 секунд
-                qDebug() << "ArchiveHandler: Timeout while searching for file";
-                break;
+        QString entryPath = QString::fromUtf8(filename);
+
+        if (entryPath == internalPath) {
+            la_int64_t size = archive_entry_size(entry);
+
+            if (size > 0 && size < 100 * 1024 * 1024) { // До 100MB
+                content.resize(size);
+                la_ssize_t read_size = archive_read_data(m_archive, content.data(), size);
+
+                if (read_size == size) {
+                    found = true;
+                    DEBUG_LOG() << "Successfully read file:" << internalPath << "size:" << size;
+                } else {
+                    content.clear();
+                }
             }
+            break;
         }
 
-        if (!found) {
-            qDebug() << "ArchiveHandler: File not found in archive:" << internalPath;
-            setError("File not found in archive: " + internalPath);
+        archive_read_data_skip(m_archive);
+
+        // Таймаут для поиска
+        if (timer.elapsed() > 10000) {
+            DEBUG_LOG() << "Timeout while searching for file:" << internalPath;
+            break;
         }
-    } else {
-        setError("Archive path is empty");
+    }
+
+    if (!found) {
+        DEBUG_LOG() << "File not found:" << internalPath;
     }
 
     return content;
@@ -302,17 +319,15 @@ bool ArchiveHandler::extractFile(const QString &internalPath, const QString &out
         return false;
     }
 
-    qDebug() << "ArchiveHandler: File extracted successfully:" << outputPath;
     return true;
 }
 
 void ArchiveHandler::setError(const QString &error)
 {
     m_lastError = error;
-    qDebug() << "ArchiveHandler error:" << error;
+    DEBUG_LOG() << "ArchiveHandler error:" << error;
 }
 
-// archivehandler.cpp - добавьте эти методы
 ArchiveInfo ArchiveHandler::getArchiveInfo(const QString &archivePath)
 {
     ArchiveInfo info;
@@ -322,11 +337,11 @@ ArchiveInfo ArchiveHandler::getArchiveInfo(const QString &archivePath)
     info.size = fileInfo.size();
     info.lastModified = fileInfo.lastModified().toSecsSinceEpoch();
 
-    // Получаем количество файлов
+    // Получаем количество файлов (с кешированием)
     if (openArchive(archivePath)) {
         QVector<ArchiveFile> files = listFiles();
         info.fileCount = files.size();
-        closeArchive();
+        // Не закрываем архив - оставляем для последующего использования
     } else {
         info.fileCount = 0;
     }
@@ -341,21 +356,134 @@ QByteArray ArchiveHandler::calculateArchiveHash(const QString &archivePath)
 {
     QFile file(archivePath);
     if (!file.open(QIODevice::ReadOnly)) {
-        qDebug() << "Failed to open file for hashing:" << archivePath;
         return QByteArray();
     }
 
     QCryptographicHash hash(QCryptographicHash::Md5);
 
-    // Читаем файл блоками для больших архивов
-    const qint64 bufferSize = 8192;
+    const qint64 CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB
+    const qint64 bufferSize = 65536;            // 64 KB буфер
     char buffer[bufferSize];
 
-    qint64 bytesRead;
-    while ((bytesRead = file.read(buffer, bufferSize)) > 0) {
-        hash.addData(buffer, bytesRead);
+    qint64 fileSize = file.size();
+
+    // Маленький файл - хешируем целиком
+    if (fileSize <= CHUNK_SIZE) {
+        qint64 bytesRead;
+        while ((bytesRead = file.read(buffer, bufferSize)) > 0) {
+            hash.addData(QByteArrayView(buffer, bytesRead));
+        }
+        file.close();
+        return hash.result().toHex();
+    }
+
+    // Большой файл - начало + конец (как в C версии)
+    // 1. Первые 10 MB
+    qint64 remaining = CHUNK_SIZE;
+    while (remaining > 0) {
+        qint64 toRead = qMin(remaining, bufferSize);
+        qint64 bytesRead = file.read(buffer, toRead);
+        if (bytesRead <= 0) break;
+        hash.addData(QByteArrayView(buffer, bytesRead));
+        remaining -= bytesRead;
+    }
+
+    // 2. Последние 10 MB
+    if (file.seek(fileSize - CHUNK_SIZE)) {
+        remaining = CHUNK_SIZE;
+        while (remaining > 0) {
+            qint64 toRead = qMin(remaining, bufferSize);
+            qint64 bytesRead = file.read(buffer, toRead);
+            if (bytesRead <= 0) break;
+            hash.addData(QByteArrayView(buffer, bytesRead));
+            remaining -= bytesRead;
+        }
+    } else {
+        // Если seek не удался - хешируем весь файл
+        file.seek(0);
+        qint64 bytesRead;
+        while ((bytesRead = file.read(buffer, bufferSize)) > 0) {
+            hash.addData(QByteArrayView(buffer, bytesRead));
+        }
     }
 
     file.close();
     return hash.result().toHex();
+}
+
+bool ArchiveHandler::isSupportedFormat(const QString &fileName) {
+    QString extension = QFileInfo(fileName).suffix().toLower();
+    return extension == "fb2" || extension == "epub" || extension == "txt" ||
+           fileName.endsWith(".fb2.zip", Qt::CaseInsensitive);
+}
+
+bool ArchiveHandler::readNextHeader(ArchiveFile &fileInfo) {
+    if (!m_isOpen || !m_archive) {
+        setError("Archive is not open");
+        return false;
+    }
+
+    struct archive_entry *entry;
+    int r = archive_read_next_header(m_archive, &entry);
+
+    if (r == ARCHIVE_EOF) {
+        return false; // Конец архива
+    }
+    if (r != ARCHIVE_OK) {
+        // Пропускаем битые заголовки
+        return false;
+    }
+
+    const char* filename = archive_entry_pathname(entry);
+    if (!filename) return false;
+
+    QString qfilename = QString::fromUtf8(filename);
+
+    // Сразу проверяем тип файла, чтобы не читать лишнее
+    if (!isSupportedFormat(qfilename)) {
+        archive_read_data_skip(m_archive); // Пропускаем данные
+        return readNextHeader(fileInfo); // Рекурсивно берем следующий (или переделать в цикл)
+    }
+
+    // Заполняем структуру
+    fileInfo.name = QFileInfo(qfilename).fileName();
+    fileInfo.path = qfilename;
+    fileInfo.size = archive_entry_size(entry);
+    fileInfo.isDirectory = (archive_entry_filetype(entry) != AE_IFREG);
+
+    if (fileInfo.isDirectory) {
+        archive_read_data_skip(m_archive);
+        return readNextHeader(fileInfo);
+    }
+
+    return true; // Мы остановились на файле, данные которого еще не прочитаны
+}
+
+QByteArray ArchiveHandler::readCurrentData() {
+    QByteArray content;
+    if (!m_isOpen || !m_archive) return content;
+
+    // Читаем данные для ТЕКУЩЕГО заголовка (который мы получили через readNextHeader)
+    const void *buff;
+    size_t size;
+    la_int64_t offset;
+
+    // Определяем размер заранее, если известно
+    // (В идеале размер должен быть передан или взят из entry,
+    // но здесь для простоты будем аппендить, либо использовать buffer)
+
+    // Более эффективный способ:
+    //struct archive_entry *current_entry;
+    // Примечание: в libarchive нет функции "get current entry" в публичном API напрямую
+    // без сохранения указателя. Поэтому лучше передавать размер из readNextHeader.
+    // Но для упрощения используем стандартный цикл чтения блока.
+
+    while (true) {
+        int r = archive_read_data_block(m_archive, &buff, &size, &offset);
+        if (r == ARCHIVE_EOF) break;
+        if (r != ARCHIVE_OK) break;
+        content.append(static_cast<const char*>(buff), size);
+    }
+
+    return content;
 }

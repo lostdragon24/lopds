@@ -1,4 +1,3 @@
-// scannerdialog.h
 #ifndef SCANNERDIALOG_H
 #define SCANNERDIALOG_H
 
@@ -6,11 +5,17 @@
 #include <QThread>
 #include <QSqlDatabase>
 #include <QFileInfo>
-
-// Перенесем сюда все необходимые объявления
+#include <QCache>
+#include <QSet>
 #include "bookparser.h"
-#include "archivehandler.h"
-#include "inpxparser.h"
+
+// Предварительные объявления
+class BookParser;
+class ArchiveHandler;
+struct ArchiveFile;
+struct BookMeta;
+class InpxParser;
+struct ImportContext;
 
 namespace Ui {
 class ScannerDialog;
@@ -25,9 +30,10 @@ public:
     ~BookScanner();
 
     void cancelScanning();
-    void forceRescanAllArchives(); // Добавляем метод для принудительного пересканирования
+    void forceRescanAllArchives();
+    void setBatchSize(int size) { m_batchSize = size; }
 
-public slots:
+ public slots:
     void startScanning();
 
 signals:
@@ -38,6 +44,22 @@ signals:
     void errorOccurred(const QString &error);
 
 private:
+    struct PendingBook {
+        BookMeta meta;
+        QString filePath;
+        QString archivePath;
+        QString internalPath;
+        qint64 fileSize;
+        QString fileType;
+        QString fileHash;
+    };
+
+    struct ArchiveCache {
+        QString hash;
+        qint64 lastModified;
+        QVector<ArchiveFile> files;
+    };
+
     QSqlDatabase m_database;
     QString m_booksDir;
     bool m_useInpx;
@@ -46,21 +68,32 @@ private:
     BookParser* m_parser;
     ArchiveHandler* m_archiveHandler;
 
-    // Новые методы для работы с архивами
+    QVector<PendingBook> m_pendingBatch;
+    int m_batchSize = 100;
+    QCache<QString, ArchiveCache> m_archiveCache;
+
+    QString calculateFileHash(const QString &filePath);
+    QString calculateMemoryHash(const QByteArray &data);
+
+    void saveBookMetadata(int bookId, const BookMeta& meta, const QString& filePath, const QString& archivePath, const QString& internalPath);
     bool shouldRescanArchive(const QString &archivePath);
     void updateArchiveInfo(const QString &archivePath, bool needsRescan = false);
-
     bool importInpx(const QString &inpxFile);
     void scanDirectory(const QString &path);
     void processFile(const QString &filePath);
     void processArchive(const QString &archivePath);
     bool isArchiveFile(const QString &filePath);
 
-    BookMeta parseEpubFromMemory(const QByteArray &epubData, const QString &fileName);
-    bool addBookToDatabase(const BookMeta &meta, const ArchiveFile &file, const QString &archivePath, const QFileInfo &archiveInfo);
-    bool updateBookInDatabase(const BookMeta &meta, const ArchiveFile &file, const QString &archivePath, const QFileInfo &archiveInfo, int existingId);
+    void addToBatch(const PendingBook &book);
+    void flushBatch();
+    bool insertBookBatch();
 
+    bool updateBookInDatabase(const BookMeta &meta, const ArchiveFile &file,
+                              const QString &archivePath, const QFileInfo &archiveInfo,
+                              int existingId);
 
+    bool addBookToDatabase(const BookMeta &meta, const ArchiveFile &file,
+                           const QString &archivePath, const QFileInfo &archiveInfo);
 
 
 };
@@ -81,11 +114,8 @@ private slots:
     void on_btnBrowseInpx_clicked();
     void on_btnStartScan_clicked();
     void on_btnStopScan_clicked();
-    //void on_btnForceRescan_clicked(); // Новая кнопка
     void onForceRescanClicked();
-
     void on_chkUseInpx_toggled(bool checked);
-
     void onProgressChanged(int value);
     void onStatusChanged(const QString &status);
     void onBookFound(const QString &title, const QString &author, const QString &filename);

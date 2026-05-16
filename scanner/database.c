@@ -585,7 +585,7 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath,
       return;
     }
 
-    // ✅ ИСПРАВЛЕНО: правильный SQL с 16 параметрами
+    //ИСПРАВЛЕНО: правильный SQL с 16 параметрами
     const char *sql = "INSERT INTO books ("
                       "file_path, file_name, file_size, file_type, "
                       "archive_path, archive_internal_path, title, author, "
@@ -617,7 +617,7 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath,
     log_message(config, "DEBUG", "[INSERT_BOOK_TO_DB] File: %s, Type: %s",
                 filename, file_type);
 
-    // ✅ Биндим ВСЕ 15 параметров (16-й - CURRENT_TIMESTAMP)
+    //Биндим ВСЕ 15 параметров (16-й - CURRENT_TIMESTAMP)
     int param = 1;
 
     // 1. file_path
@@ -633,7 +633,7 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath,
       sqlite3_bind_null(stmt, param++);
     }
 
-    // 4. file_type - ✅ ТЕПЕРЬ ТОЧНО СОХРАНЯЕТСЯ
+    // 4. file_type -ТЕПЕРЬ ТОЧНО СОХРАНЯЕТСЯ
     sqlite3_bind_text(stmt, param++, file_type, -1, SQLITE_STATIC);
 
     // 5. archive_path
