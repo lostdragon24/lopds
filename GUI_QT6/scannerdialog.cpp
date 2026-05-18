@@ -36,6 +36,7 @@ BookScanner::BookScanner(QSqlDatabase database, const QString &booksDir, bool us
     , m_parser(new BookParser())
     , m_archiveHandler(new ArchiveHandler())
 {
+    m_batchSize = 100;
     qDebug() << "BookScanner created with dir:" << booksDir << "useInpx:" << useInpx << "inpxFile:" << inpxFile;
 }
 
@@ -48,6 +49,7 @@ BookScanner::~BookScanner()
 void BookScanner::cancelScanning()
 {
     m_abort = true;
+    flushBatch();  // сохранить то, что накопилось
     qDebug() << "Scanning cancellation requested";
 }
 
@@ -459,10 +461,10 @@ void BookScanner::processFile(const QString &filePath)
     meta.title = meta.title.replace(u'_', u' ').simplified();
     meta.author = meta.author.replace(u'_', u' ').simplified();
 
-    // 🔥 Рассчитываем хеш файла
+    // Рассчитываем хеш файла
     QString fileHash = calculateFileHash(filePath);
 
-    // 🔥 Проверяем дубликат по хешу (надёжнее, чем title+author)
+    // Проверяем дубликат по хешу (надёжнее, чем title+author)
     if (!fileHash.isEmpty()) {
         QSqlQuery checkQuery(m_database);
         checkQuery.prepare("SELECT id, file_size FROM books WHERE file_hash = ? LIMIT 1");
@@ -599,7 +601,6 @@ void BookScanner::processArchive(const QString &archivePath) {
     ArchiveFile fileInfo;
     int processedCount = 0;
 
-
     // 3. Итерируемся по файлам БЕЗ переоткрытия
     while (m_archiveHandler->readNextHeader(fileInfo)) {
         if (m_abort) break;
@@ -689,8 +690,9 @@ void BookScanner::processArchive(const QString &archivePath) {
 void BookScanner::addToBatch(const PendingBook &book)
 {
     m_pendingBatch.append(book);
-
+    qDebug() << "addToBatch: pending=" << m_pendingBatch.size() << "/" << m_batchSize;
     if (m_pendingBatch.size() >= m_batchSize) {
+        qDebug() << "Flushing batch due to size limit";
         flushBatch();
     }
 }
@@ -698,9 +700,12 @@ void BookScanner::addToBatch(const PendingBook &book)
 void BookScanner::flushBatch()
 {
     if (m_pendingBatch.isEmpty()) return;
-
-    insertBookBatch();
-    m_pendingBatch.clear();
+    if (insertBookBatch()) {
+        m_pendingBatch.clear();
+    } else {
+        qDebug() << "Batch insertion failed, keeping " << m_pendingBatch.size() << " books for retry";
+        // По желанию: можно сделать повтор через некоторое время или просто оставить
+    }
 }
 
 bool BookScanner::insertBookBatch()
@@ -711,16 +716,25 @@ bool BookScanner::insertBookBatch()
     query.prepare(
         "INSERT INTO books (file_path, file_name, file_size, file_type, file_hash, "
         "title, author, series, series_number, genre, language, year, description, "
-        "archive_path, archive_internal_path, added_date) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+        "archive_path, publisher, archive_internal_path, added_date) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
         );
 
+
+    bool ok = true;
+
     for (const PendingBook &book : m_pendingBatch) {
+
+        QString fileName = QFileInfo(book.filePath).fileName();
+        if (!book.archivePath.isEmpty() && !book.internalPath.isEmpty())
+            fileName = QFileInfo(book.internalPath).fileName();
+
+
         query.addBindValue(book.filePath);              // file_path
-        query.addBindValue(book.meta.title);            // file_name (или QFileInfo(book.filePath).fileName())
+        query.addBindValue(fileName);                   // file_name
         query.addBindValue(book.fileSize);              // file_size
         query.addBindValue(book.fileType);              // file_type
-        query.addBindValue(book.fileHash);              // 🔥 file_hash
+        query.addBindValue(book.fileHash);              // file_hash
         query.addBindValue(book.meta.title);            // title
         query.addBindValue(book.meta.author);           // author
         query.addBindValue(book.meta.series);           // series
@@ -730,19 +744,35 @@ bool BookScanner::insertBookBatch()
         query.addBindValue(book.meta.year);             // year
         query.addBindValue(book.meta.description);      // description
         query.addBindValue(book.archivePath);           // archive_path
+        query.addBindValue(book.publisher);             // publisher
         query.addBindValue(book.internalPath);          // archive_internal_path
 
-        if (query.exec()) {
-            emit bookFound(book.meta.title, book.meta.author,
-                           book.archivePath.isEmpty() ? book.meta.title :
-                               book.meta.title + " [архив]");
-        } else {
+        if (!query.exec()) {
             DEBUG_LOG() << "Failed to insert book:" << query.lastError().text();
+            ok = false;
+            break;
         }
 
+        emit bookFound(book.meta.title, book.meta.author, book.archivePath.isEmpty() ? book.meta.title : fileName + " [архив]");
+
     }
-    m_pendingBatch.clear();
-    return true;
+
+    if (ok) {
+        // Фиксируем все вставки пачки
+        if (!m_database.commit()) {
+            DEBUG_LOG() << "Failed to commit batch:" << m_database.lastError().text();
+            m_database.rollback();
+            return false;
+        }
+        m_pendingBatch.clear();
+        DEBUG_LOG() << "Batch committed, " << m_pendingBatch.size() << " books saved";
+        return true;
+    } else {
+        // При ошибке откатываем всю пачку
+        m_database.rollback();
+        m_pendingBatch.clear(); // или можно сохранить для повтора, но лучше очистить
+        return false;
+    }
 }
 
 
@@ -752,9 +782,9 @@ bool BookScanner::addBookToDatabase(const BookMeta &meta, const ArchiveFile &fil
     QSqlQuery insertQuery(m_database);
     insertQuery.prepare(
         "INSERT INTO books (file_path, file_name, file_size, file_type, title, author, "
-        "series, series_number, genre, language, year, description, archive_path, archive_internal_path, "
+        "series, series_number, genre, language, year, description, archive_path, publisher, archive_internal_path, "
         "added_date, file_mtime) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)"
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)"
     );
 
     QString extension = QFileInfo(file.name).suffix().toLower();
@@ -773,6 +803,7 @@ bool BookScanner::addBookToDatabase(const BookMeta &meta, const ArchiveFile &fil
     insertQuery.addBindValue(meta.year);
     insertQuery.addBindValue(meta.description);
     insertQuery.addBindValue(archivePath);
+    insertQuery.addBindValue(meta.publisher);
     insertQuery.addBindValue(file.path);
     insertQuery.addBindValue(archiveInfo.lastModified().toSecsSinceEpoch());
 
