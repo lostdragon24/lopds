@@ -86,17 +86,17 @@ BookMeta BookParser::parseMetadataFromMemory(const QByteArray &data, const QStri
     QString extension = fileExtension.toLower();
 
     if (extension == "fb2") {
-           meta = parseFb2FromMemory(data);
-       } else if (extension == "epub") {
-           // Для EPUB в памяти создаем временный файл
-           QTemporaryFile tempFile;
-           if (tempFile.open()) {
-               tempFile.write(data);
-               tempFile.flush();
-               meta = parseEpub(tempFile.fileName());
-               tempFile.close();
-           }
-       }
+        meta = parseFb2FromMemory(data);
+    } else if (extension == "epub") {
+        // Для EPUB в памяти создаем временный файл
+        QTemporaryFile tempFile;
+        if (tempFile.open()) {
+            tempFile.write(data);
+            tempFile.flush();
+            meta = parseEpub(tempFile.fileName());
+            tempFile.close();
+        }
+    }
     // Для других форматов можно добавить аналогичные методы
 
     // Fallback
@@ -179,6 +179,18 @@ BookMeta BookParser::parseFb2(const QString &filePath)
                 meta.genre = genreMap.value(genre, genre);
             }
             // Можно добавить обработку year, lang из title-info
+            else if (inTitleInfo && elementName == "lang") {
+                meta.language = extractTextFromElement(xml);
+            }
+            else if (inTitleInfo && elementName == "date") {
+                QString dateStr = xml.readElementText();
+                QRegularExpression yearRegex(R"(\b(\d{4})\b)");
+                QRegularExpressionMatch match = yearRegex.match(dateStr);
+                if (match.hasMatch()) {
+                    meta.year = match.captured(1).toInt();
+                    //qDebug() << "Found year:" << meta.year;
+                }
+            }
         }
         else if (token == QXmlStreamReader::EndElement) {
             QString elementName = xml.name().toString();
@@ -258,7 +270,18 @@ BookMeta BookParser::parseFb2FromMemory(const QByteArray &data)
                 QString genre = xml.readElementText();
                 meta.genre = genreMap.value(genre, genre);
             }
-            // Можно добавить обработку year, lang
+            else if (inTitleInfo && elementName == "lang") {
+                meta.language = extractTextFromElement(xml);
+            }
+            else if (inTitleInfo && elementName == "date") {
+                QString dateStr = xml.readElementText();
+                QRegularExpression yearRegex(R"(\b(\d{4})\b)");
+                QRegularExpressionMatch match = yearRegex.match(dateStr);
+                if (match.hasMatch()) {
+                    meta.year = match.captured(1).toInt();
+                    //qDebug() << "Found year:" << meta.year;
+                }
+            }
         }
         else if (token == QXmlStreamReader::EndElement) {
             QString elementName = xml.name().toString();
