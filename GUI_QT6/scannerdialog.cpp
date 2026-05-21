@@ -48,6 +48,7 @@ BookScanner::~BookScanner()
 void BookScanner::cancelScanning()
 {
     m_abort = true;
+    //flushBatch();  // сохранить то, что накопилось
     qDebug() << "Scanning cancellation requested";
 }
 
@@ -155,14 +156,14 @@ void BookScanner::updateArchiveInfo(const QString &archivePath, bool needsRescan
         query.prepare(
             "INSERT OR REPLACE INTO archives (archive_path, archive_hash, file_count, total_size, last_modified, last_scanned, needs_rescan) "
             "VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)"
-        );
+            );
     } else {
         query.prepare(
             "INSERT INTO archives (archive_path, archive_hash, file_count, total_size, last_modified, last_scanned, needs_rescan) "
             "VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?) "
             "ON DUPLICATE KEY UPDATE archive_hash = VALUES(archive_hash), file_count = VALUES(file_count), "
             "total_size = VALUES(total_size), last_modified = VALUES(last_modified), last_scanned = VALUES(last_scanned), needs_rescan = VALUES(needs_rescan)"
-        );
+            );
     }
 
     query.addBindValue(info.path);
@@ -198,30 +199,30 @@ void BookScanner::startScanning()
             }
         }
 
-        // Сканирование директории - здесь своя транзакция
-        if (!m_database.transaction()) {
-            emit errorOccurred("Failed to start transaction for directory scan");
-            return;
-        }
+        // Сканирование директории
+        //if (!m_database.transaction()) {
+        //    emit errorOccurred("Failed to start transaction for directory scan");
+        //    return;
+        //}
 
         emit statusChanged("Сканирование файлов...");
         scanDirectory(m_booksDir);
         flushBatch();
 
         if (!m_abort) {
-            if (m_database.commit()) {
+           // if (m_database.commit()) {
                 emit progressChanged(100);
                 emit statusChanged("Сканирование завершено");
                 emit finished();
-            } else {
-                emit errorOccurred("Failed to commit transaction");
-            }
+          //  } else {
+          //      emit errorOccurred("Failed to commit transaction");
+          //  }
         } else {
-            m_database.rollback();
+           // m_database.rollback();
         }
 
     } catch (const std::exception &e) {
-        m_database.rollback();
+        //m_database.rollback();
         if (!m_abort) {
             emit errorOccurred(QString("Ошибка: %1").arg(e.what()));
         }
@@ -459,10 +460,10 @@ void BookScanner::processFile(const QString &filePath)
     meta.title = meta.title.replace(u'_', u' ').simplified();
     meta.author = meta.author.replace(u'_', u' ').simplified();
 
-    // 🔥 Рассчитываем хеш файла
+    //  Рассчитываем хеш файла
     QString fileHash = calculateFileHash(filePath);
 
-    // 🔥 Проверяем дубликат по хешу (надёжнее, чем title+author)
+    //  Проверяем дубликат по хешу (надёжнее, чем title+author)
     if (!fileHash.isEmpty()) {
         QSqlQuery checkQuery(m_database);
         checkQuery.prepare("SELECT id, file_size FROM books WHERE file_hash = ? LIMIT 1");
@@ -496,84 +497,6 @@ void BookScanner::processFile(const QString &filePath)
 
     addToBatch(book);
 }
-
-
-// void BookScanner::processFile(const QString &filePath)
-// {
-//     if (m_abort) return;
-
-//     QFileInfo fileInfo(filePath);
-//     QString extension = fileInfo.suffix().toLower();
-
-//     // Парсим метаданные
-//     BookMeta meta = m_parser->parseMetadata(filePath);
-
-
-//     // ОТЛАДКА: Выводим описание
-//     qDebug() << "=== BOOK METADATA ===";
-//     qDebug() << "Title:" << meta.title;
-//     qDebug() << "Author:" << meta.author;
-//     qDebug() << "Description length:" << meta.description.length();
-//     qDebug() << "Description preview:" << meta.description.left(200);
-//     qDebug() << "=== END BOOK METADATA ===";
-
-
-//     if (meta.title.isEmpty()) {
-//         meta.title = fileInfo.completeBaseName();
-//     }
-//     if (meta.author.isEmpty()) {
-//         meta.author = "Неизвестный автор";
-//     }
-
-//     // Очистка
-//     meta.title = meta.title.replace('_', ' ').simplified();
-//     meta.author = meta.author.replace('_', ' ').simplified();
-
-//     // Проверяем существование книги БЫСТРЫМ ЗАПРОСОМ
-//     QSqlQuery checkQuery(m_database);
-//     checkQuery.prepare("SELECT id FROM books WHERE title = ? AND author = ? LIMIT 1");
-//     checkQuery.addBindValue(meta.title);
-//     checkQuery.addBindValue(meta.author);
-
-//     if (checkQuery.exec() && checkQuery.next()) {
-//         // Книга существует - проверяем размер
-//         int existingId = checkQuery.value(0).toInt();
-
-//         QSqlQuery sizeQuery(m_database);
-//         sizeQuery.prepare("SELECT file_size FROM books WHERE id = ?");
-//         sizeQuery.addBindValue(existingId);
-
-//         if (sizeQuery.exec() && sizeQuery.next()) {
-//             qint64 existingSize = sizeQuery.value(0).toLongLong();
-//             if (fileInfo.size() <= existingSize) {
-//                 return; // Пропускаем
-//             }
-
-//             // Обновляем существующую книгу
-//             QSqlQuery updateQuery(m_database);
-//             updateQuery.prepare(
-//                 "UPDATE books SET file_path = ?, file_size = ?, last_modified = CURRENT_TIMESTAMP "
-//                 "WHERE id = ?"
-//                 );
-//             updateQuery.addBindValue(filePath);
-//             updateQuery.addBindValue(fileInfo.size());
-//             updateQuery.addBindValue(existingId);
-//             updateQuery.exec();
-//             return;
-//         }
-//     }
-
-//     // Добавляем в batch
-//     PendingBook book;
-//     book.meta = meta;
-//     book.filePath = filePath;
-//     book.fileSize = fileInfo.size();
-//     book.fileType = extension;
-//     book.archivePath = QString();
-//     book.internalPath = QString();
-
-//     addToBatch(book);
-// }
 
 void BookScanner::processArchive(const QString &archivePath) {
     if (m_abort) return;
@@ -689,8 +612,9 @@ void BookScanner::processArchive(const QString &archivePath) {
 void BookScanner::addToBatch(const PendingBook &book)
 {
     m_pendingBatch.append(book);
-
+    qDebug() << "addToBatch: pending=" << m_pendingBatch.size() << "/" << m_batchSize;
     if (m_pendingBatch.size() >= m_batchSize) {
+        qDebug() << "Flushing batch due to size limit";
         flushBatch();
     }
 }
@@ -698,9 +622,8 @@ void BookScanner::addToBatch(const PendingBook &book)
 void BookScanner::flushBatch()
 {
     if (m_pendingBatch.isEmpty()) return;
-
     insertBookBatch();
-    m_pendingBatch.clear();
+
 }
 
 bool BookScanner::insertBookBatch()
@@ -708,19 +631,34 @@ bool BookScanner::insertBookBatch()
     if (m_pendingBatch.isEmpty()) return true;
 
     QSqlQuery query(m_database);
-    query.prepare(
-        "INSERT INTO books (file_path, file_name, file_size, file_type, file_hash, "
-        "title, author, series, series_number, genre, language, year, description, "
-        "archive_path, archive_internal_path, added_date) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
-        );
+    bool isSQLite = m_database.driverName().contains("SQLITE");
+    if (isSQLite) {
+        query.prepare(
+            "INSERT OR IGNORE INTO books (file_path, file_name, file_size, file_type, file_hash, "
+            "title, author, series, series_number, genre, language, year, description, "
+            "archive_path, publisher, archive_internal_path, added_date) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+            );
+    } else {
+        query.prepare(
+            "INSERT IGNORE INTO books (file_path, file_name, file_size, file_type, file_hash, "
+            "title, author, series, series_number, genre, language, year, description, "
+            "archive_path, publisher, archive_internal_path, added_date) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+            );
+    }
 
     for (const PendingBook &book : m_pendingBatch) {
+        QString fileName = QFileInfo(book.filePath).fileName();
+        if (!book.archivePath.isEmpty() && !book.internalPath.isEmpty())
+            fileName = QFileInfo(book.internalPath).fileName();
+
+
         query.addBindValue(book.filePath);              // file_path
-        query.addBindValue(book.meta.title);            // file_name (или QFileInfo(book.filePath).fileName())
+        query.addBindValue(fileName);                   // file_name
         query.addBindValue(book.fileSize);              // file_size
         query.addBindValue(book.fileType);              // file_type
-        query.addBindValue(book.fileHash);              // 🔥 file_hash
+        query.addBindValue(book.fileHash);              // file_hash
         query.addBindValue(book.meta.title);            // title
         query.addBindValue(book.meta.author);           // author
         query.addBindValue(book.meta.series);           // series
@@ -730,12 +668,13 @@ bool BookScanner::insertBookBatch()
         query.addBindValue(book.meta.year);             // year
         query.addBindValue(book.meta.description);      // description
         query.addBindValue(book.archivePath);           // archive_path
+        query.addBindValue(book.meta.publisher);        // publisher
         query.addBindValue(book.internalPath);          // archive_internal_path
 
         if (query.exec()) {
             emit bookFound(book.meta.title, book.meta.author,
                            book.archivePath.isEmpty() ? book.meta.title :
-                               book.meta.title + " [архив]");
+                               fileName + " [архив]");
         } else {
             DEBUG_LOG() << "Failed to insert book:" << query.lastError().text();
         }
@@ -747,15 +686,15 @@ bool BookScanner::insertBookBatch()
 
 
 bool BookScanner::addBookToDatabase(const BookMeta &meta, const ArchiveFile &file,
-                                   const QString &archivePath, const QFileInfo &archiveInfo)
+                                    const QString &archivePath, const QFileInfo &archiveInfo)
 {
     QSqlQuery insertQuery(m_database);
     insertQuery.prepare(
         "INSERT INTO books (file_path, file_name, file_size, file_type, title, author, "
-        "series, series_number, genre, language, year, description, archive_path, archive_internal_path, "
+        "series, series_number, genre, language, year, description, archive_path, publisher, archive_internal_path, "
         "added_date, file_mtime) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)"
-    );
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)"
+        );
 
     QString extension = QFileInfo(file.name).suffix().toLower();
     QString displayPath = archivePath + "/" + file.name;
@@ -773,6 +712,7 @@ bool BookScanner::addBookToDatabase(const BookMeta &meta, const ArchiveFile &fil
     insertQuery.addBindValue(meta.year);
     insertQuery.addBindValue(meta.description);
     insertQuery.addBindValue(archivePath);
+    insertQuery.addBindValue(meta.publisher);
     insertQuery.addBindValue(file.path);
     insertQuery.addBindValue(archiveInfo.lastModified().toSecsSinceEpoch());
 
@@ -787,8 +727,8 @@ bool BookScanner::addBookToDatabase(const BookMeta &meta, const ArchiveFile &fil
 }
 
 bool BookScanner::updateBookInDatabase(const BookMeta &meta, const ArchiveFile &file,
-                                      const QString &archivePath, const QFileInfo &archiveInfo,
-                                      int existingId)
+                                       const QString &archivePath, const QFileInfo &archiveInfo,
+                                       int existingId)
 {
     QSqlQuery updateQuery(m_database);
     updateQuery.prepare(
@@ -797,7 +737,7 @@ bool BookScanner::updateBookInDatabase(const BookMeta &meta, const ArchiveFile &
         "series = ?, series_number = ?, genre = ?, language = ?, year = ?, "
         "last_modified = CURRENT_TIMESTAMP, file_mtime = ? "
         "WHERE id = ?"
-    );
+        );
 
     QString extension = QFileInfo(file.name).suffix().toLower();
     QString displayPath = archivePath + "/" + file.name;
@@ -881,14 +821,14 @@ ScannerDialog::ScannerDialog(QSqlDatabase database, QWidget *parent) :
         "QPushButton:pressed {"
         "    background-color: #d56412;"
         "}"
-    );
+        );
 
     // ПОДКЛЮЧАЕМ СИГНАЛ К СУЩЕСТВУЮЩЕЙ КНОПКЕ ИЗ UI
     connect(ui->btnForceRescan, &QPushButton::clicked, [this]() {
         qDebug() << "Force rescan button clicked!";
 
         if (QMessageBox::question(this, "Подтверждение",
-            "Вы уверены, что хотите пометить все архивы для принудительного пересканирования?") == QMessageBox::Yes) {
+                                  "Вы уверены, что хотите пометить все архивы для принудительного пересканирования?") == QMessageBox::Yes) {
 
             qDebug() << "Executing force rescan...";
 
@@ -970,7 +910,7 @@ QString BookScanner::calculateMemoryHash(const QByteArray &data)
 void ScannerDialog::onForceRescanClicked()
 {
     if (QMessageBox::question(this, "Подтверждение",
-        "Вы уверены, что хотите пометить все архивы для принудительного пересканирования?") == QMessageBox::Yes) {
+                              "Вы уверены, что хотите пометить все архивы для принудительного пересканирования?") == QMessageBox::Yes) {
 
         if (m_scanner) {
             m_scanner->forceRescanAllArchives();
@@ -997,7 +937,7 @@ ScannerDialog::~ScannerDialog()
 void ScannerDialog::on_btnBrowseBooksDir_clicked()
 {
     QString dir = QFileDialog::getExistingDirectory(this, "Выберите директорию с книгами",
-                                                   ui->txtBooksDir->text());
+                                                    ui->txtBooksDir->text());
     if (!dir.isEmpty()) {
         ui->txtBooksDir->setText(dir);
 
@@ -1018,8 +958,8 @@ void ScannerDialog::on_btnBrowseBooksDir_clicked()
 void ScannerDialog::on_btnBrowseInpx_clicked()
 {
     QString file = QFileDialog::getOpenFileName(this, "Выберите INPX файл",
-                                               ui->txtInpxFile->text(),
-                                               "INPX files (*.inpx)");
+                                                ui->txtInpxFile->text(),
+                                                "INPX files (*.inpx)");
     if (!file.isEmpty()) {
         ui->txtInpxFile->setText(file);
         ui->chkUseInpx->setChecked(true);
@@ -1048,9 +988,9 @@ void ScannerDialog::on_btnStartScan_clicked()
     // Создаем и запускаем сканер в отдельном потоке
     m_scannerThread = new QThread(this);
     m_scanner = new BookScanner(m_database,
-                               ui->txtBooksDir->text(),
-                               ui->chkUseInpx->isChecked(),
-                               ui->txtInpxFile->text());
+                                ui->txtBooksDir->text(),
+                                ui->chkUseInpx->isChecked(),
+                                ui->txtInpxFile->text());
     m_scanner->moveToThread(m_scannerThread);
 
     connect(m_scannerThread, &QThread::started, m_scanner, &BookScanner::startScanning);

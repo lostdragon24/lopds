@@ -265,7 +265,7 @@ BookMeta *parse_metadata(const char *filepath, const char *file_type) {
     }
   }
 
-  // если не удалось распарсить или неподдерживаемый формат
+  // Fallback: если не удалось распарсить или неподдерживаемый формат
   if (!meta->title) {
     const char *filename = strrchr(filepath, '/');
     filename = filename ? filename + 1 : filepath;

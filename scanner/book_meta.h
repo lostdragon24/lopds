@@ -12,6 +12,7 @@ typedef struct {
   char *publisher;
   char *description;
   long file_size;
+  char *file_hash;
 } BookMeta;
 
 #endif

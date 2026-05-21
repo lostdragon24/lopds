@@ -86,17 +86,17 @@ BookMeta BookParser::parseMetadataFromMemory(const QByteArray &data, const QStri
     QString extension = fileExtension.toLower();
 
     if (extension == "fb2") {
-           meta = parseFb2FromMemory(data);
-       } else if (extension == "epub") {
-           // Для EPUB в памяти создаем временный файл
-           QTemporaryFile tempFile;
-           if (tempFile.open()) {
-               tempFile.write(data);
-               tempFile.flush();
-               meta = parseEpub(tempFile.fileName());
-               tempFile.close();
-           }
-       }
+        meta = parseFb2FromMemory(data);
+    } else if (extension == "epub") {
+        // Для EPUB в памяти создаем временный файл
+        QTemporaryFile tempFile;
+        if (tempFile.open()) {
+            tempFile.write(data);
+            tempFile.flush();
+            meta = parseEpub(tempFile.fileName());
+            tempFile.close();
+        }
+    }
     // Для других форматов можно добавить аналогичные методы
 
     // Fallback
@@ -134,18 +134,22 @@ BookMeta BookParser::parseFb2(const QString &filePath)
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return meta;
 
     QXmlStreamReader xml(&file);
-    bool inTitleInfo = false;    // флаг, что мы внутри <title-info>
+    bool inTitleInfo = false;
+    bool inPublishInfo = false;
     bool inAuthor = false;
     QString firstName, lastName, middleName;
 
     while (!xml.atEnd() && !xml.hasError()) {
         QXmlStreamReader::TokenType token = xml.readNext();
+        QString elementName = xml.name().toString();
 
         if (token == QXmlStreamReader::StartElement) {
-            QString elementName = xml.name().toString();
 
             if (elementName == "title-info") {
                 inTitleInfo = true;
+            }
+            else if (elementName == "publish-info") {
+                inPublishInfo = true;
             }
             else if (inTitleInfo && elementName == "author") {
                 inAuthor = true;
@@ -179,6 +183,31 @@ BookMeta BookParser::parseFb2(const QString &filePath)
                 meta.genre = genreMap.value(genre, genre);
             }
             // Можно добавить обработку year, lang из title-info
+            else if (inTitleInfo && elementName == "lang") {
+                meta.language = extractTextFromElement(xml);
+            }
+            else if (inTitleInfo && elementName == "date") {
+                QString dateStr = xml.readElementText();
+                QRegularExpression yearRegex(R"(\b(\d{4})\b)");
+                QRegularExpressionMatch match = yearRegex.match(dateStr);
+                if (match.hasMatch()) {
+                    meta.year = match.captured(1).toInt();
+                    //qDebug() << "Found year:" << meta.year;
+                }
+            }
+            else if (inPublishInfo && elementName == "publisher") {
+                meta.publisher = xml.readElementText();
+                qDebug() << "Found publisher:" << meta.publisher;
+            }
+            // Можно также извлечь год из publish-info, если в title-info нет
+            else if (inPublishInfo && elementName == "year") {
+                QString yearStr = xml.readElementText();
+                bool ok;
+                int year = yearStr.toInt(&ok);
+                if (ok && meta.year == 0) {
+                    meta.year = year;
+                }
+            }
         }
         else if (token == QXmlStreamReader::EndElement) {
             QString elementName = xml.name().toString();
@@ -197,7 +226,12 @@ BookMeta BookParser::parseFb2(const QString &filePath)
             else if (inTitleInfo && elementName == "author") {
                 inAuthor = false;
             }
+            else if (elementName == "publish-info") {
+                inPublishInfo = false;
+            }
+
         }
+
     }
 
     file.close();
@@ -216,6 +250,7 @@ BookMeta BookParser::parseFb2FromMemory(const QByteArray &data)
     QXmlStreamReader xml(&buffer);
     bool inTitleInfo = false;
     bool inAuthor = false;
+    bool inPublishInfo = false;
     QString firstName, lastName, middleName;
 
     while (!xml.atEnd() && !xml.hasError()) {
@@ -226,6 +261,9 @@ BookMeta BookParser::parseFb2FromMemory(const QByteArray &data)
 
             if (elementName == "title-info") {
                 inTitleInfo = true;
+            }
+            else if (elementName == "publish-info") {
+                inPublishInfo = true;
             }
             else if (inTitleInfo && elementName == "author") {
                 inAuthor = true;
@@ -258,7 +296,30 @@ BookMeta BookParser::parseFb2FromMemory(const QByteArray &data)
                 QString genre = xml.readElementText();
                 meta.genre = genreMap.value(genre, genre);
             }
-            // Можно добавить обработку year, lang
+            else if (inTitleInfo && elementName == "lang") {
+                meta.language = extractTextFromElement(xml);
+            }
+            else if (inTitleInfo && elementName == "date") {
+                QString dateStr = xml.readElementText();
+                QRegularExpression yearRegex(R"(\b(\d{4})\b)");
+                QRegularExpressionMatch match = yearRegex.match(dateStr);
+                if (match.hasMatch()) {
+                    meta.year = match.captured(1).toInt();
+                }
+            }
+            else if (inPublishInfo && elementName == "publisher") {
+                meta.publisher = xml.readElementText();
+                //qDebug() << "Found publisher:" << meta.publisher;
+            }
+            // Можно также извлечь год из publish-info, если в title-info нет
+            else if (inPublishInfo && elementName == "year") {
+                QString yearStr = xml.readElementText();
+                bool ok;
+                int year = yearStr.toInt(&ok);
+                if (ok && meta.year == 0) {
+                    meta.year = year;
+                }
+            }
         }
         else if (token == QXmlStreamReader::EndElement) {
             QString elementName = xml.name().toString();
@@ -273,6 +334,9 @@ BookMeta BookParser::parseFb2FromMemory(const QByteArray &data)
                     meta.author = firstName;
                 }
                 inTitleInfo = false;
+            }
+            else if (elementName == "publish-info") {
+                inPublishInfo = false;
             }
             else if (inTitleInfo && elementName == "author") {
                 inAuthor = false;
@@ -438,7 +502,7 @@ void BookParser::parseOpfContent(const QString& opfContent, BookMeta& meta)
             }
             else if (elementName == "publisher") {
                 meta.publisher = xml.readElementText();
-                qDebug() << "Found publisher:" << meta.publisher;
+                //qDebug() << "Found publisher:" << meta.publisher;
             }
             else if (elementName == "language") {
                 meta.language = xml.readElementText();

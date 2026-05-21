@@ -52,6 +52,7 @@ private:
         qint64 fileSize;
         QString fileType;
         QString fileHash;
+        QString publisher;
     };
 
     struct ArchiveCache {
@@ -59,6 +60,13 @@ private:
         qint64 lastModified;
         QVector<ArchiveFile> files;
     };
+
+
+    int m_totalFiles;
+    int m_addedBooks;
+    int m_duplicateByHash;
+    int m_parseErrors;
+    int m_unsupportedFormat;
 
     QSqlDatabase m_database;
     QString m_booksDir;

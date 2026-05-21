@@ -39,7 +39,8 @@ int mysql_book_exists(MySQLConnection *mysql_conn, const char *filepath,
                       const char *file_hash, Config *config);
 void mysql_insert_book(MySQLConnection *mysql_conn, const char *filepath,
                        BookMeta *meta, const char *archive_path,
-                       const char *internal_path, Config *config);
+                       const char *internal_path, const char *file_hash,
+                       Config *config);
 
 // Функции для проверки существования книг
 int check_book_exists(MySQLConnection *mysql_conn, const char *filepath,
