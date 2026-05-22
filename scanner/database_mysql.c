@@ -13,21 +13,30 @@
 #include <time.h>
 
 // Определяем тип для is_null в зависимости от версии MySQL
-#ifdef MYSQL_VERSION_ID
-#if MYSQL_VERSION_ID >= 80000
-typedef bool mysql_bool_t;
-#define MYSQL_BOOL_TRUE true
-#define MYSQL_BOOL_FALSE false
-#else
-typedef my_bool mysql_bool_t;
+// Проблема в том, что MySQL использует bool в современных версиях
+// MaryaDB продолжает использовать my_bool
+// Но в заголовочниках MaryaDB MYSQL_VERSION_ID будет больше чем 80000
+
+//#ifdef MARIADB_VERSION_ID
+//#if MARIADB_VERSION_ID >= 80000
+//typedef my_bool mysql_bool_t;
+//#define MYSQL_BOOL_TRUE true
+//#define MYSQL_BOOL_FALSE false
+//#else
+//typedef bool mysql_bool_t;
+//#define MYSQL_BOOL_TRUE 1
+//#define MYSQL_BOOL_FALSE 0
+//#endif
+//#else
+//typedef bool mysql_bool_t;
+//#define MYSQL_BOOL_TRUE 1
+//#define MYSQL_BOOL_FALSE 0
+//#endif
+
+// Универсальный тип для is_null - работает с любой версией MySQL/MariaDB
+typedef unsigned char mysql_bool_t;
 #define MYSQL_BOOL_TRUE 1
 #define MYSQL_BOOL_FALSE 0
-#endif
-#else
-typedef my_bool mysql_bool_t;
-#define MYSQL_BOOL_TRUE 1
-#define MYSQL_BOOL_FALSE 0
-#endif
 
 #ifndef SAFE_FREE
 #define SAFE_FREE(ptr)  \
