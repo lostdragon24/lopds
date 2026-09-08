@@ -1879,4 +1879,21 @@ return [
 'opds_facet_format' => 'Фармат',
 'opds_facet_genre' => 'Жанры',
 
+'continue_reading' => 'Працягнуць чытанне',
+'sort_by_title' => 'Па назове',
+'sort_by_author' => 'Па аўтару',
+'grid_view' => 'Плітка',
+'list_view' => 'Спіс',
+'search_placeholder' => 'Пошук кніг...',
+'show_more' => 'Паказаць яшчэ',
+'all_books_loaded' => 'Усе кнігі загружаны',
+'switch_theme' => 'Пераключыць тэму',
+'error_loading' => 'Памылка загрузкі',
+
+'filter_reset' => 'Скінуць фільтр',
+'filter_by_genre' => 'Фільтр па жанры',
+'no_genres' => 'Няма жанраў',
+'books' => 'кніг',
+
+
 ];

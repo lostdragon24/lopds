@@ -1739,4 +1739,20 @@ return [
 'opds_facet_format' => 'Формат',
 'opds_facet_genre' => 'Жанри',
 
+'continue_reading' => 'Продовжити читання',
+'sort_by_title' => 'За назвою',
+'sort_by_author' => 'За автором',
+'grid_view' => 'Плитка',
+'list_view' => 'Список',
+'search_placeholder' => 'Пошук книг...',
+'show_more' => 'Показати ще',
+'all_books_loaded' => 'Всі книги завантажені',
+'switch_theme' => 'Переключити тему',
+'error_loading' => 'Помилка завантаження',
+
+'filter_reset' => 'Скинути фільтр',
+'filter_by_genre' => 'Фільтр за жанром',
+'no_genres' => 'Немає жанрів',
+'books' => 'книг',
+
 ];

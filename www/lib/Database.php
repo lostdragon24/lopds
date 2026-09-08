@@ -1196,10 +1196,10 @@ class Database
      */
     public function getBooksByGenre($genre, $page, $perPage, $filters = [])
     {
+        $offset = ($page - 1) * $perPage;
         [$where, $params] = $this->buildFiltersWhere($filters, 'b');
         $orderBy = $this->buildOrderBy($filters['sort'] ?? 'new');
 
-        // Убираем лишний пробел в {$where}
         $sql = "SELECT b.* FROM books b
             WHERE b.genre = :genre {$where}
             {$orderBy}
@@ -1211,7 +1211,7 @@ class Database
             $stmt->bindValue($key, $val);
         }
         $stmt->bindValue(':limit', $perPage, \PDO::PARAM_INT);
-        $stmt->bindValue(':offset', ($page - 1) * $perPage, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
         $stmt->execute();
 
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -1224,7 +1224,6 @@ class Database
     {
         [$where, $params] = $this->buildFiltersWhere($filters, 'b');
 
-        // Убираем лишний пробел в {$where}
         $sql = "SELECT COUNT(*) FROM books b
             WHERE b.genre = :genre{$where}";
         $stmt = $this->pdo->prepare($sql);
@@ -1236,7 +1235,6 @@ class Database
 
         return (int) $stmt->fetchColumn();
     }
-
 
     /**
      * Получить читаемое название жанра
@@ -1550,5 +1548,41 @@ class Database
         $clause = $allowed[$sort] ?? $allowed['new'];
         return 'ORDER BY ' . $clause;
     }
+
+    /**
+     * Получить последние книги для чтения пользователя
+     */
+    public function getContinueReading($fingerprint, $limit = 10)
+    {
+        if (empty($fingerprint)) {
+            return [];
+        }
+
+        try {
+            $sql = "SELECT 
+                    b.*, 
+                    bm.page_number, 
+                    bm.percentage,
+                    bm.updated_at as last_read_at
+                FROM bookmarks bm
+                INNER JOIN books b ON bm.book_id = b.id
+                WHERE bm.user_fingerprint = :fingerprint 
+                  AND bm.note = 'Последнее прочитанное'
+                  AND bm.is_deleted = 0
+                ORDER BY bm.updated_at DESC
+                LIMIT :limit";
+
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->bindValue(':fingerprint', $fingerprint, PDO::PARAM_STR);
+            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmt->execute();
+
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            my_log("Error getting continue reading: " . $e->getMessage());
+            return [];
+        }
+    }
+
 
 }

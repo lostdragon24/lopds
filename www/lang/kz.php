@@ -1875,4 +1875,21 @@ return [
 'opds_facet_format' => 'Пішімдеу',
 'opds_facet_genre' => 'Жанрлар',
 
+'continue_reading' => 'Оқуды жалғастыру',
+'sort_by_title' => 'Тақырыбы бойынша',
+'sort_by_author' => 'Автор бойынша',
+'grid_view' => 'Плиткалар',
+'list_view' => 'Тізім',
+'search_placeholder' => 'Кітаптарды іздеу...',
+'show_more' => 'Толығырақ көрсету',
+'all_books_loaded' => 'Барлық кітаптар жүктелді',
+'switch_theme' => 'Тақырыпты ауыстыру',
+'error_loading' => 'Жүктеу қатесі',
+
+'filter_reset' => 'Сүзгіні қалпына келтіру',
+'filter_by_genre' => 'Жанр бойынша сүзу',
+'no_genres' => 'Жанрлар жоқ',
+'books' => 'books',
+
+
 ];

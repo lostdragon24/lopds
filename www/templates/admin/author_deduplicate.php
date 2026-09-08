@@ -64,11 +64,11 @@ $threshold = $threshold ?? 70;
             <div class="col-md-3">
                 <label class="form-label"><?php echo __('author_deduplicate_batch'); ?></label>
                 <select class="form-select" id="batchSize">
-                    <option value="20">20</option>
+                    <option value="20" selected>20</option>
                     <option value="50" >50</option>
                     <option value="100">100</option>
                     <option value="200">200</option>
-                    <option value="500" selected>500</option>
+                    <option value="500">500</option>
                     <option value="1000">1000</option>
                 </select>
             </div>
@@ -235,6 +235,7 @@ let mergeCount = <?php echo $mergeCount ?? 0; ?>;
 let currentThreshold = <?php echo $threshold; ?>;
 let currentBatchSize = 500;
 let pendingMerges = [];
+let searchTimeout = null;
 
 // ============================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -303,13 +304,24 @@ function ajaxRequest(url, method, data, callback) {
 function loadAuthors(page = 1) {
     const search = document.getElementById('searchAuthor').value.trim();
     const perPage = parseInt(document.getElementById('batchSize').value);
-    
-    // ВСЕГДА передаём поиск на сервер
+
     let url = 'ajax/author_search.php?action=get_authors&page=' + page + '&perPage=' + perPage;
     if (search) {
         url += '&search=' + encodeURIComponent(search);
     }
-    
+
+    // Показываем индикатор загрузки
+    document.getElementById('authorsList').innerHTML = `
+        <tr>
+            <td colspan="4" class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Загрузка...</span>
+                </div>
+                <p class="mt-2 text-muted">Загрузка списка авторов...</p>
+            </td>
+        </tr>
+    `;
+
     ajaxRequest(url, 'GET', null, function(response) {
         if (response.success) {
             renderAuthors(response.data);
@@ -319,19 +331,15 @@ function loadAuthors(page = 1) {
     });
 }
 
-
-// ============================================
-// ОТРИСОВКА АВТОРОВ
-// ============================================
-function renderAuthors(data) {
+// Новая функция рендеринга с похожими авторами
+function renderAuthorsWithSimilar(data) {
     const tbody = document.getElementById('authorsList');
-    const pagination = document.getElementById('paginationList');
     const countSpan = document.getElementById('listCount');
-    
+
     currentPage = data.page;
     totalPages = data.totalPages;
     countSpan.textContent = data.total;
-    
+
     if (data.authors.length === 0) {
         tbody.innerHTML = `
             <tr>
@@ -344,39 +352,48 @@ function renderAuthors(data) {
         document.getElementById('paginationContainer').style.display = 'none';
         return;
     }
-    
+
     let html = '';
     data.authors.forEach(function(author) {
+        // Формируем список похожих авторов
+        let similarHtml = '';
+        if (author.similar_authors && author.similar_authors.length > 0) {
+            author.similar_authors.forEach(function(item) {
+                similarHtml += `
+                    <span class="badge bg-warning text-dark me-1 similar-item"
+                          data-author="${escapeHtml(item.name)}"
+                          data-books="${item.books}"
+                          data-similarity="${item.similarity}"
+                          style="cursor:pointer;">
+                        ${escapeHtml(item.name)} (${item.books})
+                        <span class="badge bg-light text-dark">${Math.round(item.similarity * 100)}%</span>
+                    </span>
+                `;
+            });
+        } else {
+            similarHtml = '<span class="text-muted"><?php echo __('author_deduplicate_no_matches_found'); ?></span>';
+        }
+
         html += `
             <tr data-author="${escapeHtml(author.author)}" data-books="${author.book_count}">
                 <td><strong>${escapeHtml(author.author)}</strong></td>
                 <td><span class="badge bg-primary">${author.book_count}</span></td>
+                <td class="similar-results">${similarHtml}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-info find-similar-btn" 
-                            data-author="${escapeHtml(author.author)}">
-                        <i class="fas fa-search me-1"></i>
-                        <?php echo __('author_deduplicate_find'); ?>
-
-                    </button>
-                    <span class="similar-results ms-2"></span>
-                </td>
-                <td>
-                    <button class="btn btn-sm btn-success merge-btn" 
-                            data-author="${escapeHtml(author.author)}" 
-                            style="display:none;">
-                        <i class="fas fa-compress me-1"></i>
-                        <?php echo __('author_deduplicate_merge'); ?>
-
-
-
-                    </button>
+                    ${author.has_duplicates ? `
+                        <button class="btn btn-sm btn-success merge-btn"
+                                data-author="${escapeHtml(author.author)}">
+                            <i class="fas fa-compress me-1"></i>
+                            <?php echo __('author_deduplicate_merge'); ?>
+                        </button>
+                    ` : ''}
                 </td>
             </tr>
         `;
     });
-    
+
     tbody.innerHTML = html;
-    
+
     // Пагинация
     if (totalPages > 1) {
         document.getElementById('paginationContainer').style.display = 'block';
@@ -384,9 +401,125 @@ function renderAuthors(data) {
     } else {
         document.getElementById('paginationContainer').style.display = 'none';
     }
-    
+
+    // Привязываем обработчики для кликабельных похожих авторов
+    attachSimilarHandlers();
+}
+
+// Обработчики для похожих авторов
+function attachSimilarHandlers() {
+    document.querySelectorAll('.similar-item').forEach(function(item) {
+        item.addEventListener('click', function() {
+            const row = this.closest('tr');
+            const main = row.dataset.author;
+            const duplicate = this.dataset.author;
+            const books = this.dataset.books;
+            showMergeModal(main, duplicate, books);
+        });
+    });
+
+    // Кнопки объединения
+    document.querySelectorAll('.merge-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const row = this.closest('tr');
+            const author = row.dataset.author;
+            // Ищем первый похожий вариант
+            const firstSimilar = row.querySelector('.similar-item');
+            if (firstSimilar) {
+                showMergeModal(author, firstSimilar.dataset.author, firstSimilar.dataset.books);
+            }
+        });
+    });
+}
+
+// ============================================
+// ОТРИСОВКА АВТОРОВ
+// ============================================
+function renderAuthors(data) {
+    const tbody = document.getElementById('authorsList');
+    const countSpan = document.getElementById('listCount');
+
+    currentPage = data.page;
+    totalPages = data.totalPages;
+    countSpan.textContent = data.total;
+
+    if (data.authors.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-muted py-4">
+                    <i class="fas fa-info-circle me-2"></i>
+                    ${data.total === 0 ? 'Авторы не найдены' : 'Ничего не найдено'}
+                </td>
+            </tr>
+        `;
+        document.getElementById('paginationContainer').style.display = 'none';
+        return;
+    }
+
+    let html = '';
+    data.authors.forEach(function(author) {
+        html += `
+            <tr data-author="${escapeHtml(author.author)}" data-books="${author.book_count}">
+                <td><strong>${escapeHtml(author.author)}</strong></td>
+                <td><span class="badge bg-primary">${author.book_count}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-info find-similar-btn"
+                            data-author="${escapeHtml(author.author)}"
+                            data-loaded="false">
+                        <i class="fas fa-search me-1"></i>
+                        <?php echo __('author_deduplicate_find'); ?>
+                    </button>
+                    <span class="similar-results ms-2"></span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-success merge-selected-btn"
+                            data-author="${escapeHtml(author.author)}"
+                            style="display:none;">
+                        <i class="fas fa-compress me-1"></i>
+                        <?php echo __('author_deduplicate_merge'); ?>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+
+    // Пагинация
+    if (totalPages > 1) {
+        document.getElementById('paginationContainer').style.display = 'block';
+        renderPagination();
+    } else {
+        document.getElementById('paginationContainer').style.display = 'none';
+    }
+
     // Привязываем обработчики
     attachEventHandlers();
+}
+
+// НОВАЯ ФУНКЦИЯ: Автоматический поиск похожих для всех авторов на странице
+function autoFindSimilarForAll() {
+    const buttons = document.querySelectorAll('.find-similar-btn');
+    let index = 0;
+
+    function processNext() {
+        if (index >= buttons.length) {
+            return; // Все обработаны
+        }
+
+        const button = buttons[index];
+        const author = button.dataset.author;
+
+        // Запускаем поиск
+        findSimilar(author, button);
+
+        index++;
+
+        // Небольшая задержка между запросами, чтобы не перегружать сервер
+        setTimeout(processNext, 200);
+    }
+
+    processNext();
 }
 
 // ============================================
@@ -443,34 +576,44 @@ function renderPagination() {
 function findSimilar(author, button) {
     const row = button.closest('tr');
     const resultsSpan = row.querySelector('.similar-results');
-    const mergeBtn = row.querySelector('.merge-btn');
-    
-    resultsSpan.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> <?php echo __('search'); ?>...</span>';
+    const mergeBtn = row.querySelector('.merge-selected-btn');
+
     button.disabled = true;
-    
-    const url = 'ajax/author_search.php?action=find_similar&author=' + encodeURIComponent(author) + 
-                '&threshold=' + (currentThreshold / 100) + '&limit=10';
-    
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Поиск...';
+
+    const url = 'ajax/author_search.php?action=find_similar&author=' + encodeURIComponent(author) +
+                '&threshold=' + (currentThreshold / 100) + '&limit=5';
+
+    // ДОБАВЛЕНО: Отладочная информация
+    // console.log('Запрос:', url);
+    // console.log('Порог:', currentThreshold / 100);
+
     ajaxRequest(url, 'GET', null, function(response) {
+        // ДОБАВЛЕНО: Логируем ответ
+        // console.log('Ответ сервера:', response);
+
         button.disabled = false;
-        
+        button.innerHTML = '<i class="fas fa-search me-1"></i> <?php echo __('author_deduplicate_find'); ?>';
+        button.dataset.loaded = 'true';
+
         if (response.success && response.similar && response.similar.length > 0) {
+            // console.log('Найдено совпадений:', response.similar.length);
             let html = '';
             response.similar.forEach(function(item) {
                 html += `
-                    <span class="badge bg-warning text-dark me-1 similar-item" 
+                    <span class="badge bg-warning text-dark me-1 similar-item"
                           data-author="${escapeHtml(item.name)}"
                           data-books="${item.books}"
                           data-similarity="${item.similarity}"
                           style="cursor:pointer;">
-                        ${escapeHtml(item.name)} (${item.books}) 
+                        ${escapeHtml(item.name)} (${item.books})
                         <span class="badge bg-light text-dark">${Math.round(item.similarity * 100)}%</span>
                     </span>
                 `;
             });
             resultsSpan.innerHTML = html;
             mergeBtn.style.display = 'inline-block';
-            
+
             // Обработчики для клика по похожему автору
             resultsSpan.querySelectorAll('.similar-item').forEach(function(item) {
                 item.addEventListener('click', function() {
@@ -480,7 +623,9 @@ function findSimilar(author, button) {
                 });
             });
         } else {
-            resultsSpan.innerHTML = '<span class="text-muted"><?php echo __('author_deduplicate_no_matches_found'); ?></span>';
+            // console.log('Совпадений нет. response.success:', response.success);
+            // console.log('response.similar:', response.similar);
+            resultsSpan.innerHTML = '<span class="text-muted small"><?php echo __('author_deduplicate_no_matches_found'); ?></span>';
             mergeBtn.style.display = 'none';
         }
     });
@@ -505,34 +650,64 @@ document.getElementById('confirmMergeBtn').addEventListener('click', function() 
     const main = this.dataset.main;
     const duplicate = this.dataset.duplicate;
     const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
-    
+
     this.disabled = true;
-    this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> <?php echo __('author_deduplicate_merge3'); ?>...';
-    
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Объединение...';
+
     const data = {
         action: 'merge',
         main: main,
         duplicate: duplicate,
         csrf_token: csrfToken
     };
-    
+
     ajaxRequest('ajax/author_search.php', 'POST', data, function(response) {
         const modal = bootstrap.Modal.getInstance(document.getElementById('mergeModal'));
         modal.hide();
-        
+
         if (response.success) {
             mergeCount += response.updated || 0;
             document.getElementById('mergeCount').textContent = mergeCount;
             showNotification('✅ ' + response.message, 'success');
-            loadAuthors(currentPage);
+
+            // Обновляем только текущую строку вместо всей страницы
+            const row = document.querySelector(`tr[data-author="${escapeHtml(main)}"]`);
+            if (row) {
+                const similarSpan = row.querySelector('.similar-results');
+                const mergeBtn = row.querySelector('.merge-selected-btn');
+                const findBtn = row.querySelector('.find-similar-btn');
+
+                similarSpan.innerHTML = '<span class="text-success small">✓ <?php echo __('author_deduplicate_merged'); ?></span>';
+                mergeBtn.style.display = 'none';
+                findBtn.dataset.loaded = 'false';
+            }
         } else {
             showNotification('❌ ' + response.message, 'danger');
         }
-        
+
         document.getElementById('confirmMergeBtn').disabled = false;
         document.getElementById('confirmMergeBtn').innerHTML = '<i class="fas fa-compress me-1"></i> <?php echo __('author_deduplicate_merge'); ?>';
     });
 });
+
+
+// ============================================
+// ОБЪЕДИНЕНИЕ ВЫБРАННОГО АВТОРА
+// ============================================
+function mergeSelectedAuthor(author, button) {
+    const row = button.closest('tr');
+    const selectedRadio = row.querySelector('input[type="radio"]:checked');
+
+    if (!selectedRadio) {
+        showNotification('<?php echo __('author_deduplicate_merge_bath'); ?> ', 'warning');
+        return;
+    }
+
+    const duplicate = selectedRadio.dataset.duplicate;
+    const books = selectedRadio.dataset.books;
+    showMergeModal(author, duplicate, books);
+}
+
 
 // ============================================
 // СКАНИРОВАНИЕ ВСЕХ АВТОРОВ (ПОШАГОВОЕ)
@@ -641,18 +816,24 @@ function attachEventHandlers() {
             findSimilar(author, this);
         });
     });
-    
-    // ПОИСК — срабатывает при вводе (с debounce)
+
+    // Кнопки "Объединить выбранное"
+    document.querySelectorAll('.merge-selected-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const author = this.dataset.author;
+            mergeSelectedAuthor(author, this);
+        });
+    });
+
+    // ПОИСК с debounce
     const searchInput = document.getElementById('searchAuthor');
-    let searchTimeout;
     searchInput.addEventListener('input', function() {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(function() {
-            // При поиске ВСЕГДА переходим на первую страницу
             loadAuthors(1);
-        }, 400);
+        }, 500); // Увеличили задержку до 500мс
     });
-    
+
     // Enter в поле поиска
     searchInput.addEventListener('keyup', function(e) {
         if (e.key === 'Enter') {
@@ -660,16 +841,8 @@ function attachEventHandlers() {
             loadAuthors(1);
         }
     });
-    
-    // Кнопка очистки поиска (если есть)
-    const clearBtn = document.getElementById('clearSearch');
-    if (clearBtn) {
-        clearBtn.addEventListener('click', function() {
-            searchInput.value = '';
-            loadAuthors(1);
-        });
-    }
 }
+
 
 // ============================================
 // ИНИЦИАЛИЗАЦИЯ
@@ -677,16 +850,17 @@ function attachEventHandlers() {
 document.addEventListener('DOMContentLoaded', function() {
     // Загружаем первую страницу
     loadAuthors(1);
-    
+
     // Кнопка сканирования
     document.getElementById('startScanBtn').addEventListener('click', startScan);
-    
+
     // Порог
     document.getElementById('thresholdRange').addEventListener('input', function() {
         currentThreshold = parseInt(this.value);
         document.getElementById('thresholdValue').textContent = currentThreshold + '%';
     });
 });
+
 </script>
 
 <style>
@@ -711,5 +885,23 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 #authorsTable .badge {
     font-size: 0.8rem;
+}
+
+.similar-item-wrapper {
+    display: inline-block;
+}
+.similar-label {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.similar-label:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.btn-check:checked + .similar-label {
+    background-color: #ffc107;
+    border-color: #ffc107;
+    color: #000;
+    font-weight: bold;
 }
 </style>

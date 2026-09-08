@@ -62,8 +62,8 @@ class ScannerConfigGenerator
         $content .= "clear_database_inpx =  no\n";
         $content .= "log_level =  info\n";
         $content .= "hash_algorithm =  md5\n";
-        $content .= "batch_size =  10000\n";
-        $content .= "num_workers = 2\n";
+        $content .= "batch_size =  100\n";
+        $content .= "num_workers = 1\n";
         $content .= "find_dup =  yes\n";
 
 

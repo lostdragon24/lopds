@@ -53,7 +53,7 @@ return [
     'book_added'        => 'Добавлено',               // Дата добавления в библиотеку
     'book_updated'      => 'Обновлено',               // Дата последнего обновления
     'book_in_archive'   => 'В архиве',                // Книга находится в ZIP-архиве
-    'book_no_cover'     => 'Нет обложки',             // У книги нет обложки
+    'book_no_cover'     => 'No Cover',             // У книги нет обложки
     'book_untitled'     => 'Без названия',            // Книга без названия
     'book_unknown_author' => 'Неизвестен',             // Автор неизвестен
     'book_not_found'    => 'Книга не найдена',        // Книга не найдена в БД
@@ -1879,7 +1879,7 @@ return [
 'settings_field_opds_default_lang' => 'Язык OPDS по умолчанию',
 'settings_field_opds_default_lang_desc' => 'Язык, который будет использоваться в OPDS-каталоге, если не указан параметр lang в URL. "Авто" — определяется из настроек сайта.',
 
-'no_cover'	=>	'Нет обложки',
+'no_cover'	=>	'No Cover',
 
 
 'fb2_2_epub'	=>	'Конвертер FB2 → EPUB',
@@ -2053,16 +2053,11 @@ return [
 'author_deduplicate_scan' => 'Сканирование',
 'author_deduplicate_merge_bath' => 'Выберите вариант для объединения',
 
-
 'stats_by_date' => 'Добавление по датам',
 'date' => 'Дата',
 'count' => 'Количество',
 'stats_no_data_daily' => 'Нет данных по датам',
 'last_update' => 'Последнее обновление:',
-
-'books' => 'книг',
-
-
 
 'opds_sort_new'       => 'По дате добавления',
 'opds_sort_title'     => 'По названию',
@@ -2072,7 +2067,22 @@ return [
 'opds_facet_format'   => 'Формат',
 'opds_facet_genre'    => 'Жанры',
 
+'continue_reading' => 'Продолжить чтение',
+'sort_by_title' => 'По названию',
+'sort_by_author' => 'По автору',
+'grid_view' => 'Плитка',
+'list_view' => 'Список',
+'search_placeholder' => 'Поиск книг...',
+'show_more' => 'Показать ещё',
+'all_books_loaded' => 'Все книги загружены',
+'error_loading'   => 'Ошибка загрузки',
+'switch_theme' => 'Переключить тему',
 
+
+'filter_reset' => 'Сбросить фильтр',
+'filter_by_genre' => 'Фильтр по жанру',
+'no_genres' => 'Нет жанров',
+'books' => 'книг',
 
 
 

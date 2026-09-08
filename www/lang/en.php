@@ -1637,4 +1637,20 @@ return [
 'opds_facet_format'   => 'Format',
 'opds_facet_genre'    => 'Genres',
 
+'continue_reading' => 'Continue reading',
+'sort_by_title' => 'By title',
+'sort_by_author' => 'By author',
+'grid_view' => 'Tiles',
+'list_view' => 'List',
+'search_placeholder' => 'Search books...',
+'show_more' => 'Show more',
+'all_books_loaded' => 'All books loaded',
+'switch_theme' => 'Switch theme',
+'error_loading' => 'Loading error',
+
+'filter_reset' => 'Reset filter',
+'filter_by_genre' => 'Filter by genre',
+'no_genres' => 'No genres',
+'books' => 'books',
+
 ];

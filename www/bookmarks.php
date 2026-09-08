@@ -262,7 +262,7 @@ $totalAnnotations = $stats['total'];
                     <i class="fas fa-clock me-2"></i>
                     <?php echo __('last_read'); ?>
                 </div>
-                <div class="card-body">
+                <div class="card-body text-muted">
                     <div class="row align-items-center">
                         <div class="col-md-8">
                             <h5><?php echo htmlspecialchars($lastRead['book_title'] ?: 'Без названия'); ?></h5>
@@ -301,7 +301,7 @@ $totalAnnotations = $stats['total'];
                     <?php foreach ($bookmarks as $bm): ?>
                     <div class="col-md-6 col-lg-4 mb-3">
                         <div class="card h-100 shadow-sm">
-                            <div class="card-body">
+                            <div class="card-body text-muted">
 
                                 <h5><?php echo htmlspecialchars($bm['book_title'] ?: "<?php echo __('no_name_book'); ?>"); ?></h5>
                                 <p class="text-muted"><?php echo htmlspecialchars($bm['book_author'] ?: "<?php echo __('incognito'); ?>"); ?></p>

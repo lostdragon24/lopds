@@ -133,8 +133,8 @@ require 'templates/header.php';
                             </a>
                         <?php endif; ?>
 
+<div class="card shadow-sm text-muted">
 
-                        <div class="fb2-converter">
     <h5><i class="fas fa-exchange-alt me-2"></i><?php echo __('fb2_2_epub'); ?></h5>
     <p class="text-muted small"><?php echo __('fb2_2_epub_msg'); ?></p>
 
@@ -158,6 +158,7 @@ require 'templates/header.php';
         <i class="fas fa-download me-1"></i>
         <?php echo __('fb2_2_epub_btn_download'); ?>
     </a>
+
 </div>
 
 
@@ -179,7 +180,7 @@ require 'templates/header.php';
                             <span class="badge bg-primary"><?php echo strtoupper($book['file_type']); ?></span>
                         </div>
                         
-                        <div class="col-6 mb-3">
+                        <div class="col-6 mb-3 text-muted">
                             <small class="text-muted d-block"><?php echo __('book_added'); ?></small>
                             <strong><?php echo date('d.m.Y H:i', strtotime($book['added_date'])); ?></strong>
                         </div>
@@ -192,7 +193,7 @@ require 'templates/header.php';
         <div class="col-lg-8">
             <!-- Заголовок и автор -->
             <div class="card shadow-sm mb-4">
-                <div class="card-body">
+                <div class="card-body text-muted">
                     <h1 class="h2 mb-3"><?php echo htmlspecialchars($book['title'] ?: __('book_untitled')); ?></h1>
                     
                     <?php if (!empty($book['author'])): ?>
@@ -209,7 +210,7 @@ require 'templates/header.php';
 
             <!-- РЕЙТИНГ И ИЗБРАННОЕ -->
             <div class="row mb-4">
-                <div class="col-md-8">
+                <div class="col-lg-8">
                     <div class="card">
                         <div class="card-body">
                             <h5 class="card-title">
@@ -248,7 +249,7 @@ for ($i = 0; $i < $emptyStars; $i++) {
                                         </div>
                                     </div>
 
-                                    <div class="col-md-6">
+                                    <div class="col-md-6 text-muted">
                                         <h6 class="mb-2"><?php echo __('rating_your'); ?></h6>
                                         <div class="star-rating-select mb-3" id="user-rating-stars">
                                             <div class="d-flex justify-content-center">
@@ -603,10 +604,8 @@ if (typeof handleCoverError !== 'function') {
 
 
 // ============================================================
-// Конвертор FB2 в EPUB
+// Конвертор FB2 в EPUB (Исправленная версия)
 // ============================================================
-
-
 
 document.addEventListener('DOMContentLoaded', function() {
     const convertBtn = document.getElementById('convertToEpubBtn');
@@ -618,7 +617,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const bookId = <?php echo $book['id']; ?>;
 
     convertBtn.addEventListener('click', async function() {
-        // Проверяем, что книга в FB2
         const fileType = '<?php echo $book['file_type']; ?>';
         if (fileType !== 'fb2') {
             showStatus('<?php echo __('fb2_2_epub_msg_script_1'); ?>', 'warning');
@@ -629,16 +627,12 @@ document.addEventListener('DOMContentLoaded', function() {
         convertBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Загрузка...';
 
         try {
-            // 1. Загружаем FB2 контент
             const response = await fetch(`./api/book_content.php?id=${bookId}&format=raw`);
-            if (!response.ok) {
-                throw new Error('<?php echo __('fb2_2_epub_msg_script_2'); ?>');
-            }
+            if (!response.ok) throw new Error('<?php echo __('fb2_2_epub_msg_script_2'); ?>');
 
             const fb2Text = await response.text();
             showStatus('<?php echo __('fb2_2_epub_msg_script_3'); ?>', 'info');
 
-            // 2. Конвертируем
             progress.style.display = 'block';
             progressBar.style.width = '10%';
             progressBar.textContent = '10%';
@@ -652,9 +646,7 @@ document.addEventListener('DOMContentLoaded', function() {
             progressBar.style.width = '100%';
             progressBar.textContent = '100%';
 
-            // 3. Создаем ссылку для скачивания
             const url = URL.createObjectURL(epubBlob);
-
             const fileName = '<?php echo preg_replace('/[^a-zA-Z0-9а-яА-ЯёЁ\s\-_]/u', '', $book['title']); ?>.epub';
 
             downloadBtn.href = url;
@@ -673,19 +665,150 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function showStatus(message, type) {
-        const types = {
-            info: 'text-primary',
-            success: 'text-success',
-            warning: 'text-warning',
-            danger: 'text-danger'
-        };
+        const types = { info: 'text-primary', success: 'text-success', warning: 'text-warning', danger: 'text-danger' };
         statusDiv.className = types[type] || 'text-muted';
         statusDiv.textContent = message;
     }
 });
 
 // ============================================================
-// FB2 → EPUB Конвертер (адаптирован для использования в браузере)
+// Конвертор FB2 в EPUB (Версия с поддержкой сносок и Accessibility)
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    const convertBtn = document.getElementById('convertToEpubBtn');
+    const progress = document.getElementById('converterProgress');
+    const progressBar = document.getElementById('converterProgressBar');
+    const statusDiv = document.getElementById('converterStatus');
+    const downloadBtn = document.getElementById('downloadEpubBtn');
+
+    const bookId = <?php echo $book['id']; ?>;
+
+    convertBtn.addEventListener('click', async function() {
+        const fileType = '<?php echo $book['file_type']; ?>';
+        if (fileType !== 'fb2') {
+            showStatus('<?php echo __('fb2_2_epub_msg_script_1'); ?>', 'warning');
+            return;
+        }
+
+        convertBtn.disabled = true;
+        convertBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Загрузка...';
+
+        try {
+            const response = await fetch(`./api/book_content.php?id=${bookId}&format=raw`);
+            if (!response.ok) throw new Error('<?php echo __('fb2_2_epub_msg_script_2'); ?>');
+
+            const fb2Text = await response.text();
+            showStatus('<?php echo __('fb2_2_epub_msg_script_3'); ?>', 'info');
+
+            progress.style.display = 'block';
+            progressBar.style.width = '10%';
+            progressBar.textContent = '10%';
+
+            const epubBlob = await convertFB2ToEpub(fb2Text, {
+                title: '<?php echo addslashes($book['title']); ?>',
+                author: '<?php echo addslashes($book['author']); ?>',
+                language: '<?php echo $book['language'] ?? 'ru'; ?>'
+            });
+
+            progressBar.style.width = '100%';
+            progressBar.textContent = '100%';
+
+            const url = URL.createObjectURL(epubBlob);
+            const fileName = '<?php echo preg_replace('/[^a-zA-Z0-9а-яА-ЯёЁ\s\-_]/u', '', $book['title']); ?>.epub';
+
+            downloadBtn.href = url;
+            downloadBtn.download = fileName;
+            downloadBtn.style.display = 'inline-block';
+
+            showStatus('<?php echo __('fb2_2_epub_msg_script_4'); ?>', 'success');
+
+        } catch (error) {
+            showStatus('Ошибка: ' + error.message, 'danger');
+            console.error('Conversion error:', error);
+        } finally {
+            convertBtn.disabled = false;
+            convertBtn.innerHTML = '<i class="fas fa-file-export me-1"></i><?php echo __('fb2_2_epub_msg_script_5'); ?>';
+        }
+    });
+
+    function showStatus(message, type) {
+        const types = { info: 'text-primary', success: 'text-success', warning: 'text-warning', danger: 'text-danger' };
+        statusDiv.className = types[type] || 'text-muted';
+        statusDiv.textContent = message;
+    }
+});
+
+// ============================================================
+// Конвертор FB2 в EPUB (Версия с обложкой и Accessibility)
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    const convertBtn = document.getElementById('convertToEpubBtn');
+    const progress = document.getElementById('converterProgress');
+    const progressBar = document.getElementById('converterProgressBar');
+    const statusDiv = document.getElementById('converterStatus');
+    const downloadBtn = document.getElementById('downloadEpubBtn');
+
+    const bookId = <?php echo $book['id']; ?>;
+
+    convertBtn.addEventListener('click', async function() {
+        const fileType = '<?php echo $book['file_type']; ?>';
+        if (fileType !== 'fb2') {
+            showStatus('<?php echo __('fb2_2_epub_msg_script_1'); ?>', 'warning');
+            return;
+        }
+
+        convertBtn.disabled = true;
+        convertBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Загрузка...';
+
+        try {
+            const response = await fetch(`./api/book_content.php?id=${bookId}&format=raw`);
+            if (!response.ok) throw new Error('<?php echo __('fb2_2_epub_msg_script_2'); ?>');
+
+            const fb2Text = await response.text();
+            showStatus('<?php echo __('fb2_2_epub_msg_script_3'); ?>', 'info');
+
+            progress.style.display = 'block';
+            progressBar.style.width = '10%';
+            progressBar.textContent = '10%';
+
+            const epubBlob = await convertFB2ToEpub(fb2Text, {
+                title: '<?php echo addslashes($book['title']); ?>',
+                author: '<?php echo addslashes($book['author']); ?>',
+                language: '<?php echo $book['language'] ?? 'ru'; ?>'
+            });
+
+            progressBar.style.width = '100%';
+            progressBar.textContent = '100%';
+
+            const url = URL.createObjectURL(epubBlob);
+            const fileName = '<?php echo preg_replace('/[^a-zA-Z0-9а-яА-ЯёЁ\s\-_]/u', '', $book['title']); ?>.epub';
+
+            downloadBtn.href = url;
+            downloadBtn.download = fileName;
+            downloadBtn.style.display = 'inline-block';
+
+            showStatus('<?php echo __('fb2_2_epub_msg_script_4'); ?>', 'success');
+
+        } catch (error) {
+            showStatus('Ошибка: ' + error.message, 'danger');
+            console.error('Conversion error:', error);
+        } finally {
+            convertBtn.disabled = false;
+            convertBtn.innerHTML = '<i class="fas fa-file-export me-1"></i><?php echo __('fb2_2_epub_msg_script_5'); ?>';
+        }
+    });
+
+    function showStatus(message, type) {
+        const types = { info: 'text-primary', success: 'text-success', warning: 'text-warning', danger: 'text-danger' };
+        statusDiv.className = types[type] || 'text-muted';
+        statusDiv.textContent = message;
+    }
+});
+
+// ============================================================
+// FB2 → EPUB Конвертер
 // ============================================================
 
 async function convertFB2ToEpub(fb2Text, metadata) {
@@ -703,67 +826,79 @@ async function convertFB2ToEpub(fb2Text, metadata) {
         throw new Error("Invalid FB2 file format");
     }
 
-    // Извлекаем бинарные данные (изображения)
+    // 1. Извлекаем бинарные данные (изображения)
     const binaries = {};
-    const binaryNodes = xmlDoc.querySelectorAll("binary[id]");
-    binaryNodes.forEach((b) => {
+    const binaryNodes = xmlDoc.getElementsByTagName("binary");
+    Array.from(binaryNodes).forEach((b) => {
         const id = b.getAttribute("id");
+        if (!id) return;
         const mime = (b.getAttribute("content-type") || "image/jpeg").toLowerCase();
         const base64 = (b.textContent || "").replace(/\s+/g, "");
         binaries[id] = { mime, base64, ext: mimeToExt(mime) };
     });
 
+    // === НОВОЕ: Поиск обложки в coverpage ===
+    const coverImageId = extractCoverId(xmlDoc);
+
     updateProgress(18);
 
-    // Извлекаем главы
-    const bodies = xmlDoc.querySelectorAll("body");
-    const chapters = [];
-    let chapterIndex = 1;
+    // 2. Разделяем основной текст и примечания (notes/comments)
+    const bodies = xmlDoc.getElementsByTagName("body");
+    const mainBodies = [];
+    const notesBodies = [];
 
-    function pushSectionAsChapter(section) {
-        const titleNode = section.querySelector(":scope > title");
-        const chapTitle = titleNode ? textContentDeep(titleNode).trim() : `Chapter ${chapterIndex}`;
-        const htmlContent = serializeSectionToXHTML(section, binaries);
-        chapters.push({
-            id: `ch${chapterIndex}`,
-            title: chapTitle || `Chapter ${chapterIndex}`,
-            content: htmlContent
-        });
-        chapterIndex++;
+    Array.from(bodies).forEach(body => {
+        const name = (body.getAttribute("name") || "").toLowerCase();
+        if (name === "notes" || name === "comments") {
+            notesBodies.push(body);
+        } else {
+            mainBodies.push(body);
+        }
+    });
+
+    if (mainBodies.length === 0 && notesBodies.length > 0) {
+        mainBodies.push(...notesBodies);
+        notesBodies.length = 0;
     }
 
-    if (bodies.length) {
-        bodies.forEach((body) => {
-            const sections = body.querySelectorAll(":scope > section");
-            if (sections.length) {
-                sections.forEach((sec) => pushSectionAsChapter(sec));
-            } else {
-                pushSectionAsChapter(body);
-            }
-        });
-    } else {
-        const allSections = xmlDoc.querySelectorAll("section");
-        if (allSections.length) {
-            allSections.forEach((sec) => pushSectionAsChapter(sec));
-        } else {
-            const wrapper = xmlDoc.documentElement;
-            pushSectionAsChapter(wrapper);
+    // 3. Построение карты ID -> Файл
+    const idToFile = {};
+    let chapterIndex = 1;
+
+    function collectIds(node, filename, map) {
+        if (node.nodeType === 1) {
+            const id = node.getAttribute("id");
+            if (id) map[id] = filename;
+            Array.from(node.children).forEach(child => collectIds(child, filename, map));
         }
     }
 
-    if (chapters.length === 0) {
-        throw new Error("No readable content sections found in FB2.");
-    }
+    chapterIndex = 1;
+    mainBodies.forEach((body) => {
+        const sections = Array.from(body.children).filter(el => el.tagName.toLowerCase() === "section");
+        if (sections.length) {
+            sections.forEach((sec) => {
+                const filename = `chapter-${chapterIndex}.xhtml`;
+                collectIds(sec, filename, idToFile);
+                chapterIndex++;
+            });
+        } else {
+            const filename = `chapter-${chapterIndex}.xhtml`;
+            collectIds(body, filename, idToFile);
+            chapterIndex++;
+        }
+    });
+
+    const notesFilename = "notes.xhtml";
+    notesBodies.forEach(body => {
+        collectIds(body, notesFilename, idToFile);
+    });
 
     updateProgress(35);
 
-    // Создаем EPUB через JSZip
+    // 4. Генерация EPUB
     const zip = new JSZip();
-
-    // mimetype (должен быть без сжатия)
     zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
-
-    // META-INF/container.xml
     zip.folder("META-INF").file(
         "container.xml",
         `<?xml version="1.0" encoding="UTF-8"?>
@@ -779,53 +914,123 @@ async function convertFB2ToEpub(fb2Text, metadata) {
     const oebps = zip.folder("OEBPS");
     const css = `
 @charset "UTF-8";
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; padding: 1rem; }
-h1,h2,h3 { line-height: 1.25; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; padding: 1rem; text-align: justify; }
+h1,h2,h3,h4 { line-height: 1.25; text-align: left; }
 h1 { font-size: 1.6rem; margin: 1rem 0 .5rem; }
 h2 { font-size: 1.4rem; margin: 1rem 0 .5rem; }
 h3 { font-size: 1.2rem; margin: .8rem 0 .4rem; }
-p { margin: .6rem 0; }
-blockquote { margin: .8rem 1rem; padding-left: .8rem; border-left: 3px solid #ccc; }
-.poem { margin: .8rem 0; }
+p { margin: .6rem 0; text-indent: 1.5em; }
+blockquote { margin: .8rem 1rem; padding-left: .8rem; border-left: 3px solid #ccc; font-style: italic; }
+blockquote p { text-indent: 0; }
+.poem { margin: .8rem 0; text-align: left; }
 .stanza { margin: .6rem 0; }
-img { max-width: 100%; height: auto; }
+.verse { text-indent: 0; margin: 0; }
+.text-right { text-align: right; }
+.italic { font-style: italic; }
+.text-author { text-align: right; font-style: italic; }
+.annotation { font-size: 0.9em; color: #555; }
+img { max-width: 100%; height: auto; display: block; margin: 1rem auto; }
 hr { border: 0; border-top: 1px solid #ddd; margin: 1rem 0; }
+.fb2-table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+.fb2-table th, .fb2-table td { border: 1px solid #ccc; padding: 0.5rem; }
+a { color: #0066cc; text-decoration: none; }
+a.note-link { font-size: 0.8em; vertical-align: super; }
+.fb2-section { margin-bottom: 1rem; }
     `.trim();
     oebps.file("styles.css", css);
 
     const lang = (bookMetadata.language || "en").toLowerCase();
-    const manifestItems = [
-        { id: "css", href: "styles.css", mediaType: "text/css" }
-    ];
+    const manifestItems = [{ id: "css", href: "styles.css", mediaType: "text/css" }];
     const spineItemrefs = [];
+    const chapters = [];
 
-    chapters.forEach((ch, idx) => {
-        const filename = `chapter-${idx + 1}.xhtml`;
-        const xhtml = wrapAsXHTML(ch.title, ch.content, lang);
-        oebps.file(filename, xhtml);
-        manifestItems.push({
-            id: ch.id,
-            href: filename,
-            mediaType: "application/xhtml+xml"
+    // === НОВОЕ: Добавляем обложку как первую "главу" ===
+    let coverItemId = null;
+    if (coverImageId && binaries[coverImageId]) {
+        const coverFilename = "cover.xhtml";
+        const coverXhtml = buildCoverXHTML(coverImageId, binaries[coverImageId].ext, lang);
+        chapters.push({
+            id: "cover",
+            title: "Обложка",
+            content: coverXhtml,
+            filename: coverFilename,
+            isCover: true
         });
-        spineItemrefs.push({ idref: ch.id });
-    });
+    }
 
-    updateProgress(60);
-
-    // Сохраняем изображения
-    const imagesFolder = oebps.folder("images");
-    const usedImageHrefs = new Set();
-
-    chapters.forEach((ch) => {
-        const regex = /src="images\/([^"]+)"/g;
-        let m;
-        while ((m = regex.exec(ch.content)) !== null) {
-            usedImageHrefs.add(m[1]);
+    chapterIndex = 1;
+    mainBodies.forEach((body) => {
+        const sections = Array.from(body.children).filter(el => el.tagName.toLowerCase() === "section");
+        if (sections.length) {
+            sections.forEach((sec) => {
+                const titleNodes = Array.from(sec.children).filter(el => el.tagName.toLowerCase() === "title");
+                const titleNode = titleNodes.length ? titleNodes[0] : null;
+                const chapTitle = titleNode ? textContentDeep(titleNode).trim() : `Chapter ${chapterIndex}`;
+                const filename = `chapter-${chapterIndex}.xhtml`;
+                const htmlContent = serializeSectionToXHTML(sec, binaries, idToFile, filename, true);
+                chapters.push({
+                    id: `ch${chapterIndex}`,
+                    title: chapTitle || `Chapter ${chapterIndex}`,
+                    content: htmlContent,
+                    filename: filename,
+                    isCover: false
+                });
+                chapterIndex++;
+            });
+        } else {
+            const titleNodes = Array.from(body.children).filter(el => el.tagName.toLowerCase() === "title");
+            const titleNode = titleNodes.length ? titleNodes[0] : null;
+            const chapTitle = titleNode ? textContentDeep(titleNode).trim() : `Chapter ${chapterIndex}`;
+            const filename = `chapter-${chapterIndex}.xhtml`;
+            const htmlContent = serializeSectionToXHTML(body, binaries, idToFile, filename, true);
+            chapters.push({
+                id: `ch${chapterIndex}`,
+                title: chapTitle || `Chapter ${chapterIndex}`,
+                content: htmlContent,
+                filename: filename,
+                isCover: false
+            });
+            chapterIndex++;
         }
     });
 
-    const imageKeys = usedImageHrefs.size ? [...usedImageHrefs] : Object.keys(binaries).map((id) => `${id}.${binaries[id].ext}`);
+    // Обработка сносок (Notes)
+    let notesContent = "";
+    notesBodies.forEach(body => {
+        const sections = Array.from(body.children).filter(el => el.tagName.toLowerCase() === "section");
+        if (sections.length) {
+            sections.forEach(sec => {
+                notesContent += serializeSectionToXHTML(sec, binaries, idToFile, notesFilename, false);
+            });
+        } else {
+            notesContent += serializeSectionToXHTML(body, binaries, idToFile, notesFilename, true);
+        }
+    });
+
+    if (notesContent.trim()) {
+        chapters.push({
+            id: "notes",
+            title: "Примечания",
+            content: notesContent,
+            filename: notesFilename,
+            isCover: false
+        });
+    }
+
+    updateProgress(60);
+
+    // Записываем главы в EPUB
+    chapters.forEach((ch) => {
+        // Для обложки используем специальный шаблон без <h1> и обертки
+        const xhtml = ch.isCover ? ch.content : wrapAsXHTML(ch.title, ch.content, lang);
+        oebps.file(ch.filename, xhtml);
+        manifestItems.push({ id: ch.id, href: ch.filename, mediaType: "application/xhtml+xml" });
+        spineItemrefs.push({ idref: ch.id });
+    });
+
+    // Сохраняем изображения
+    const imagesFolder = oebps.folder("images");
+    const imageKeys = Object.keys(binaries).map((id) => `${id}.${binaries[id].ext}`);
 
     for (const name of imageKeys) {
         let id, ext;
@@ -840,26 +1045,28 @@ hr { border: 0; border-top: 1px solid #ddd; margin: 1rem 0; }
         if (!bin) continue;
         const arrayBuf = base64ToUint8Array(bin.base64);
         imagesFolder.file(`${id}.${ext}`, arrayBuf);
+
+        // === НОВОЕ: Помечаем обложку в манифесте ===
+        const isCoverImage = (coverImageId && id === coverImageId);
+        const itemId = `img_${id}`;
+        if (isCoverImage) coverItemId = itemId;
+
         manifestItems.push({
-            id: `img_${id}`,
+            id: itemId,
             href: `images/${id}.${ext}`,
-            mediaType: bin.mime
+            mediaType: bin.mime,
+            properties: isCoverImage ? "cover-image" : undefined
         });
     }
 
     updateProgress(72);
 
-    // nav.xhtml
-    const navXhtml = buildNavXHTML(bookMetadata.title || "Untitled", chapters, lang);
+    // === ИЗМЕНЕНО: Исключаем обложку из навигации ===
+    const tocChapters = chapters.filter(ch => !ch.isCover);
+    const navXhtml = buildNavXHTML(bookMetadata.title || "Untitled", tocChapters, lang);
     oebps.file("nav.xhtml", navXhtml);
-    manifestItems.push({
-        id: "nav",
-        href: "nav.xhtml",
-        mediaType: "application/xhtml+xml",
-        properties: "nav"
-    });
+    manifestItems.push({ id: "nav", href: "nav.xhtml", mediaType: "application/xhtml+xml", properties: "nav" });
 
-    // content.opf
     const uniqueId = "urn:uuid:" + generateUUIDv4();
     const contentOpf = buildContentOpf({
         id: uniqueId,
@@ -868,23 +1075,52 @@ hr { border: 0; border-top: 1px solid #ddd; margin: 1rem 0; }
         lang: lang,
         date: new Date().toISOString().slice(0, 10),
         manifestItems: manifestItems,
-        spineItemrefs: spineItemrefs
+        spineItemrefs: spineItemrefs,
+        coverItemId: coverItemId
     });
     oebps.file("content.opf", contentOpf);
 
     updateProgress(86);
 
-    // Генерируем EPUB
-    return await zip.generateAsync({
-        type: "blob",
-        compression: "DEFLATE",
-        compressionOptions: { level: 9 }
-    });
+    return await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 9 } });
 }
 
 // ============================================================
 // Вспомогательные функции
 // ============================================================
+
+function extractCoverId(xmlDoc) {
+    const coverpages = xmlDoc.getElementsByTagName("coverpage");
+    if (coverpages.length === 0) return null;
+
+    const coverpage = coverpages[0];
+    const images = coverpage.getElementsByTagName("image");
+    if (images.length === 0) return null;
+
+    const image = images[0];
+    const href = getFb2Href(image);
+    return href.replace(/^#/, "") || null;
+}
+
+function buildCoverXHTML(imageId, ext, lang) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="${escapeXML(lang)}" lang="${escapeXML(lang)}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cover</title>
+  <style type="text/css">
+    @page { margin: 0; padding: 0; }
+    body { margin: 0; padding: 0; text-align: center; background: #fff; height: 100vh; display: flex; align-items: center; justify-content: center; }
+    img { max-width: 100%; max-height: 100vh; object-fit: contain; }
+  </style>
+</head>
+<body>
+  <img src="images/${escapeXML(imageId)}.${escapeXML(ext)}" alt="Cover" />
+</body>
+</html>`;
+}
 
 function updateProgress(val) {
     const progressBar = document.getElementById('converterProgressBar');
@@ -902,106 +1138,197 @@ function textContentDeep(node) {
 }
 
 function escapeXML(s) {
-    return s
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-function serializeInline(node, binaries) {
-    if (node.nodeType === 3) {
-        return escapeXML(node.nodeValue || "");
-    }
+function getFb2Href(node) {
+    let href = node.getAttributeNS("http://www.w3.org/1999/xlink", "href");
+    if (!href) href = node.getAttribute("xlink:href");
+    if (!href) href = node.getAttribute("l:href");
+    if (!href) href = node.getAttribute("href");
+    return href || "";
+}
+
+function serializeInline(node, binaries, idToFile, currentFile) {
+    if (node.nodeType === 3) return escapeXML(node.nodeValue || "");
     if (node.nodeType !== 1) return "";
 
     const tag = node.tagName.toLowerCase();
-    const children = [...node.childNodes]
-        .map((n) => serializeInline(n, binaries))
-        .join("");
+    const idAttr = node.getAttribute("id") ? ` id="${escapeXML(node.getAttribute("id"))}"` : "";
+    const children = [...node.childNodes].map((n) => serializeInline(n, binaries, idToFile, currentFile)).join("");
 
     switch (tag) {
-        case "emphasis": return `<em>${children}</em>`;
-        case "strong": return `<strong>${children}</strong>`;
-        case "code": return `<code>${children}</code>`;
-        case "sub": return `<sub>${children}</sub>`;
-        case "sup": return `<sup>${children}</sup>`;
-        case "strikethrough": return `<s>${children}</s>`;
+        case "emphasis": return `<em${idAttr}>${children}</em>`;
+        case "strong": return `<strong${idAttr}>${children}</strong>`;
+        case "code": return `<code${idAttr}>${children}</code>`;
+        case "sub": return `<sub${idAttr}>${children}</sub>`;
+        case "sup": return `<sup${idAttr}>${children}</sup>`;
+        case "strikethrough": return `<s${idAttr}>${children}</s>`;
         case "a": {
-            const href = node.getAttribute("xlink:href") || node.getAttribute("href") || "";
-            const safeHref = href.startsWith("#") ? href : escapeXML(href);
-            return `<a href="${escapeXML(safeHref)}">${children || escapeXML(node.textContent)}</a>`;
+            let href = getFb2Href(node);
+            const type = node.getAttribute("type") || "";
+            const classes = type === "note" ? ' class="note-link"' : "";
+
+            if (href.startsWith("#")) {
+                const targetId = href.substring(1);
+                if (idToFile[targetId]) {
+                    if (idToFile[targetId] === currentFile) {
+                        href = `#${targetId}`;
+                    } else {
+                        href = `${idToFile[targetId]}#${targetId}`;
+                    }
+                } else {
+                    href = `#${targetId}`;
+                }
+            }
+            return `<a href="${escapeXML(href)}"${idAttr}${classes}>${children || escapeXML(node.textContent)}</a>`;
         }
         case "image": {
-            const href = (node.getAttribute("xlink:href") || "").replace(/^#/, "");
+            let href = getFb2Href(node);
+            href = href.replace(/^#/, "");
             if (href && binaries[href]) {
                 const ext = binaries[href].ext || "jpg";
-                return `<img alt="" src="images/${href}.${ext}" />`;
+                return `<img${idAttr} alt="" src="images/${href}.${ext}" />`;
             }
             return "";
         }
-        default:
-            return children;
+        default: return children;
     }
 }
 
-function serializeSectionToXHTML(section, binaries) {
+function serializeSectionToXHTML(section, binaries, idToFile, currentFile, isRoot = false) {
     let html = "";
-    const nodes = [...section.childNodes];
+    const sectionIdAttr = section.getAttribute && section.getAttribute("id") ? ` id="${escapeXML(section.getAttribute("id"))}"` : "";
 
-    const titleNode = section.querySelector(":scope > title");
+    const wrapInDiv = !isRoot || sectionIdAttr;
+    if (wrapInDiv) {
+        html += `<div${sectionIdAttr} class="${isRoot ? 'fb2-section-root' : 'fb2-section'}">`;
+    }
+
+    const nodes = Array.from(section.childNodes);
+
+    const titleNodes = Array.from(section.children).filter(el => el.tagName.toLowerCase() === "title");
+    const titleNode = titleNodes.length ? titleNodes[0] : null;
+
     if (titleNode) {
-        const t = titleNode.querySelector("p")
-            ? [...titleNode.querySelectorAll("p")].map((p) => serializeInline(p, binaries)).join(" ")
+        const pNodes = Array.from(titleNode.children).filter(el => el.tagName.toLowerCase() === "p");
+        const t = pNodes.length
+            ? pNodes.map((p) => serializeInline(p, binaries, idToFile, currentFile)).join(" ")
             : escapeXML(textContentDeep(titleNode).trim());
-        html += `<h2>${t}</h2>`;
+        const titleIdAttr = titleNode.getAttribute("id") ? ` id="${escapeXML(titleNode.getAttribute("id"))}"` : "";
+        html += `<h2${titleIdAttr}>${t}</h2>`;
     }
 
     for (const node of nodes) {
+        if (node.nodeType === 3) {
+            const text = node.nodeValue.trim();
+            if (text) html += `<p>${escapeXML(text)}</p>`;
+            continue;
+        }
         if (node.nodeType !== 1) continue;
+
         const tag = node.tagName.toLowerCase();
         if (tag === "title") continue;
 
+        const nodeIdAttr = node.getAttribute("id") ? ` id="${escapeXML(node.getAttribute("id"))}"` : "";
+
         if (tag === "p") {
-            html += `<p>${serializeInline(node, binaries)}</p>`;
+            html += `<p${nodeIdAttr}>${serializeInline(node, binaries, idToFile, currentFile)}</p>`;
         } else if (tag === "subtitle") {
-            html += `<h3>${serializeInline(node, binaries)}</h3>`;
-        } else if (tag === "epigraph") {
-            const inner = [...node.querySelectorAll("p")].map((p) => serializeInline(p, binaries)).join("");
-            html += `<blockquote>${inner}</blockquote>`;
-        } else if (tag === "cite") {
-            const inner = [...node.childNodes].map((n) => serializeInline(n, binaries)).join("");
-            html += `<blockquote>${inner}</blockquote>`;
+            html += `<h3${nodeIdAttr}>${serializeInline(node, binaries, idToFile, currentFile)}</h3>`;
+        } else if (tag === "epigraph" || tag === "cite" || tag === "annotation") {
+            const blockClass = tag === "annotation" ? "annotation" : "quote";
+            html += `<blockquote${nodeIdAttr} class="${blockClass}">`;
+            for (const child of node.childNodes) {
+                if (child.nodeType === 1) {
+                    const ctag = child.tagName.toLowerCase();
+                    const childIdAttr = child.getAttribute("id") ? ` id="${escapeXML(child.getAttribute("id"))}"` : "";
+                    if (ctag === "p") {
+                        html += `<p${childIdAttr}>${serializeInline(child, binaries, idToFile, currentFile)}</p>`;
+                    } else if (ctag === "text-author") {
+                        html += `<p${childIdAttr} class="text-author">${serializeInline(child, binaries, idToFile, currentFile)}</p>`;
+                    } else if (ctag === "empty-line") {
+                        html += `<hr />`;
+                    } else {
+                        html += `<div${childIdAttr}>${serializeInline(child, binaries, idToFile, currentFile)}</div>`;
+                    }
+                } else if (child.nodeType === 3) {
+                    const text = child.nodeValue.trim();
+                    if (text) html += `<p>${escapeXML(text)}</p>`;
+                }
+            }
+            html += `</blockquote>`;
         } else if (tag === "poem") {
-            html += `<div class="poem">`;
-            const title = node.querySelector(":scope > title");
-            if (title) html += `<h3>${serializeInline(title, binaries)}</h3>`;
-            node.querySelectorAll(":scope > stanza").forEach((st) => {
-                html += `<div class="stanza">`;
-                st.querySelectorAll(":scope > v").forEach((v) => {
-                    html += `<div>${serializeInline(v, binaries)}</div>`;
+            html += `<div${nodeIdAttr} class="poem">`;
+            const pTitleNodes = Array.from(node.children).filter(el => el.tagName.toLowerCase() === "title");
+            const pTitle = pTitleNodes.length ? pTitleNodes[0] : null;
+            if (pTitle) {
+                const pTitleIdAttr = pTitle.getAttribute("id") ? ` id="${escapeXML(pTitle.getAttribute("id"))}"` : "";
+                html += `<h3${pTitleIdAttr}>${serializeInline(pTitle, binaries, idToFile, currentFile)}</h3>`;
+            }
+
+            const stanzas = Array.from(node.children).filter(el => el.tagName.toLowerCase() === "stanza");
+            stanzas.forEach((st) => {
+                const stIdAttr = st.getAttribute("id") ? ` id="${escapeXML(st.getAttribute("id"))}"` : "";
+                html += `<div${stIdAttr} class="stanza">`;
+                const verses = Array.from(st.children).filter(el => el.tagName.toLowerCase() === "v");
+                verses.forEach((v) => {
+                    const vIdAttr = v.getAttribute("id") ? ` id="${escapeXML(v.getAttribute("id"))}"` : "";
+                    html += `<div${vIdAttr} class="verse">${serializeInline(v, binaries, idToFile, currentFile)}</div>`;
                 });
                 html += `</div>`;
             });
-            const author = node.querySelector(":scope > text-author");
-            if (author) html += `<div class="text-right italic">${serializeInline(author, binaries)}</div>`;
+            const authorNodes = Array.from(node.children).filter(el => el.tagName.toLowerCase() === "text-author");
+            const author = authorNodes.length ? authorNodes[0] : null;
+            if (author) {
+                const authorIdAttr = author.getAttribute("id") ? ` id="${escapeXML(author.getAttribute("id"))}"` : "";
+                html += `<p${authorIdAttr} class="text-author">${serializeInline(author, binaries, idToFile, currentFile)}</p>`;
+            }
             html += `</div>`;
         } else if (tag === "empty-line") {
             html += `<hr />`;
         } else if (tag === "image") {
-            const href = (node.getAttribute("xlink:href") || "").replace(/^#/, "");
+            let href = getFb2Href(node);
+            href = href.replace(/^#/, "");
             if (href && binaries[href]) {
                 const ext = binaries[href].ext || "jpg";
-                html += `<p><img alt="" src="images/${href}.${ext}" /></p>`;
+                html += `<p${nodeIdAttr}><img alt="" src="images/${href}.${ext}" /></p>`;
             }
         } else if (tag === "section") {
-            html += serializeSectionToXHTML(node, binaries);
+            html += serializeSectionToXHTML(node, binaries, idToFile, currentFile, false);
+        } else if (tag === "table") {
+            html += `<div${nodeIdAttr}>${serializeTable(node, binaries, idToFile, currentFile)}</div>`;
         } else {
-            html += `<p>${serializeInline(node, binaries)}</p>`;
+            html += `<p${nodeIdAttr}>${serializeInline(node, binaries, idToFile, currentFile)}</p>`;
         }
     }
+
+    if (wrapInDiv) {
+        html += `</div>`;
+    }
     return html || "<p></p>";
+}
+
+function serializeTable(tableNode, binaries, idToFile, currentFile) {
+    let html = '<table class="fb2-table">';
+    for (const child of tableNode.childNodes) {
+        if (child.nodeType !== 1) continue;
+        const tag = child.tagName.toLowerCase();
+        if (tag === "tr") {
+            html += '<tr>';
+            for (const cell of child.childNodes) {
+                if (cell.nodeType !== 1) continue;
+                const ctag = cell.tagName.toLowerCase();
+                if (ctag === "th" || ctag === "td") {
+                    const cellIdAttr = cell.getAttribute("id") ? ` id="${escapeXML(cell.getAttribute("id"))}"` : "";
+                    html += `<${ctag}${cellIdAttr}>${serializeInline(cell, binaries, idToFile, currentFile)}</${ctag}>`;
+                }
+            }
+            html += '</tr>';
+        }
+    }
+    html += '</table>';
+    return html;
 }
 
 function wrapAsXHTML(title, bodyContent, lang) {
@@ -1022,8 +1349,8 @@ function wrapAsXHTML(title, bodyContent, lang) {
 }
 
 function buildNavXHTML(bookTitle, chapters, lang) {
-    const lis = chapters.map((ch, i) =>
-        `<li><a href="chapter-${i + 1}.xhtml">${escapeXML(ch.title)}</a></li>`
+    const lis = chapters.map((ch) =>
+        `<li><a href="${escapeXML(ch.filename)}">${escapeXML(ch.title)}</a></li>`
     ).join("\n");
     return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
@@ -1034,7 +1361,7 @@ function buildNavXHTML(bookTitle, chapters, lang) {
   <link rel="stylesheet" type="text/css" href="styles.css" />
 </head>
 <body>
-  <nav epub:type="toc" id="toc">
+  <nav epub:type="toc" id="toc" role="doc-toc" aria-label="Table of Contents">
     <h2>${escapeXML(bookTitle)}</h2>
     <ol>
       ${lis}
@@ -1044,12 +1371,14 @@ function buildNavXHTML(bookTitle, chapters, lang) {
 </html>`;
 }
 
-function buildContentOpf({ id, title, author, lang, date, manifestItems, spineItemrefs }) {
+function buildContentOpf({ id, title, author, lang, date, manifestItems, spineItemrefs, coverItemId }) {
     const manifestXml = manifestItems.map((it) => {
         const props = it.properties ? ` properties="${it.properties}"` : "";
         return `<item id="${escapeXML(it.id)}" href="${escapeXML(it.href)}" media-type="${escapeXML(it.mediaType)}"${props} />`;
     }).join("\n      ");
     const spineXml = spineItemrefs.map((sr) => `<itemref idref="${escapeXML(sr.idref)}" />`).join("\n      ");
+    const coverMeta = coverItemId ? `\n    <meta name="cover" content="${escapeXML(coverItemId)}" />` : "";
+
     return `<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="pub-id" version="3.0" xml:lang="${escapeXML(lang)}">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
@@ -1059,6 +1388,12 @@ function buildContentOpf({ id, title, author, lang, date, manifestItems, spineIt
     <dc:creator>${escapeXML(author)}</dc:creator>
     <dc:date>${escapeXML(date)}</dc:date>
     <meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d+Z$/, "Z")}</meta>
+    <meta property="schema:accessMode">text</meta>
+    <meta property="schema:accessModeSufficient">textual</meta>
+    <meta property="schema:accessibilityFeature">readingOrder</meta>
+    <meta property="schema:accessibilityFeature">structuralNavigation</meta>
+    <meta property="schema:accessibilityHazard">none</meta>
+    <meta property="schema:accessibilitySummary">The publication contains text and images.</meta>${coverMeta}
   </metadata>
   <manifest>
       ${manifestXml}
@@ -1094,16 +1429,6 @@ function generateUUIDv4() {
     const hex = [...rnd].map((b) => b.toString(16).padStart(2, "0")).join("");
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
-
-
-
-
-
-
-
-
-
-
 
 </script>
 
