@@ -1,0 +1,779 @@
+/* ============================================
+   ТЁМНАЯ ТЕМА - УНИВЕРСАЛЬНЫЙ ФАЙЛ
+   ============================================ */
+
+/* --- ОСНОВНЫЕ ЭЛЕМЕНТЫ --- */
+body.dark-theme {
+    background: #1a1a1a;
+    color: #e0e0e0;
+}
+
+body.dark-theme a:not(.btn):not(.nav-link):not(.dropdown-item):not(.page-link) {
+    color: #66b0ff;
+}
+
+body.dark-theme a:not(.btn):not(.nav-link):not(.dropdown-item):not(.page-link):hover {
+    color: #99ccff;
+}
+
+/* --- КАРТОЧКИ --- */
+body.dark-theme .card {
+    background: #2d2d2d;
+    border-color: #404040;
+}
+
+body.dark-theme .card-header {
+    background: #3d3d3d;
+    border-bottom-color: #404040;
+    color: #e0e0e0;
+}
+
+
+body.dark-theme .col-md-8 {
+    background: #3d3d3d;
+    border-bottom-color: #404040;
+    color: #e0e0e0;
+}
+
+body.dark-theme .card-footer {
+    background: #3d3d3d;
+    border-top-color: #404040;
+}
+
+body.dark-theme .card-title {
+    color: #e0e0e0;
+}
+
+body.dark-theme .card-text {
+    color: #b0b0b0;
+}
+
+body.dark-theme .card-text a {
+    color: #66b0ff;
+}
+
+body.dark-theme .card-text a:hover {
+    color: #99ccff;
+}
+
+/* --- ЗАГОЛОВКИ В БОКОВЫХ ПАНЕЛЯХ --- */
+body.dark-theme .card-title .text-primary,
+body.dark-theme .card-title .text-success,
+body.dark-theme .card-title .text-warning,
+body.dark-theme .card-title .text-info,
+body.dark-theme .card-title .text-danger {
+    color: inherit !important;
+}
+
+body.dark-theme .card-title i {
+    color: #66b0ff !important;
+}
+
+body.dark-theme .card-title .fa-search { color: #66b0ff !important; }
+body.dark-theme .card-title .fa-bolt { color: #ffc107 !important; }
+body.dark-theme .card-title .fa-chart-bar { color: #5cb85c !important; }
+
+/* --- ТАБЛИЦЫ --- */
+body.dark-theme .table {
+    color: #e0e0e0;
+}
+
+body.dark-theme .table-light {
+    background: #3d3d3d;
+    color: #e0e0e0;
+}
+
+body.dark-theme .table {
+    --bs-table-bg: #2b2b2b !important;       /* Основной фон таблицы (замените на нужный темный) */
+    --bs-table-striped-bg: #333333 !important; /* Фон для зебры (table-striped), если используется */
+    --bs-table-border-color: #404040 !important; /* Цвет границ */
+    color: #e0e0e0 !important;
+}
+
+
+body.dark-theme .table-striped tbody tr:nth-of-type(odd) {
+    background: #333;
+}
+
+body.dark-theme .table td,
+body.dark-theme .table th {
+    border-color: #404040;
+}
+
+
+
+
+
+/* --- ФОРМЫ --- */
+body.dark-theme .form-control,
+body.dark-theme .form-select {
+    background: #3d3d3d;
+    color: #e0e0e0;
+    border-color: #404040;
+}
+
+body.dark-theme .form-control:focus,
+body.dark-theme .form-select:focus {
+    background: #3d3d3d;
+    color: #e0e0e0;
+    border-color: #66b0ff;
+    box-shadow: 0 0 0 0.2rem rgba(102, 176, 255, 0.25);
+}
+
+body.dark-theme .form-control::placeholder {
+    color: #888;
+}
+
+body.dark-theme .form-label {
+    color: #e0e0e0;
+}
+
+body.dark-theme .form-text {
+    color: #888 !important;
+}
+
+/* --- АЛЕРТЫ --- */
+body.dark-theme .alert-info {
+    background: #2d3d4d;
+    color: #b0d0e0;
+    border-color: #1a2a3a;
+}
+
+body.dark-theme .alert-warning {
+    background: #4d3d2d;
+    color: #e0d0b0;
+    border-color: #3a2a1a;
+}
+
+body.dark-theme .alert-success {
+    background: #2d4d3d;
+    color: #b0e0d0;
+    border-color: #1a3a2a;
+}
+
+body.dark-theme .alert-danger {
+    background: #4d2d2d;
+    color: #e0b0b0;
+    border-color: #3a1a1a;
+}
+
+body.dark-theme .alert-light {
+    background: #2d2d2d;
+    color: #e0e0e0;
+    border-color: #404040;
+}
+
+body.dark-theme .alert-dark {
+    background: #1a1a1a;
+    color: #e0e0e0;
+    border-color: #333;
+}
+
+/* --- ПАГИНАЦИЯ --- */
+body.dark-theme .pagination .page-link {
+    background: #3d3d3d;
+    color: #b0b0b0;
+    border-color: #404040;
+}
+
+body.dark-theme .pagination .page-link:hover {
+    background: #4d4d4d;
+    color: #fff;
+}
+
+body.dark-theme .pagination .page-item.active .page-link {
+    background: #007bff;
+    border-color: #007bff;
+    color: #fff;
+}
+
+body.dark-theme .pagination .page-item.disabled .page-link {
+    background: #333;
+    color: #666;
+    border-color: #404040;
+}
+
+/* --- БЭЙДЖИ --- */
+body.dark-theme .badge.bg-light {
+    background: #3d3d3d !important;
+    color: #e0e0e0 !important;
+    border-color: #404040;
+}
+
+body.dark-theme .badge.bg-secondary {
+    background: #555 !important;
+}
+
+body.dark-theme .badge.bg-primary {
+    background: #0066cc !important;
+}
+
+body.dark-theme .badge.bg-success {
+    background: #2d7d2d !important;
+}
+
+body.dark-theme .badge.bg-danger {
+    background: #8b2d2d !important;
+}
+
+body.dark-theme .badge.bg-warning {
+    background: #8b7d2d !important;
+    color: #e0d0b0 !important;
+}
+
+body.dark-theme .badge.bg-info {
+    background: #2d5d7d !important;
+}
+
+/* --- СПИСКИ --- */
+body.dark-theme .list-group-item {
+    background: #2d2d2d;
+    color: #e0e0e0;
+    border-color: #404040;
+}
+
+body.dark-theme .list-group-item:hover {
+    background: #3d3d3d;
+}
+
+body.dark-theme .list-group-item-action {
+    color: #e0e0e0;
+}
+
+body.dark-theme .list-group-item-action:hover {
+    background: #3d3d3d;
+    color: #fff;
+}
+
+/* --- КНОПКИ --- */
+body.dark-theme .btn-outline-secondary {
+    color: #b0b0b0;
+    border-color: #404040;
+}
+
+body.dark-theme .btn-outline-secondary:hover {
+    background: #404040;
+    color: #fff;
+}
+
+body.dark-theme .btn-outline-primary {
+    color: #66b0ff;
+    border-color: #66b0ff;
+}
+
+body.dark-theme .btn-outline-primary:hover {
+    background: #66b0ff;
+    color: #1a1a1a;
+}
+
+body.dark-theme .btn-outline-success {
+    color: #5cb85c;
+    border-color: #5cb85c;
+}
+
+body.dark-theme .btn-outline-success:hover {
+    background: #5cb85c;
+    color: #1a1a1a;
+}
+
+body.dark-theme .btn-outline-danger {
+    color: #d9534f;
+    border-color: #d9534f;
+}
+
+body.dark-theme .btn-outline-danger:hover {
+    background: #d9534f;
+    color: #1a1a1a;
+}
+
+body.dark-theme .btn-outline-info {
+    color: #5bc0de;
+    border-color: #5bc0de;
+}
+
+body.dark-theme .btn-outline-info:hover {
+    background: #5bc0de;
+    color: #1a1a1a;
+}
+
+body.dark-theme .btn-outline-warning {
+    color: #f0ad4e;
+    border-color: #f0ad4e;
+}
+
+body.dark-theme .btn-outline-warning:hover {
+    background: #f0ad4e;
+    color: #1a1a1a;
+}
+
+body.dark-theme .btn-light {
+    background: #3d3d3d;
+    color: #e0e0e0;
+    border-color: #404040;
+}
+
+body.dark-theme .btn-light:hover {
+    background: #4d4d4d;
+    color: #fff;
+}
+
+body.dark-theme .btn-secondary {
+    background: #555;
+    border-color: #555;
+    color: #e0e0e0;
+}
+
+body.dark-theme .btn-secondary:hover {
+    background: #666;
+    border-color: #666;
+    color: #fff;
+}
+
+/* --- ТЕКСТ --- */
+body.dark-theme .text-muted {
+    color: #b0b0b0 !important;
+}
+
+body.dark-theme .text-dark {
+    color: #e0e0e0 !important;
+}
+
+body.dark-theme .text-secondary {
+    color: #b0b0b0 !important;
+}
+
+body.dark-theme .text-body {
+    color: #e0e0e0 !important;
+}
+
+/* --- ГРАНИЦЫ --- */
+body.dark-theme .border {
+    border-color: #404040 !important;
+}
+
+body.dark-theme .border-bottom {
+    border-bottom-color: #404040 !important;
+}
+
+body.dark-theme .border-top {
+    border-top-color: #404040 !important;
+}
+
+body.dark-theme .border-start {
+    border-left-color: #404040 !important;
+}
+
+body.dark-theme .border-end {
+    border-right-color: #404040 !important;
+}
+
+body.dark-theme .border-light {
+    border-color: #404040 !important;
+}
+
+/* --- РАЗДЕЛИТЕЛИ --- */
+body.dark-theme hr {
+    border-color: #404040;
+}
+
+body.dark-theme .dropdown-divider {
+    border-color: #404040;
+}
+
+/* --- ТЕНИ --- */
+body.dark-theme .shadow-sm {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+body.dark-theme .shadow {
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* --- СКРОЛЛБАР --- */
+body.dark-theme ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+body.dark-theme ::-webkit-scrollbar-track {
+    background: #2d2d2d;
+}
+
+body.dark-theme ::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 5px;
+}
+
+body.dark-theme ::-webkit-scrollbar-thumb:hover {
+    background: #777;
+}
+
+/* --- СТАТИСТИКА (stats.php) --- */
+body.dark-theme .text-gray-800 {
+    color: #e0e0e0 !important;
+}
+
+body.dark-theme .font-weight-bold.text-gray-800 {
+    color: #e0e0e0 !important;
+}
+
+body.dark-theme .text-xs.font-weight-bold {
+    color: #b0b0b0 !important;
+}
+
+body.dark-theme .text-primary {
+    color: #66b0ff !important;
+}
+
+body.dark-theme .text-success {
+    color: #5cb85c !important;
+}
+
+body.dark-theme .text-warning {
+    color: #f0ad4e !important;
+}
+
+body.dark-theme .text-danger {
+    color: #d9534f !important;
+}
+
+body.dark-theme .text-info {
+    color: #5bc0de !important;
+}
+
+body.dark-theme .border-left-primary {
+    border-left-color: #66b0ff !important;
+}
+
+body.dark-theme .border-left-success {
+    border-left-color: #5cb85c !important;
+}
+
+body.dark-theme .border-left-warning {
+    border-left-color: #f0ad4e !important;
+}
+
+body.dark-theme .border-left-danger {
+    border-left-color: #d9534f !important;
+}
+
+/* --- book_detail.php --- */
+body.dark-theme .book-description {
+    color: #e0e0e0;
+}
+
+body.dark-theme .breadcrumb-item {
+    color: #b0b0b0;
+}
+
+body.dark-theme .breadcrumb-item a {
+    color: #66b0ff;
+}
+
+body.dark-theme .breadcrumb-item.active {
+    color: #b0b0b0;
+}
+
+body.dark-theme .breadcrumb-item::before {
+    color: #666;
+}
+
+/* --- favorites.php, top_rated.php, bookmarks.php --- */
+body.dark-theme .table thead th {
+    color: #e0e0e0;
+    background: #3d3d3d;
+    border-color: #404040;
+}
+
+body.dark-theme .table tbody td {
+    color: #d0d0d0;
+    border-color: #404040;
+}
+
+body.dark-theme .table tbody tr {
+    background: #2d2d2d;
+}
+
+body.dark-theme .table tbody tr:hover {
+    background: #3d3d3d;
+}
+
+body.dark-theme .table .text-muted {
+    color: #b0b0b0 !important;
+}
+
+/* --- СТРАНИЦА КНИГИ (book_detail.php) --- */
+body.dark-theme .card.bg-light {
+    background: #2d2d2d !important;
+}
+
+body.dark-theme .bg-light {
+    background: #2d2d2d !important;
+}
+
+body.dark-theme .bg-white {
+    background: #2d2d2d !important;
+}
+
+body.dark-theme .bg-transparent {
+    background: transparent !important;
+}
+
+body.dark-theme .btn-outline-primary {
+    color: #66b0ff;
+    border-color: #66b0ff;
+}
+
+body.dark-theme .btn-outline-primary:hover {
+    background: #66b0ff;
+    color: #1a1a1a;
+}
+
+body.dark-theme .btn-outline-secondary {
+    color: #b0b0b0;
+    border-color: #404040;
+}
+
+body.dark-theme .btn-outline-secondary:hover {
+    background: #404040;
+    color: #fff;
+}
+
+body.dark-theme .btn-outline-danger {
+    color: #d9534f;
+    border-color: #d9534f;
+}
+
+body.dark-theme .btn-outline-danger:hover {
+    background: #d9534f;
+    color: #1a1a1a;
+}
+
+/* --- АДАПТИВНЫЕ КНОПКИ НА ОБЛОЖКЕ (тёмная тема) --- */
+body.dark-theme .cover-actions {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+body.dark-theme .cover-actions .btn-success {
+    background: #28a745;
+    border-color: #28a745;
+}
+
+body.dark-theme .cover-actions .btn-success:hover {
+    background: #218838;
+    border-color: #1e7e34;
+}
+
+body.dark-theme .cover-actions .btn-primary {
+    background: #007bff;
+    border-color: #007bff;
+}
+
+body.dark-theme .cover-actions .btn-primary:hover {
+    background: #0069d9;
+    border-color: #0062cc;
+}
+
+body.dark-theme .cover-actions .btn-danger {
+    background: #dc3545;
+    border-color: #dc3545;
+}
+
+body.dark-theme .cover-actions .btn-danger:hover {
+    background: #c82333;
+    border-color: #bd2130;
+}
+
+body.dark-theme .cover-actions .btn-outline-danger {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
+body.dark-theme .cover-actions .btn-outline-danger:hover {
+    background: #dc3545;
+    color: #fff;
+}
+
+/* --- ПОИСК В BOOK_DETAIL --- */
+body.dark-theme .search-form .form-control {
+    background: #3d3d3d;
+    color: #e0e0e0;
+    border-color: #404040;
+}
+
+body.dark-theme .search-form .btn-primary {
+    background: #007bff;
+    border-color: #007bff;
+}
+
+body.dark-theme .search-form .btn-primary:hover {
+    background: #0069d9;
+    border-color: #0062cc;
+}
+
+/* --- ОБЛОЖКИ В ТЁМНОЙ ТЕМЕ --- */
+body.dark-theme .book-cover-placeholder {
+    background: #3d3d3d;
+}
+
+body.dark-theme .book-cover-placeholder i {
+    color: #666;
+}
+
+body.dark-theme .book-cover-placeholder .text-muted {
+    color: #888 !important;
+}
+
+/* --- ПРОГРЕСС-БАР --- */
+body.dark-theme .progress {
+    background: #3d3d3d;
+}
+
+body.dark-theme .progress-bar {
+    background: #007bff;
+}
+
+/* --- ЧИТАЛКА (reader.php) --- */
+body.dark-theme .reader-wrapper {
+    background: #1a1a1a;
+}
+
+body.dark-theme .reader-container {
+    background: #1a1a1a;
+}
+
+body.dark-theme .reader-controls {
+    background: #2d2d2d;
+    border-top-color: #404040;
+}
+
+body.dark-theme .settings-panel {
+    background: #2d2d2d;
+    color: #e0e0e0;
+    border-color: #404040;
+}
+
+body.dark-theme .settings-panel-header {
+    border-bottom-color: #404040;
+}
+
+body.dark-theme .settings-panel .form-select {
+    background: #3d3d3d;
+    color: #e0e0e0;
+    border-color: #404040;
+}
+
+/* ============================================
+   ФИЛЬТР ПО ЖАНРАМ
+   ============================================ */
+
+.genres-filter .card-body {
+    padding: 12px 14px;
+}
+
+.genre-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    margin-top: 4px;
+}
+
+.genre-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 20px;
+    color: #495057;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.genre-tag:hover {
+    background: #e9ecef;
+    border-color: #dee2e6;
+    color: #007bff;
+    transform: translateY(-1px);
+    text-decoration: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.genre-tag.active {
+    background: #007bff;
+    border-color: #007bff;
+    color: #fff;
+}
+
+.genre-tag.active:hover {
+    background: #0069d9;
+    border-color: #0062cc;
+    color: #fff;
+}
+
+.genre-tag .genre-count {
+    font-size: 0.6rem;
+    background: rgba(0,0,0,0.08);
+    padding: 0 5px;
+    border-radius: 10px;
+    font-weight: 600;
+    min-width: 18px;
+    text-align: center;
+}
+
+.genre-tag.active .genre-count {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+}
+
+/* Тёмная тема для фильтра жанров */
+body.dark-theme .genre-tag {
+    background: #3d3d3d;
+    border-color: #404040;
+    color: #b0b0b0;
+}
+
+body.dark-theme .genre-tag:hover {
+    background: #4d4d4d;
+    border-color: #555;
+    color: #66b0ff;
+}
+
+body.dark-theme .genre-tag.active {
+    background: #007bff;
+    border-color: #007bff;
+    color: #fff;
+}
+
+body.dark-theme .genre-tag.active:hover {
+    background: #0069d9;
+    border-color: #0062cc;
+}
+
+body.dark-theme .genre-tag .genre-count {
+    background: rgba(255,255,255,0.1);
+}
+
+body.dark-theme .genre-tag.active .genre-count {
+    background: rgba(255,255,255,0.2);
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .genre-cloud {
+        gap: 4px 6px;
+    }
+    
+    .genre-tag {
+        padding: 2px 8px;
+        font-size: 0.8rem !important;
+    }
+    
+    .genre-tag .genre-count {
+        font-size: 0.5rem;
+        min-width: 14px;
+    }
+}
