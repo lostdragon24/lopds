@@ -30,6 +30,7 @@ int create_archive_table(DatabaseHandle *db_handle, Config *config);
 int create_ratings_table(DatabaseHandle *db_handle, Config *config);
 int create_favorites_table(DatabaseHandle *db_handle, Config *config);
 int create_bookmarks_table(DatabaseHandle *db_handle, Config *config);
+int create_books_fts_table(DatabaseHandle *db_handle, Config *config);
 int create_bookmarks_fts_table(DatabaseHandle *db_handle, Config *config);
 int create_bookmark_tags_table(DatabaseHandle *db_handle, Config *config);
 int create_reading_history_table(DatabaseHandle *db_handle, Config *config);
