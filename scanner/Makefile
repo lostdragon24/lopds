@@ -60,7 +60,15 @@ SRCS = main.c config.c database.c scanner.c metadata.c utils.c \
        path_validation.c
 OBJS = $(SRCS:.c=.o)
 TARGET = book_scanner
-LIBS = -lsqlite3 -larchive -lssl -lcrypto -liconv
+# Автоопределение ОС для корректной линковки iconv
+OS := $(shell uname -s)
+
+LIBS = -lsqlite3 -larchive -lssl -lcrypto
+
+# На macOS или других системах, где iconv идет отдельной библиотекой, добавляем флаг
+ifneq ($(OS),Linux)
+    LIBS += -liconv
+endif
 
 # ============================================================================
 # ПРАВИЛА СБОРКИ
