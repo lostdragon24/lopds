@@ -2,6 +2,7 @@
 #include "common.h"
 #include "database_mysql.h"
 #include "utils.h"
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -513,6 +514,89 @@ int create_bookmarks_table(DatabaseHandle *db_handle, Config *config) {
     log_message(config, "ERROR",
                 "Unknown database type in create bookmarks table: %d",
                 db_handle->db_type);
+    return 0;
+  }
+
+  if (!create_books_fts_table(db_handle, config)) {
+    return 0;
+  }
+
+  return 1;
+}
+
+int create_books_fts_table(DatabaseHandle *db_handle, Config *config) {
+  if (!db_handle || !db_handle->connection) {
+    log_message(config, "ERROR",
+                "No database connection for creating bookmarks table");
+    return 0;
+  }
+
+  switch (db_handle->db_type) {
+  case DB_SQLITE: {
+    const char *create_books_fts_sql =
+        "CREATE VIRTUAL  TABLE IF NOT EXISTS books_fts USING fts5("
+        "    title,"
+        "    author,"
+        "    genre,"
+        "    series,"
+        "    publisher,"
+        "    description,"
+        "    content='books',"
+        "    content_rowid='id'"
+        ");";
+
+    if (!db_execute(db_handle, create_books_fts_sql, config)) {
+      log_message(config, "ERROR", "Book to create books_fts table");
+      return 0;
+    }
+
+    log_message(config, "DEBUG", "books_fts table created successfully");
+
+    const char *books_ai =
+        "CREATE TRIGGER IF NOT EXISTS books_ai AFTER INSERT ON books BEGIN "
+        "INSERT INTO books_fts(rowid, title, author, genre, series, publisher, "
+        "description) VALUES (new.id, new.title, new.author, new.genre, "
+        "new.series, new.publisher, new.description);END;";
+    if (!db_execute(db_handle, books_ai, config)) {
+      log_message(config, "WARNING", "Failed to create books_ai index");
+    }
+
+    const char *books_ad =
+        "CREATE TRIGGER IF NOT EXISTS books_ad AFTER DELETE ON books BEGIN "
+        "INSERT INTO books_fts(books_fts, rowid, title, author, genre, series, "
+        "publisher, description) VALUES ('delete', old.id, old.title, "
+        "old.author, old.genre, old.series, old.publisher, old.description); "
+        "END;";
+    if (!db_execute(db_handle, books_ad, config)) {
+      log_message(config, "WARNING", "Failed to create books_ad index");
+    }
+
+    const char *books_au =
+        "CREATE TRIGGER IF NOT EXISTS books_au AFTER UPDATE ON books BEGIN "
+        "INSERT INTO books_fts(books_fts, rowid, title, author, genre, series, "
+        "publisher, description) VALUES ('delete', old.id, old.title, "
+        "old.author, old.genre, old.series, old.publisher, old.description); "
+        "INSERT INTO books_fts(rowid, title, author, genre, series, publisher, "
+        "description) VALUES (new.id, new.title, new.author, new.genre, "
+        "new.series, new.publisher, new.description); END;";
+    if (!db_execute(db_handle, books_au, config)) {
+      log_message(config, "WARNING", "Failed to create books_au index");
+    }
+
+    break;
+  }
+
+  case DB_MYSQL:
+    return mysql_create_books_fts_table(
+        (MySQLConnection *)db_handle->connection, config);
+  default:
+    log_message(config, "ERROR",
+                "Unknown database type in create books table: %d",
+                db_handle->db_type);
+    return 0;
+  }
+
+  if (!create_bookmark_tags_table(db_handle, config)) {
     return 0;
   }
 
@@ -1504,7 +1588,7 @@ BookRecord *find_book_by_title_author(DatabaseHandle *db_handle,
     // Биндим параметры
     MYSQL_BIND bind[2];
     unsigned long lengths[2];
-    mysql_bool_t is_null[2] = {0, 0};
+    bool is_null[2] = {false, false};
     memset(bind, 0, sizeof(bind));
 
     lengths[0] = strlen(title);
@@ -1546,7 +1630,7 @@ BookRecord *find_book_by_title_author(DatabaseHandle *db_handle,
 
     MYSQL_BIND result_bind[4];
     unsigned long result_lengths[4];
-    mysql_bool_t result_is_null[4];
+    bool result_is_null[4];
     memset(result_bind, 0, sizeof(result_bind));
 
     int id = 0;
@@ -1864,8 +1948,8 @@ void update_book_in_db(DatabaseHandle *db_handle, int book_id, BookMeta *meta,
     // Подготовка параметров
     MYSQL_BIND bind[13];
     unsigned long lengths[13];
-    mysql_bool_t is_null[13] = {MYSQL_BOOL_FALSE};
-    mysql_bool_t false_val = MYSQL_BOOL_FALSE;
+    bool is_null[13] = {false};
+    bool false_val = false;
 
     memset(bind, 0, sizeof(bind));
     memset(lengths, 0, sizeof(lengths));
