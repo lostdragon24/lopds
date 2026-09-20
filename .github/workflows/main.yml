@@ -1,0 +1,91 @@
+name: Build RPM Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: # Позволяет запускать сборку вручную из интерфейса GitHub
+
+jobs:
+  build-rpm:
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:latest
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          # Установка компилятора, утилит RPM и всех библиотек из вашего Makefile
+          dnf install -y git make gcc rpm-build rpmdevtools \
+            sqlite-devel libarchive-devel openssl-devel mariadb-devel
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Prepare RPM build directories
+        run: |
+          rpmdev-setuptree
+          PROJECT_NAME="lopds-scanner"
+          VERSION=${GITHUB_REF_NAME#v} # Извлекает '1.0.0' из тега 'v1.0.0'
+          if [ "$VERSION" = "main" ] || [ -z "$VERSION" ]; then VERSION="0.0.1"; fi
+          
+          mkdir -p "/tmp/${PROJECT_NAME}-${VERSION}"
+          cp -r scanner/* "/tmp/${PROJECT_NAME}-${VERSION}/"
+          cd /tmp && tar --exclude='.git' -czf "${HOME}/rpmbuild/SOURCES/${PROJECT_NAME}-${VERSION}.tar.gz" "${PROJECT_NAME}-${VERSION}"
+
+      - name: Create RPM Spec File
+        run: |
+          PROJECT_NAME="lopds-scanner"
+          VERSION=${GITHUB_REF_NAME#v}
+          if [ "$VERSION" = "main" ] || [ -z "$VERSION" ]; then VERSION="0.0.1"; fi
+
+          cat << 'EOF' > ${HOME}/rpmbuild/SPECS/${PROJECT_NAME}.spec
+          Name:           lopds-scanner
+          Version:        %{_version}
+          Release:        1%{?dist}
+          Summary:        Scanner component for lopds
+          License:        MIT
+          URL:            https://github.com
+          Source0:        %{name}-%{version}.tar.gz
+
+          # Явно указываем зависимости сборочной среды внутри RPM
+          BuildRequires:  make, gcc, sqlite-devel, libarchive-devel, openssl-devel, mariadb-devel
+          # Зависимости, которые должны быть у пользователя для запуска бинарника
+          Requires:       sqlite, libarchive, openssl, mariadb-connector-c
+
+          %description
+          Scanner component written in pure C for the lopds project.
+
+          %prep
+          %setup -q
+
+          %build
+          # Вызываем цель release из вашего Makefile
+          make release %{?_smp_mflags}
+
+          %install
+          rm -rf $RPM_BUILD_ROOT
+          mkdir -p $RPM_BUILD_ROOT%{_bindir}
+          # Копируем созданный book_scanner в директорию билда RPM
+          install -m 755 book_scanner $RPM_BUILD_ROOT%{_bindir}/book_scanner
+
+          %files
+          %{_bindir}/book_scanner
+
+          %changelog
+          * Sun Sep 20 2026 GitHub Actions <actions@github.com> - %{_version}-1
+          - Automated RPM build
+          EOF
+          
+          # Подставляем реальную версию в spec-файл
+          sed -i "s/%{_version}/${VERSION}/g" ${HOME}/rpmbuild/SPECS/${PROJECT_NAME}.spec
+
+      - name: Build RPM
+        run: |
+          rpmbuild -ba ${HOME}/rpmbuild/SPECS/lopds-scanner.spec
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: lopds-scanner-rpm
+          path: /root/rpmbuild/RPMS/*/*.rpm
