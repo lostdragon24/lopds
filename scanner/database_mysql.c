@@ -183,7 +183,7 @@ int mysql_create_tables(MySQLConnection *mysql_conn, Config *config) {
       "    INDEX idx_added_date (added_date),"
       "    INDEX idx_file_type (file_type),"
       "    INDEX idx_year (year),"
-      "    FULLTEXT INDEX ft_search (title, author, genre, series)"
+      "    FULLTEXT INDEX ft_search (title, author, genre, series, description)"
       ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
   if (!mysql_execute_query(mysql_conn, create_books_table, config)) {
@@ -332,6 +332,25 @@ int mysql_create_bookmark_tags_table(MySQLConnection *mysql_conn,
 
   if (!mysql_execute_query(mysql_conn, query, config)) {
     return 0;
+  }
+
+  if (!mysql_create_books_fts_table(mysql_conn, config)) {
+    return 0;
+  }
+
+  return 1;
+}
+
+int mysql_create_books_fts_table(MySQLConnection *mysql_conn, Config *config) {
+  // Для MySQL используем FULLTEXT индекс прямо в таблице bookmarks
+  const char *query = "ALTER TABLE books "
+                      "ADD FULLTEXT INDEX ft_books_search (title, "
+                      "author, genre, series, publisher, description)";
+
+  // Пробуем добавить FULLTEXT индекс (если его нет)
+  if (!mysql_execute_query(mysql_conn, query, config)) {
+    // Если индекс уже есть, ошибку игнорируем
+    log_message(config, "DEBUG", "FULLTEXT index may already exist");
   }
 
   if (!mysql_create_bookmarks_fts_table(mysql_conn, config)) {
@@ -562,8 +581,8 @@ void mysql_update_archive_info(MySQLConnection *mysql_conn,
 
   MYSQL_BIND bind[5];
   unsigned long lengths[5];
-  mysql_bool_t is_null[5] = {0};
-  mysql_bool_t false_val = 0;
+  bool is_null[5] = {0};
+  bool false_val = 0;
 
   memset(bind, 0, sizeof(bind));
 
@@ -982,6 +1001,10 @@ void mysql_insert_book(MySQLConnection *mysql_conn, const char *filepath,
   char sql[32768]; // Увеличиваем буфер
   int len = 0;
   int written;
+
+  // size_t sql_size =
+  //     4096 + (meta->description ? strlen(meta->description) * 2 + 1 : 0);
+  // char *sql = malloc(sql_size);
 
   written =
       snprintf(sql + len, sizeof(sql) - len,
