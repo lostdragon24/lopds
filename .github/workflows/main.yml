@@ -26,17 +26,28 @@ jobs:
           rpmdev-setuptree
           PROJECT_NAME="lopds-scanner"
           VERSION=${GITHUB_REF_NAME#v}
-          if [ "$VERSION" = "main" ] || [ -z "$VERSION" ]; then VERSION="0.0.1"; fi
+          if [ "$VERSION" = "main" ] || [ -z "$VERSION" ]; then VERSION="0.1.16"; fi
           
           mkdir -p "/tmp/${PROJECT_NAME}-${VERSION}"
           cp -r scanner/* "/tmp/${PROJECT_NAME}-${VERSION}/"
-          cd /tmp && tar --exclude='.git' -czf "${HOME}/rpmbuild/SOURCES/${PROJECT_NAME}-${VERSION}.tar.gz" "${PROJECT_NAME}-${VERSION}"
+          
+          # === ТРЮК: Исправляем Makefile и совместимость типов на лету ===
+          cd "/tmp/${PROJECT_NAME}-${VERSION}"
+          # Удаляем -liconv из Makefile, так как под Linux он встроен в glibc
+          sed -i 's/-liconv//g' Makefile
+          # Внедряем совместимость типов my_bool в заголовочный файл database.h
+          if [ -f database.h ]; then
+            sed -i '/#define/a #include <mysql.h>\ntypedef my_bool mysql_bool_t;' database.h
+          fi
+          
+          cd /tmp
+          tar --exclude='.git' -czf "${HOME}/rpmbuild/SOURCES/${PROJECT_NAME}-${VERSION}.tar.gz" "${PROJECT_NAME}-${VERSION}"
 
       - name: Create RPM Spec File
         run: |
           PROJECT_NAME="lopds-scanner"
           VERSION=${GITHUB_REF_NAME#v}
-          if [ "$VERSION" = "main" ] || [ -z "$VERSION" ]; then VERSION="0.0.1"; fi
+          if [ "$VERSION" = "main" ] || [ -z "$VERSION" ]; then VERSION="0.1.16"; fi
 
           cat << 'EOF' > ${HOME}/rpmbuild/SPECS/${PROJECT_NAME}.spec
           Name:           lopds-scanner
@@ -57,8 +68,8 @@ jobs:
           %setup -q
 
           %build
-          # Передаем EXTRA_CFLAGS, чтобы подавить строгое приведение типов для старых MySQL API
-          make release EXTRA_CFLAGS="-Wno-error=incompatible-pointer-types" %{?_smp_mflags}
+          # Теперь сборка пойдет в чистом режиме без дополнительных флагов отладки
+          make release %{?_smp_mflags}
 
           %install
           rm -rf %{buildroot}
@@ -70,7 +81,7 @@ jobs:
 
           %changelog
           * Sun Sep 20 2026 GitHub Actions <actions@github.com> - %{_version}-1
-          - Automated RPM build with MySQL type-mismatch bypass
+          - Automated patch for iconv and mysql types, successful RPM build
           EOF
           
           sed -i "s/%{_version}/${VERSION}/g" ${HOME}/rpmbuild/SPECS/${PROJECT_NAME}.spec
