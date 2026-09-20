@@ -28,29 +28,9 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           if [ "$VERSION" = "main" ] || [ -z "$VERSION" ]; then VERSION="0.1.16"; fi
           
+          # Просто копируем файлы вашего репозитория без каких-либо изменений кода
           mkdir -p "/tmp/${PROJECT_NAME}-${VERSION}"
           cp -r scanner/* "/tmp/${PROJECT_NAME}-${VERSION}/"
-          
-          cd "/tmp/${PROJECT_NAME}-${VERSION}"
-          
-          # === ЖЕСТКИЙ АВТО-ФИКС ТИПОВ MYSQL В ИСХОДНОМ КОДЕ ===
-          # 1. Удаляем дублирующее объявление mysql_bool_t из database_mysql.h
-          if [ -f database_mysql.h ]; then
-            sed -i '/typedef bool mysql_bool_t;/d' database_mysql.h
-          fi
-          
-          # 2. Добавляем недостающие прототипы функций в database.h
-          if [ -f database.h ]; then
-            echo "int create_books_fts_table(DatabaseHandle * db_handle, Config * config);" >> database.h
-            echo "int mysql_create_books_fts_table(MySQLConnection * mysql_conn, Config * config);" >> database.h
-          fi
-          
-          # 3. Трансформируем bool в my_bool внутри database.c и database_mysql.c для совместимости с MySQL API
-          # Заменяем массивы флагов is_null
-          sed -i 's/bool is_null\[/my_bool is_null\[/g' database.c database_mysql.c 2>/dev/null || true
-          sed -i 's/bool result_is_null\[/my_bool result_is_null\[/g' database.c database_mysql.c 2>/dev/null || true
-          # Заменяем переменную false_val
-          sed -i 's/bool false_val =/my_bool false_val =/g' database.c database_mysql.c 2>/dev/null || true
           
           cd /tmp
           tar --exclude='.git' -czf "${HOME}/rpmbuild/SOURCES/${PROJECT_NAME}-${VERSION}.tar.gz" "${PROJECT_NAME}-${VERSION}"
@@ -62,12 +42,8 @@ jobs:
           if [ "$VERSION" = "main" ] || [ -z "$VERSION" ]; then VERSION="0.1.16"; fi
 
           cat << 'EOF' > ${HOME}/rpmbuild/SPECS/${PROJECT_NAME}.spec
-          # Отключаем генерацию отладочных пакетов
+          # Фикс ошибки Empty %files file debugsourcefiles.list
           %define debug_package %{nil}
-          
-          # Отключаем строгие проверки файлов сборщиком RPM
-          %define _undefine_Id_missing 1
-          %define __check_files %{nil}
           
           Name:           lopds-scanner
           Version:        %{_version}
@@ -87,7 +63,7 @@ jobs:
           %setup -q
 
           %build
-          # Вызываем сборку в чистом виде, так как типы данных уже исправлены в коде
+          # Чистая сборка вашего готового репозитория
           make release %{?_smp_mflags}
 
           %install
@@ -100,7 +76,7 @@ jobs:
 
           %changelog
           * Sun Sep 20 2026 GitHub Actions <actions@github.com> - %{_version}-1
-          - Hardcoded native conversion of bool to my_bool for MySQL API and built RPM
+          - Clean automated RPM build from fixed repository source
           EOF
           
           sed -i "s/%{_version}/${VERSION}/g" ${HOME}/rpmbuild/SPECS/${PROJECT_NAME}.spec
