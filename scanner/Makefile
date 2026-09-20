@@ -65,8 +65,20 @@ OS := $(shell uname -s)
 
 LIBS = -lsqlite3 -larchive -lssl -lcrypto
 
-# На macOS или других системах, где iconv идет отдельной библиотекой, добавляем флаг
-ifneq ($(OS),Linux)
+LIBS = -lsqlite3 -larchive -lssl -lcrypto
+
+# === НАСТРОЙКА ICONV (СОВМЕСТИМОСТЬ) ===
+ifeq ($(OS),Linux)
+    # Проверяем, существует ли заголовочный файл от собранного из исходников iconv
+    ifneq ($(wildcard /usr/local/include/iconv.h),)
+        # У вас установлена внешняя libiconv из исходников:
+        # Добавляем пути к ней и подменяем стандартные вызовы на lib-версии
+        CFLAGS += -I/usr/local/include -Diconv_t=libiconv_t -Diconv_open=libiconv_open -Diconv=libiconv -Diconv_close=libiconv_close
+        LIBS += -L/usr/local/lib -liconv
+        LDFLAGS += -Wl,-rpath,/usr/local/lib
+    endif
+else
+    # Настройки для macOS / других Unix систем
     LIBS += -liconv
 endif
 
