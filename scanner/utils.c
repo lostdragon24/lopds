@@ -619,7 +619,7 @@ char *extract_xml_tag(const char *xml, const char *tag_name) {
   snprintf(open_tag, sizeof(open_tag), "<%s>", tag_name);
   snprintf(close_tag, sizeof(close_tag), "</%s>", tag_name);
 
-  char *start = strstr(xml, open_tag);
+  const char *start = strstr(xml, open_tag);
   if (!start) {
     // Пробуем с атрибутами
     snprintf(open_tag, sizeof(open_tag), "<%s ", tag_name);
@@ -633,7 +633,7 @@ char *extract_xml_tag(const char *xml, const char *tag_name) {
     return NULL;
   start++;
 
-  char *end = strstr(start, close_tag);
+  const char *end = strstr(start, close_tag);
   if (!end)
     return NULL;
 
@@ -657,19 +657,19 @@ char *extract_xml_attribute(const char *xml, const char *tag_name,
   char search_tag[256];
   snprintf(search_tag, sizeof(search_tag), "<%s", tag_name);
 
-  char *tag_start = strstr(xml, search_tag);
+  const char *tag_start = strstr(xml, search_tag);
   if (!tag_start)
     return NULL;
 
   char attr_search[256];
   snprintf(attr_search, sizeof(attr_search), "%s=\"", attr_name);
 
-  char *attr_start = strstr(tag_start, attr_search);
+  const char *attr_start = strstr(tag_start, attr_search);
   if (!attr_start)
     return NULL;
 
   attr_start += strlen(attr_search);
-  char *attr_end = strchr(attr_start, '"');
+  const char *attr_end = strchr(attr_start, '"');
   if (!attr_end)
     return NULL;
 
