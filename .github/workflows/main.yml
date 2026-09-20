@@ -31,14 +31,6 @@ jobs:
           mkdir -p "/tmp/${PROJECT_NAME}-${VERSION}"
           cp -r scanner/* "/tmp/${PROJECT_NAME}-${VERSION}/"
           
-          cd "/tmp/${PROJECT_NAME}-${VERSION}"
-          
-          # === ТОЧЕЧНЫЙ ФИКС ТИПОВ ДЛЯ СТРУКТУР MYSQL BIND ===
-          # Заменяем bool на char в объявлениях, которые передаются по указателю в bind.is_null
-          sed -i 's/bool is_null\[/char is_null\[/g' database_mysql.c database.c 2>/dev/null || true
-          sed -i 's/bool false_val =/char false_val =/g' database_mysql.c database.c 2>/dev/null || true
-          sed -i 's/bool result_is_null\[/char result_is_null\[/g' database_mysql.c database.c 2>/dev/null || true
-          
           cd /tmp
           tar --exclude='.git' -czf "${HOME}/rpmbuild/SOURCES/${PROJECT_NAME}-${VERSION}.tar.gz" "${PROJECT_NAME}-${VERSION}"
 
@@ -70,6 +62,7 @@ jobs:
           %setup -q
 
           %build
+          # Вызываем чистую сборку проекта с исправленным вами кодом bool/my_bool
           make release %{?_smp_mflags}
 
           %install
@@ -96,4 +89,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lopds-scanner-rpm
-          path: /root/rpmbuild/RPMS/*/*.rpm
+          # ТРЮК: Используем папку через переменную окружения HOME, чтобы гарантировать нахождение RPM пакета
+          path: ~/rpmbuild/RPMS/*/*.rpm
