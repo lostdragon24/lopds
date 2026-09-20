@@ -4,25 +4,24 @@
 #include "config.h"
 #include "database.h"
 #include <mysql/mysql.h>
-#include <stdbool.h> // <-- нужен для типа bool в новых API
+#include <stdbool.h>
 
 #if (defined(MARIADB_BASE_VERSION) && defined(MYSQL_VERSION_ID) &&             \
-     MYSQL_VERSION_ID < 100200) ||                                             \
+     MYSQL_VERSION_ID < 101000) ||                                             \
     (!defined(MARIADB_BASE_VERSION) && defined(MYSQL_VERSION_ID) &&            \
      MYSQL_VERSION_ID < 80000)
 
-// Старые версии: MySQL < 8.0, MariaDB < 10.2
 typedef my_bool mysql_bool_t;
 #define MYSQL_BOOL_TRUE 1
 #define MYSQL_BOOL_FALSE 0
 
 #else
 
-// Современные версии: MySQL 8.0+, MariaDB 10.2+
-// Поле is_null в MYSQL_BIND теперь имеет тип bool *, а не char *
-typedef bool mysql_bool_t;
-#define MYSQL_BOOL_TRUE true
-#define MYSQL_BOOL_FALSE false
+// Для новых версий MySQL/MariaDB используем просто char,
+// так как они отказались от my_bool в пользу char/bool
+typedef char mysql_bool_t;
+#define MYSQL_BOOL_TRUE 1
+#define MYSQL_BOOL_FALSE 0
 
 #endif
 
@@ -46,6 +45,7 @@ int mysql_create_favorites_table(MySQLConnection *mysql_conn, Config *config);
 int mysql_create_bookmarks_table(MySQLConnection *mysql_conn, Config *config);
 int mysql_create_bookmark_tags_table(MySQLConnection *mysql_conn,
                                      Config *config);
+int mysql_create_books_fts_table(MySQLConnection *mysql_conn, Config *config);
 int mysql_create_bookmarks_fts_table(MySQLConnection *mysql_conn,
                                      Config *config);
 int mysql_create_reading_history_table(MySQLConnection *mysql_conn,
