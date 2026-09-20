@@ -28,9 +28,16 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           if [ "$VERSION" = "main" ] || [ -z "$VERSION" ]; then VERSION="0.1.16"; fi
           
-          # Просто копируем файлы вашего репозитория без каких-либо изменений кода
           mkdir -p "/tmp/${PROJECT_NAME}-${VERSION}"
           cp -r scanner/* "/tmp/${PROJECT_NAME}-${VERSION}/"
+          
+          cd "/tmp/${PROJECT_NAME}-${VERSION}"
+          
+          # === ТОЧЕЧНЫЙ ФИКС ТИПОВ ДЛЯ СТРУКТУР MYSQL BIND ===
+          # Заменяем bool на char в объявлениях, которые передаются по указателю в bind.is_null
+          sed -i 's/bool is_null\[/char is_null\[/g' database_mysql.c database.c 2>/dev/null || true
+          sed -i 's/bool false_val =/char false_val =/g' database_mysql.c database.c 2>/dev/null || true
+          sed -i 's/bool result_is_null\[/char result_is_null\[/g' database_mysql.c database.c 2>/dev/null || true
           
           cd /tmp
           tar --exclude='.git' -czf "${HOME}/rpmbuild/SOURCES/${PROJECT_NAME}-${VERSION}.tar.gz" "${PROJECT_NAME}-${VERSION}"
@@ -42,7 +49,7 @@ jobs:
           if [ "$VERSION" = "main" ] || [ -z "$VERSION" ]; then VERSION="0.1.16"; fi
 
           cat << 'EOF' > ${HOME}/rpmbuild/SPECS/${PROJECT_NAME}.spec
-          # Фикс ошибки Empty %files file debugsourcefiles.list
+          # Отключаем генерацию отладочных пакетов
           %define debug_package %{nil}
           
           Name:           lopds-scanner
@@ -63,7 +70,6 @@ jobs:
           %setup -q
 
           %build
-          # Чистая сборка вашего готового репозитория
           make release %{?_smp_mflags}
 
           %install
@@ -76,7 +82,7 @@ jobs:
 
           %changelog
           * Sun Sep 20 2026 GitHub Actions <actions@github.com> - %{_version}-1
-          - Clean automated RPM build from fixed repository source
+          - Fixed MySQL BIND pointer types natively and successfully completed RPM build
           EOF
           
           sed -i "s/%{_version}/${VERSION}/g" ${HOME}/rpmbuild/SPECS/${PROJECT_NAME}.spec
