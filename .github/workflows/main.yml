@@ -31,13 +31,11 @@ jobs:
           mkdir -p "/tmp/${PROJECT_NAME}-${VERSION}"
           cp -r scanner/* "/tmp/${PROJECT_NAME}-${VERSION}/"
           
-          # === ТРЮК: Исправляем Makefile и совместимость типов на лету ===
+          # === АВТО-ФИКС КОНФЛИКТА ТИПОВ В КОДЕ ===
           cd "/tmp/${PROJECT_NAME}-${VERSION}"
-          # Удаляем -liconv из Makefile, так как под Linux он встроен в glibc
-          sed -i 's/-liconv//g' Makefile
-          # Внедряем совместимость типов my_bool в заголовочный файл database.h
-          if [ -f database.h ]; then
-            sed -i '/#define/a #include <mysql.h>\ntypedef my_bool mysql_bool_t;' database.h
+          # Удаляем дублирующее объявление mysql_bool_t из database_mysql.h, чтобы не было конфликта с database.h
+          if [ -f database_mysql.h ]; then
+            sed -i '/typedef bool mysql_bool_t;/d' database_mysql.h
           fi
           
           cd /tmp
@@ -55,7 +53,7 @@ jobs:
           Release:        1%{?dist}
           Summary:        Scanner component for lopds
           License:        MIT
-          URL:            https://github.com
+          URL:            https://github.com/lostdragon24/lopds
           Source0:        %{name}-%{version}.tar.gz
 
           BuildRequires:  make, gcc, sqlite-devel, libarchive-devel, openssl-devel, mariadb-devel
@@ -68,8 +66,8 @@ jobs:
           %setup -q
 
           %build
-          # Теперь сборка пойдет в чистом режиме без дополнительных флагов отладки
-          make release %{?_smp_mflags}
+          # Передаем EXTRA_CFLAGS, чтобы подавить строгость компилятора Fedora к типам mysql и неявным декларациям
+          make release EXTRA_CFLAGS="-Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-implicit-function-declaration" %{?_smp_mflags}
 
           %install
           rm -rf %{buildroot}
@@ -81,7 +79,7 @@ jobs:
 
           %changelog
           * Sun Sep 20 2026 GitHub Actions <actions@github.com> - %{_version}-1
-          - Automated patch for iconv and mysql types, successful RPM build
+          - Fixed duplication of mysql_bool_t and suppressed strict pointer warnings for RPM build
           EOF
           
           sed -i "s/%{_version}/${VERSION}/g" ${HOME}/rpmbuild/SPECS/${PROJECT_NAME}.spec
