@@ -173,7 +173,11 @@ function createSqliteDatabase($dbConfig)
 
     // Получаем абсолютный путь
     if (strpos($path, '/') !== 0) {
-        $path = realpath(__DIR__ . '/../../') . '/' . ltrim($path, '/');
+        $baseDir = realpath(__DIR__ . '/../../');
+        if ($baseDir === false) {
+            throw new Exception("Invalid base directory path");
+        }
+        $path = $baseDir . '/' . ltrim($path, '/');
     }
 
     $dbDir = dirname($path);
@@ -186,14 +190,18 @@ function createSqliteDatabase($dbConfig)
     }
     chmod($dbDir, 0755);
 
-    // 2. Удаляем старую базу если есть
+    // 2. Удаляем старую базу, если есть
     if (file_exists($path)) {
-        unlink($path);
+        if (!unlink($path)) {
+            throw new Exception("Cannot delete existing database file: $path");
+        }
     }
 
-    // 3. Удаляем lock-файлы
-    foreach (glob($dbDir . '/library.db-*') as $lockFile) {
-        unlink($lockFile);
+    // 3. Удаляем lock-файлы (-wal, -shm) именно для этого файла БД
+    foreach (glob($path . '-*') as $lockFile) {
+        if (is_file($lockFile)) {
+            unlink($lockFile);
+        }
     }
 
     // 4. СОЗДАЕМ БАЗУ ЧЕРЕЗ SQLITE3 КОМАНДНОЙ СТРОКИ
@@ -203,17 +211,17 @@ function createSqliteDatabase($dbConfig)
         PRAGMA busy_timeout = 5000;
         PRAGMA foreign_keys = ON;
         
-        CREATE TABLE IF NOT EXISTS books (
+ CREATE TABLE IF NOT EXISTS books (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            file_path TEXT UNIQUE,
-            file_name TEXT,
+            file_path TEXT NOT NULL,
+            file_name TEXT NOT NULL,
             file_size INTEGER,
             file_type TEXT,
             archive_path TEXT,
             archive_internal_path TEXT,
-            file_hash TEXT,
-            title TEXT,
-            author TEXT,
+            file_hash TEXT UNIQUE,
+            title TEXT NOT NULL,
+            author TEXT NOT NULL,
             genre TEXT,
             series TEXT,
             series_number INTEGER,
@@ -222,15 +230,34 @@ function createSqliteDatabase($dbConfig)
             publisher TEXT,
             description TEXT,
             added_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-            last_modified DATETIME,
-            last_scanned DATETIME,
+            last_modified DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_scanned DATETIME DEFAULT CURRENT_TIMESTAMP,
             file_mtime INTEGER,
             UNIQUE(file_path, archive_path, archive_internal_path)
         );
-        
+
+        CREATE TABLE IF NOT EXISTS book_ratings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            book_id INTEGER NOT NULL,
+            user_ip VARCHAR(45) NOT NULL,
+            rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_ip, book_id),
+            FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS book_favorites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            book_id INTEGER NOT NULL,
+            user_ip VARCHAR(45) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_ip, book_id),
+            FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS archives (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            archive_path TEXT UNIQUE,
+            archive_path TEXT UNIQUE NOT NULL,
             archive_hash TEXT,
             file_count INTEGER DEFAULT 0,
             total_size INTEGER DEFAULT 0,
@@ -238,84 +265,144 @@ function createSqliteDatabase($dbConfig)
             last_scanned DATETIME DEFAULT CURRENT_TIMESTAMP,
             needs_rescan BOOLEAN DEFAULT 1
         );
-        
-        CREATE TABLE IF NOT EXISTS book_ratings (
+
+        CREATE TABLE IF NOT EXISTS bookmarks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_fingerprint VARCHAR(64) NOT NULL,
             book_id INTEGER NOT NULL,
-            user_ip VARCHAR(45) NOT NULL,
-            rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+            cfi_range VARCHAR(255) NOT NULL,
+            page_number INTEGER DEFAULT 0,
+            percentage DECIMAL(5,2) DEFAULT 0,
+            note TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
-            UNIQUE(user_ip, book_id)
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_read TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_deleted BOOLEAN DEFAULT 0, type TEXT DEFAULT 'bookmark', color
+        TEXT DEFAULT 'yellow', selected_text TEXT, context_before TEXT,
+        context_after TEXT, tags TEXT, is_public BOOLEAN DEFAULT 0,
+            FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
         );
-        
-        CREATE TABLE IF NOT EXISTS book_favorites (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            book_id INTEGER NOT NULL,
-            user_ip VARCHAR(45) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
-            UNIQUE(user_ip, book_id)
+
+
+    CREATE VIRTUAL  TABLE IF NOT EXISTS bookmarks_fts USING fts5(
+            note,
+            selected_text,
+            context_before,
+            context_after,
+            tags,
+            content='bookmarks',
+            content_rowid='id',
+            tokenize='unicode61'
         );
-        
-        CREATE INDEX IF NOT EXISTS idx_books_author ON books(author);
-        CREATE INDEX IF NOT EXISTS idx_books_title ON books(title);
-        CREATE INDEX IF NOT EXISTS idx_books_genre ON books(genre);
-        CREATE INDEX IF NOT EXISTS idx_books_series ON books(series);
-        CREATE INDEX IF NOT EXISTS idx_books_added_date ON books(added_date);
-        CREATE INDEX IF NOT EXISTS idx_books_file_type ON books(file_type);
-        CREATE INDEX IF NOT EXISTS idx_books_year ON books(year);
-        CREATE INDEX IF NOT EXISTS idx_books_language ON books(language);
-        
-        CREATE INDEX IF NOT EXISTS idx_archives_path ON archives(archive_path);
-        CREATE INDEX IF NOT EXISTS idx_archives_scanned ON archives(last_scanned);
-        
-        CREATE INDEX IF NOT EXISTS idx_ratings_book ON book_ratings(book_id);
-        CREATE INDEX IF NOT EXISTS idx_ratings_user ON book_ratings(user_ip);
-        
-        CREATE INDEX IF NOT EXISTS idx_favorites_book ON book_favorites(book_id);
-        CREATE INDEX IF NOT EXISTS idx_favorites_user ON book_favorites(user_ip);
-        
-        .tables
+
+            CREATE INDEX IF NOT EXISTS idx_books_file_hash ON books(file_hash);
+            CREATE INDEX IF NOT EXISTS idx_books_file_path ON books(file_path);
+            CREATE INDEX IF NOT EXISTS idx_books_archive_path ON books(archive_path);
+            CREATE INDEX IF NOT EXISTS idx_books_title ON books(title);
+            CREATE INDEX IF NOT EXISTS idx_books_author ON books(author);
+            CREATE INDEX IF NOT EXISTS idx_books_genre ON books(genre);
+            CREATE INDEX IF NOT EXISTS idx_books_series ON books(series);
+            CREATE INDEX IF NOT EXISTS idx_books_year ON books(year);
+            CREATE INDEX IF NOT EXISTS idx_books_language ON books(language);
+            CREATE INDEX IF NOT EXISTS idx_books_publisher ON books(publisher);
+
+            CREATE INDEX IF NOT EXISTS idx_bookmarks_user_book ON bookmarks(user_fingerprint, book_id);
+            CREATE INDEX IF NOT EXISTS idx_bookmarks_last_read ON bookmarks(last_read DESC);
+            CREATE INDEX IF NOT EXISTS idx_bookmarks_book ON bookmarks(book_id);
+            CREATE INDEX IF NOT EXISTS idx_bookmarks_type ON bookmarks(type);
+            CREATE INDEX IF NOT EXISTS idx_bookmarks_color ON bookmarks(color);
+            CREATE INDEX IF NOT EXISTS idx_bookmarks_public ON bookmarks(is_public);
+
+    CREATE TRIGGER IF NOT EXISTS bookmarks_ai AFTER INSERT ON bookmarks BEGIN
+        INSERT INTO bookmarks_fts(rowid, note, selected_text, context_before, context_after, tags)
+        VALUES (new.id, new.note, new.selected_text, new.context_before, new.context_after, new.tags);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS bookmarks_ad AFTER DELETE ON bookmarks BEGIN
+        INSERT INTO bookmarks_fts(bookmarks_fts, rowid, note, selected_text, context_before, context_after, tags)
+        VALUES ('delete', old.id, old.note, old.selected_text, old.context_before, old.context_after, old.tags);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS bookmarks_au AFTER UPDATE ON bookmarks BEGIN
+        INSERT INTO bookmarks_fts(bookmarks_fts, rowid, note, selected_text, context_before, context_after, tags)
+        VALUES ('delete', old.id, old.note, old.selected_text, old.context_before, old.context_after, old.tags);
+
+        INSERT INTO bookmarks_fts(rowid, note, selected_text, context_before, context_after, tags)
+        VALUES (new.id, new.note, new.selected_text, new.context_before, new.context_after, new.tags);
+    END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
+    title,
+    author,
+    genre,
+    series,
+    publisher,
+    description,
+    content='books',
+    content_rowid='id'
+);
+
+CREATE TRIGGER IF NOT EXISTS books_ai AFTER INSERT ON books BEGIN
+    INSERT INTO books_fts(rowid, title, author, genre, series, publisher, description)
+    VALUES (new.id, new.title, new.author, new.genre, new.series, new.publisher, new.description);
+END;
+
+CREATE TRIGGER IF NOT EXISTS books_ad AFTER DELETE ON books BEGIN
+    INSERT INTO books_fts(books_fts, rowid, title, author, genre, series, publisher, description)
+    VALUES ('delete', old.id, old.title, old.author, old.genre, old.series, old.publisher, old.description);
+END;
+
+CREATE TRIGGER IF NOT EXISTS books_au AFTER UPDATE ON books BEGIN
+    INSERT INTO books_fts(books_fts, rowid, title, author, genre, series, publisher, description)
+    VALUES ('delete', old.id, old.title, old.author, old.genre, old.series, old.publisher, old.description);
+
+    INSERT INTO books_fts(rowid, title, author, genre, series, publisher, description)
+    VALUES (new.id, new.title, new.author, new.genre, new.series, new.publisher, new.description);
+END;
+
     ";
 
     // Сохраняем SQL во временный файл
     $tempFile = tempnam(sys_get_temp_dir(), 'db_');
-    file_put_contents($tempFile, $sql);
 
-    // Выполняем sqlite3
-    $command = "sqlite3 " . escapeshellarg($path) . " < " . escapeshellarg($tempFile) . " 2>&1";
-    error_log("Executing: $command");
+    try {
+        file_put_contents($tempFile, $sql);
 
-    exec($command, $output, $returnCode);
+        // Выполняем sqlite3
+        $command = "sqlite3 " . escapeshellarg($path) . " < " . escapeshellarg($tempFile) . " 2>&1";
+        error_log("Executing: $command");
 
-    // Удаляем временный файл
-    unlink($tempFile);
+        exec($command, $output, $returnCode);
 
-    if ($returnCode !== 0) {
-        throw new Exception("SQLite error: " . implode("\n", $output));
+        if ($returnCode !== 0) {
+            throw new Exception("SQLite error: " . implode("\n", $output));
+        }
+
+        // Проверяем, что таблицы создались
+        $checkCommand = "sqlite3 " . escapeshellarg($path) . " \"SELECT name FROM sqlite_master WHERE type='table';\" 2>&1";
+        exec($checkCommand, $tables, $returnCode);
+
+        if ($returnCode !== 0 || empty($tables)) {
+            throw new Exception("Failed to create tables");
+        }
+
+        // Устанавливаем права на файл БД
+        // Примечание: 0666 дает права на запись всем. В продакшене лучше использовать 0664
+        // и настроить правильную группу владельца (например, www-data).
+        chmod($path, 0664);
+
+        error_log("Database created successfully with tables: " . implode(', ', $tables));
+
+        return [
+            'success' => true,
+            'message' => 'SQLite database created successfully'
+        ];
+    } finally {
+        // Гарантированно удаляем временный файл даже в случае ошибки
+        if (file_exists($tempFile)) {
+            unlink($tempFile);
+        }
     }
-
-    // Проверяем, что таблицы создались
-    $checkCommand = "sqlite3 " . escapeshellarg($path) . " \"SELECT name FROM sqlite_master WHERE type='table';\" 2>&1";
-    exec($checkCommand, $tables, $returnCode);
-
-    if ($returnCode !== 0 || empty($tables)) {
-        throw new Exception("Failed to create tables");
-    }
-
-    // Устанавливаем права
-    chmod($path, 0666);
-
-    // Убиваем все процессы, которые могли остаться
-    exec("fuser -k " . escapeshellarg($path) . " 2>/dev/null");
-
-    error_log("Database created successfully with tables: " . implode(', ', $tables));
-
-    return [
-        'success' => true,
-        'message' => 'SQLite database created successfully'
-    ];
 }
 
 /**
@@ -323,6 +410,12 @@ function createSqliteDatabase($dbConfig)
  */
 function createMysqlDatabase($dbConfig)
 {
+    // 1. Жесткая валидация имени базы данных (только буквы, цифры и подчеркивания)
+    $dbName = preg_replace('/[^a-zA-Z0-9_]/', '', $dbConfig['database']);
+    if (empty($dbName)) {
+        throw new Exception('Invalid database name provided in config');
+    }
+
     $dsn = "mysql:host={$dbConfig['host']}" .
            (isset($dbConfig['port']) ? ";port={$dbConfig['port']}" : "") .
            ";charset=utf8mb4";
@@ -332,16 +425,15 @@ function createMysqlDatabase($dbConfig)
         PDO::ATTR_TIMEOUT => 5
     ]);
 
-    // Создаем базу данных если не существует
-    $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$dbConfig['database']}` 
-                CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-    $pdo->exec("USE `{$dbConfig['database']}`");
+    // 2. Создаем базу данных и переключаемся на неё
+    $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$dbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("USE `{$dbName}`");
 
-    // SQL для создания таблиц
-    $sql = "
-        CREATE TABLE IF NOT EXISTS books (
+    // 3. Разбиваем SQL на массив отдельных запросов
+    $queries = [
+        "CREATE TABLE IF NOT EXISTS books (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            file_path VARCHAR(500) UNIQUE,
+            file_path VARCHAR(500),
             file_name VARCHAR(255),
             file_size BIGINT,
             file_type VARCHAR(20),
@@ -361,59 +453,101 @@ function createMysqlDatabase($dbConfig)
             last_modified DATETIME,
             last_scanned DATETIME,
             file_mtime INT,
-            UNIQUE KEY unique_file (file_path, archive_path, archive_internal_path),
-            
-            INDEX idx_author (author),
-            INDEX idx_title (title),
-            INDEX idx_genre (genre),
-            INDEX idx_series (series),
+            UNIQUE KEY unique_file_hash (file_hash),
+            UNIQUE KEY unique_book (file_path(191), archive_path(191), archive_internal_path(191)),
+            UNIQUE KEY unique_title_author (title(191), author(191)),
+            INDEX idx_author (author(100)),
+            INDEX idx_title (title(100)),
+            INDEX idx_genre (genre(50)),
+            INDEX idx_series (series(100)),
             INDEX idx_added_date (added_date),
             INDEX idx_file_type (file_type),
             INDEX idx_year (year),
-            INDEX idx_language (language)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        
-        CREATE TABLE IF NOT EXISTS archives (
+            FULLTEXT INDEX ft_books_search (title, author, genre, series, publisher, description)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+        "CREATE TABLE IF NOT EXISTS archives (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            archive_path VARCHAR(500) UNIQUE,
+            archive_path TEXT,
             archive_hash VARCHAR(64),
-            file_count INT DEFAULT 0,
-            total_size BIGINT DEFAULT 0,
-            last_modified INT,
-            last_scanned DATETIME DEFAULT CURRENT_TIMESTAMP,
-            needs_rescan BOOLEAN DEFAULT 1,
-            
-            INDEX idx_archive_path (archive_path),
-            INDEX idx_last_scanned (last_scanned)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        
-        CREATE TABLE IF NOT EXISTS book_ratings (
+            file_count INT,
+            total_size BIGINT,
+            last_modified BIGINT,
+            last_scanned TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            needs_rescan BOOLEAN DEFAULT TRUE,
+            UNIQUE KEY unique_archive (archive_path(191))
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+        "CREATE TABLE IF NOT EXISTS book_ratings (
             id INT AUTO_INCREMENT PRIMARY KEY,
             book_id INT NOT NULL,
             user_ip VARCHAR(45) NOT NULL,
-            rating TINYINT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+            rating TINYINT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT chk_rating_range CHECK (rating >= 1 AND rating <= 5),
+            CONSTRAINT unique_user_book UNIQUE (user_ip, book_id),
             FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
-            UNIQUE KEY unique_user_book (user_ip, book_id),
-            
             INDEX idx_ratings_book (book_id),
             INDEX idx_ratings_user (user_ip)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        
-        CREATE TABLE IF NOT EXISTS book_favorites (
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+        "CREATE TABLE IF NOT EXISTS book_favorites (
             id INT AUTO_INCREMENT PRIMARY KEY,
             book_id INT NOT NULL,
             user_ip VARCHAR(45) NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT unique_user_favorite UNIQUE (user_ip, book_id),
             FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
-            UNIQUE KEY unique_user_favorite (user_ip, book_id),
-            
             INDEX idx_favorites_book (book_id),
             INDEX idx_favorites_user (user_ip)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    ";
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    $pdo->exec($sql);
+        "CREATE TABLE IF NOT EXISTS bookmarks (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_fingerprint VARCHAR(64) NOT NULL,
+            book_id INT NOT NULL,
+            cfi_range VARCHAR(255) NOT NULL,
+            page_number INT DEFAULT 0,
+            percentage DECIMAL(5,2) DEFAULT 0.00,
+            note TEXT,
+            type VARCHAR(20) DEFAULT 'bookmark',
+            color VARCHAR(20) DEFAULT 'yellow',
+            selected_text TEXT,
+            context_before TEXT,
+            context_after TEXT,
+            tags TEXT,
+            is_public TINYINT(1) DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            last_read TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_deleted TINYINT(1) DEFAULT 0,
+            INDEX idx_bookmarks_user_book (user_fingerprint, book_id),
+            INDEX idx_bookmarks_last_read (last_read),
+            INDEX idx_bookmarks_book (book_id),
+            INDEX idx_bookmarks_type (type),
+            INDEX idx_bookmarks_color (color),
+            INDEX idx_bookmarks_public (is_public),
+            FULLTEXT INDEX ft_bookmarks_search (note, selected_text, context_before, context_after, tags),
+            FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+        "CREATE TABLE IF NOT EXISTS bookmark_tags (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_fingerprint VARCHAR(64) NOT NULL,
+            name VARCHAR(50) NOT NULL,
+            color VARCHAR(20) DEFAULT 'default',
+            usage_count INT DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_user_tag (user_fingerprint, name),
+            INDEX idx_tags_user (user_fingerprint),
+            INDEX idx_tags_name (name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    ];
+
+    // 4. Выполняем запросы по одному
+    foreach ($queries as $query) {
+        $pdo->exec($query);
+    }
 
     return [
         'success' => true,

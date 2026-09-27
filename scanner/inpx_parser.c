@@ -484,8 +484,13 @@ int import_inpx_collection(const char *inpx_filename, DatabaseHandle *db_handle,
 
           // insert_book_to_db(db_handle, file_path, &meta, archive_path,
           // internal_path, config);
-          insert_book_to_db(db_handle, file_path, &meta, archive_path,
-                            internal_path, meta.file_hash, config);
+
+          if (insert_book_to_db(db_handle, file_path, &meta, archive_path,
+                                internal_path, meta.file_hash, config)) {
+            books_imported++;
+            books_in_file++;
+          }
+
           books_imported++;
           books_in_file++;
 

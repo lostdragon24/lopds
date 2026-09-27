@@ -191,6 +191,8 @@ class OpdsGenerator
      */
     public function generateSearchResults($query, $page = 1)
     {
+
+        $filters = [];
         // Устанавливаем язык для OPDS
         $this->setOpdsLanguageFromConfig();
 
@@ -202,7 +204,9 @@ class OpdsGenerator
         $booksCount = 0;
 
         try {
-            $booksCount = $this->db->getSearchCount($query, 'all');
+            $filters = $this->collectFilters();
+
+            $booksCount = $this->db->getSearchCount($query, $filters);
             my_log("OPDS Search count for '$query': ".$booksCount);
 
             $totalPages = $booksCount > 0 ? ceil($booksCount / $perPage) : 0;
@@ -695,7 +699,7 @@ class OpdsGenerator
 
         // $this->addPaginationLinks($xml, $page, $perPage, 'author', $totalPages, ['author' => $author]);
 
-        $this->addPaginationLinks($xml, $page, $perPage, 'author', $totalPages, $allParams);
+        $this->addPaginationLinks($xml, $page, $perPage, 'author', $totalPages, ['author' => $author]);
 
 
         $books = $this->db->getBooksByAuthor($author, $page, $perPage);

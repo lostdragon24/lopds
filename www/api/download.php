@@ -124,7 +124,8 @@ function downloadRegularFile($book, $security)
     // Проверка, что файл находится в разрешенной директории
     $realPath = realpath($filePath);
     $booksDir = realpath(Config::getBooksDir());
-    if ($realPath === false || $booksDir === false || strpos($realPath, $booksDir) !== 0) {
+
+    if ($realPath === false || $booksDir === false  || strpos($realPath, rtrim($booksDir, '/') . '/') !== 0) {
         http_response_code(403);
         die(__('error_access_denied_path'));
     }
@@ -153,7 +154,9 @@ function downloadFromArchive($book, $security)
     // Проверка путей
     $realArchivePath = realpath($archivePath);
     $booksDir = realpath(Config::getBooksDir());
-    if ($realArchivePath === false || $booksDir === false || strpos($realArchivePath, $booksDir) !== 0) {
+
+    if ($realArchivePath === false || $booksDir === false    || strpos($realArchivePath, rtrim($booksDir, '/') . '/') !== 0) {
+
         http_response_code(403);
         die(__('error_access_denied_archive'));
     }

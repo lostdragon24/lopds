@@ -189,7 +189,7 @@ char *join_and_validate_path(const char *dir, const char *file,
     return NULL;
   }
 
-  // ✅ Явная проверка на переполнение ДО snprintf
+  // Явная проверка на переполнение ДО snprintf
   size_t total_len = dir_len + file_len + 2; // +1 для '/', +1 для '\0'
   if (total_len > PATH_MAX) {
     if (config) {
@@ -213,7 +213,7 @@ char *join_and_validate_path(const char *dir, const char *file,
     written = snprintf(combined, sizeof(combined), "%s%s", dir, file);
   }
 
-  // ✅ Проверка результата snprintf
+  // Проверка результата snprintf
   if (written < 0 || (size_t)written >= sizeof(combined)) {
     if (config) {
       log_message(config, "ERROR", "Path join failed: buffer overflow");

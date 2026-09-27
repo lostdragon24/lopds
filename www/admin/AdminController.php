@@ -274,10 +274,17 @@ class AdminController
 
             case 'scanner_start':
                 $mode = $_POST['mode'] ?? 'normal';
+                my_log("Scanner start requested, mode from POST: " . $mode);
                 $background = isset($_POST['background']) && $_POST['background'] == '1';
 
                 try {
-                    $result = $this->scanner->start($background, $mode);
+                    if ($mode === 'inpx') {
+                        // Используем отдельный метод для INPX
+                        $result = $this->scanner->importInpx();
+                    } else {
+                        $result = $this->scanner->start($background, $mode);
+                    }
+
                     $_SESSION['scanner_message'] = $result['message'];
                     if (isset($result['pid'])) {
                         $_SESSION['scanner_message'] .= " (PID: " . $result['pid'] . ")";
@@ -914,23 +921,23 @@ class AdminController
         $mergeCount = 0;
 
         // Автоматическое объединение
-        if (isset($_GET['auto_merge']) && $_GET['auto_merge'] == 1) {
-            $result = $deduplicator->autoMergeAll($thresholdFloat);
-            if ($result['success']) {
-                $mergeCount = $result['merged'];
-                $_SESSION['message'] = sprintf(
-                    __('author_deduplicate_auto_success'),
-                    $result['merged'],
-                    $result['groups_processed']
-                );
-                $_SESSION['message_type'] = 'success';
-            } else {
-                $_SESSION['message'] = __('author_deduplicate_auto_error') . ': ' . implode('; ', $result['errors']);
-                $_SESSION['message_type'] = 'danger';
-            }
-            header('Location: ?action=author_deduplicate&threshold=' . $threshold);
-            exit;
-        }
+        //if (isset($_GET['auto_merge']) && $_GET['auto_merge'] == 1) {
+        //    $result = $deduplicator->autoMergeAll($thresholdFloat);
+        //    if ($result['success']) {
+        //        $mergeCount = $result['merged'];
+        //        $_SESSION['message'] = sprintf(
+        //            __('author_deduplicate_auto_success'),
+        //            $result['merged'],
+        //            $result['groups_processed']
+        //        );
+        //        $_SESSION['message_type'] = 'success';
+        //    } else {
+        //        $_SESSION['message'] = __('author_deduplicate_auto_error') . ': ' . implode('; ', $result['errors']);
+        //        $_SESSION['message_type'] = 'danger';
+        //    }
+        //    header('Location: ?action=author_deduplicate&threshold=' . $threshold);
+        //    exit;
+        //}
 
         // Обработка ручного объединения
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'author_merge') {
@@ -953,7 +960,7 @@ class AdminController
 
         // Поиск групп
         if (isset($_GET['threshold']) || isset($_GET['auto_merge'])) {
-            $result = $deduplicator->findSimilarForAuthor($thresholdFloat);
+            $result = $deduplicator->findSimilarAuthors($thresholdFloat);
             $groups = $result['groups'];
 
             // Обновляем статистику
@@ -982,7 +989,10 @@ class AdminController
     private function browseTable($tableName)
     {
         // Проверяем разрешенные таблицы
-        $allowedTables = ['books', 'book_ratings', 'book_favorites', 'archives', 'bookmarks', 'reading_history', 'bookmark_tags', 'bookmarks_fts', 'bookmarks_fts_config', 'bookmarks_fts_data', 'bookmarks_fts_docsize', 'bookmarks_fts_idx'];
+        $allowedTables = ['books', 'book_ratings', 'book_favorites', 'archives', 'bookmarks', 'reading_history', 'bookmark_tags', 'bookmarks_fts', 'bookmarks_fts_config', 'bookmarks_fts_data', 'bookmarks_fts_docsize', 'bookmarks_fts_idx', 'books_fts', 'books_fts_config', 'books_fts_data', 'books_fts_docsize', 'books_fts_idx'];
+
+
+
         if (!in_array($tableName, $allowedTables)) {
             $_SESSION['message'] = __('admin_error_access_denied');
             $_SESSION['message_type'] = 'danger';

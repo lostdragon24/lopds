@@ -261,7 +261,7 @@ if ($book['archive_path'] && $book['archive_internal_path']) {
         }
     </style>
 
-    <script type="module" src="<?php echo $basePath; ?>/js/pdfjs/build/pdf.mjs"></script>
+<!--    <script type="module" src="<?php echo $basePath; ?>/js/pdfjs/build/pdf.mjs"></script> -->
 
 
    <?php echo __('reader_download'); ?>

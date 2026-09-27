@@ -145,7 +145,7 @@ class EnvManager
 
         // Секции для лучшей читаемости
         $sections = [
-            'site' => ['SITE_TITLE', 'ITEMS_PER_PAGE'],
+            'site' => ['SITE_TITLE', 'ITEMS_PER_PAGE', 'FTS'],
             'opds' => ['OPDS_TITLE', 'OPDS_AUTHOR', 'OPDS_ID', 'OPDS_DEFAULT_LANG'],
             'database' => ['DB_TYPE', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS', 'DB_PATH'],
             'cache' => ['ENABLE_CACHE', 'USE_APCU', 'CACHE_TTL', 'PAGE_CACHE_ENABLED'],
@@ -316,6 +316,7 @@ class EnvManager
         $defaults = [
             'SITE_TITLE' => 'Моя домашняя библиотека',
             'ITEMS_PER_PAGE' => '10',
+            'FTS' => 'true',
             'OPDS_TITLE' => 'Моя библиотека',
             'OPDS_AUTHOR' => 'Book Lib',
             'OPDS_ID' => 'urn:uuid:your-uuid-here',

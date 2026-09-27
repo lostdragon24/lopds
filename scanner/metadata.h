@@ -4,13 +4,15 @@
 #include "database.h"
 
 // Основные функции парсинга
-BookMeta *parse_metadata(const char *filepath, const char *file_type);
+BookMeta *parse_metadata(const char *filepath, const char *file_type,
+                         Config *config);
 BookMeta *parse_fb2(const char *filepath);
 BookMeta *parse_fb2_from_memory(const char *content, size_t content_size);
 
 // Функции парсинга для EPUB
-BookMeta *parse_epub(const char *filepath);
-BookMeta *parse_epub_from_memory(const char *content, size_t content_size);
+BookMeta *parse_epub(const char *filepath, Config *config);
+BookMeta *parse_epub_from_memory(const char *content, size_t content_size,
+                                 Config *config);
 
 // В секцию "Функции для работы с HTML/XML":
 char *extract_xml_meta_by_name(const char *xml, const char *target_name);

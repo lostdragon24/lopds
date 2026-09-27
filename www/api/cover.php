@@ -128,26 +128,89 @@ function serveDefaultCover($thumb)
     $height = $thumb ? 300 : 800;
 
     $image = imagecreatetruecolor($width, $height);
-    $bgColor = imagecolorallocate($image, 240, 240, 240);
-    $textColor = imagecolorallocate($image, 150, 150, 150);
-    $borderColor = imagecolorallocate($image, 200, 200, 200);
 
-    imagefill($image, 0, 0, $bgColor);
+    // ---- ТЕКСТУРА КОЖИ ----
+    $patternPath = realpath(__DIR__ . '/leather_pattern2.png');
+
+    if ($patternPath && file_exists($patternPath)) {
+        $pattern = imagecreatefrompng($patternPath);
+        imagesettile($image, $pattern);
+        imagefilledrectangle($image, 0, 0, $width, $height, IMG_COLOR_TILED);
+        imagedestroy($pattern);
+        imagefilter($image, IMG_FILTER_COLORIZE, 90, 50, 25);
+    } else {
+        $bgColor = imagecolorallocate($image, 187, 179, 179);
+        imagefill($image, 0, 0, $bgColor);
+    }
+
+    $textColor = imagecolorallocate($image, 245, 240, 235);
+    $borderColor = imagecolorallocate($image, 40, 40, 40);
     imagerectangle($image, 0, 0, $width - 1, $height - 1, $borderColor);
 
     $text = __('book_no_cover');
-    $fontSize = $thumb ? 3 : 5;
-    $textWidth = imagefontwidth($fontSize) * strlen($text);
-    $textHeight = imagefontheight($fontSize);
-    $x = ($width - $textWidth) / 2;
-    $y = ($height - $textHeight) / 2;
 
-    imagestring($image, $fontSize, $x, $y, $text, $textColor);
+    // Конвертируем текст в UTF-8 на случай, если локализация выдает CP1251
+    $text = mb_convert_encoding($text, 'UTF-8', mb_detect_encoding($text));
 
+    // Находим точный абсолютный путь к шрифту
+    $fontPath = realpath(__DIR__ . '/Roboto-Bold.ttf');
+
+    // Если realpath не сработал, пробуем просто дописать ./ перед именем
+    if (!$fontPath) {
+        $fontPath = './Roboto-Bold.ttf';
+    }
+
+    // Включаем сглаживание шрифтов (antialiasing)
+    imagealphablending($image, true);
+
+    $fontSize = $thumb ? 16 : 28;
+
+    // Рассчитываем координаты через встроенный массив углов
+    $bbox = imagettfbbox($fontSize, 0, $fontPath, $text);
+
+    if ($bbox) {
+        // Успешный расчет размеров шрифта
+        $textWidth = $bbox[2] - $bbox[0];
+        $textHeight = $bbox[1] - $bbox[7]; // Изменили формулу высоты для точности
+
+        $x = ($width - $textWidth) / 2;
+        $y = ($height - $textHeight) / 2 + $textHeight;
+
+        // Рисуем текст
+        // imagettftext($image, $fontSize, 0, $x, $y, $textColor, $fontPath, $text);
+
+        // 1. Цвета для эффекта
+        $shadowColor = imagecolorallocate($image, 30, 20, 15);   // Глубокая темная тень (почти черная)
+        $baseColor   = imagecolorallocate($image, 250, 250, 250);   // Основной цвет внутри букв (чуть темнее самой кожи)
+        $highlightColor = imagecolorallocate($image, 140, 90, 60); // Блик света (светлее кожи, создает объем)
+
+        // 2. Рисуем ТЕНЬ (сдвиг вверх и влево на 1 пиксель)
+        imagettftext($image, $fontSize, 0, $x - 1, $y - 1, $shadowColor, $fontPath, $text);
+
+        // 3. Рисуем БЛИК (сдвиг вниз и вправо на 1 пиксель)
+        imagettftext($image, $fontSize, 0, $x + 1, $y + 1, $highlightColor, $fontPath, $text);
+
+        // 4. Рисуем ОСНОВНОЙ ТЕКСТ по центру
+        imagettftext($image, $fontSize, 0, $x, $y, $baseColor, $fontPath, $text);
+
+    } else {
+        // Жесткий фолбек, если шрифт вообще отказался грузиться сервером
+        // Переводим обратно в транслит или ставим английский, чтобы не было кракозябр
+        $text = 'No Cover';
+        $fontSize = $thumb ? 3 : 5;
+        $textWidth = imagefontwidth($fontSize) * strlen($text);
+        $textHeight = imagefontheight($fontSize);
+        $x = ($width - $textWidth) / 2;
+        $y = ($height - $textHeight) / 2;
+        imagestring($image, $fontSize, $x, $y, $text, $textColor);
+
+    }
+
+    // Отдача в браузер
     header('Content-Type: image/jpeg');
     header('Cache-Control: public, max-age=3600');
     header('X-Cache: MISS (default)');
-    imagejpeg($image);
+    imagejpeg($image, null, 85);
     imagedestroy($image);
     exit;
 }

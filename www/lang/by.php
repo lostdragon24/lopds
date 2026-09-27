@@ -281,7 +281,7 @@ return [
 'admin_scanner_config'  => 'Шлях да канфігурацыі:',             // Шлях да канфігурацыі
 'admin_scanner_inpx'    => 'INPX файл:',                  // Наяўнасць INPX
 'admin_scanner_inpx_found' => 'Знойдзены',                   // Знойдзены
-'admin_scanner_inpx_not_found' => 'Не знойдзены',            // Не знойдзены
+
 // Статыстыка бібліятэкі
 'admin_library_stats'   => 'Статыстыка бібліятэкі',       // Загаловак
 'admin_library_books'   => 'Усяго кніг:',                 // Метрыка
@@ -604,8 +604,6 @@ return [
 'install_db_created'    => '✅ База даных паспяхова створана!', // Паведамленне
 // Статус БД
 'install_db_status'     => 'Статус базы даных',           // Загаловак
-'install_db_exists'     => 'Існуе:',                  // Статус
-'install_db_will_be_created' => '⚠️ Будзе створана',         // Статус
 'install_tables_exist'  => 'Табліцы:',                     // Статус
 'install_tables_will_be_created' => '⚠️ Будуць створаны',     // Статус
 // Табліцы
@@ -636,9 +634,7 @@ return [
 'install_admin_info'    => 'Пасля ўсталёўкі вы зможаце кіраваць сканерам кніг непасрэдна з панэлі адміністратара.', // Інфармацыя
 // Кнопкі кроку 5
 'install_create_admin_btn' => 'Стварыць адміністратара',    // Кнопка
-// Крок 6 - Завершанне
-'install_step6_title'   => 'Усталёўка завершана!',         // Загаловак
-'install_step6_desc'    => 'Бібліятэка паспяхова ўсталявана і гатова да работы', // Апісанне
+
 // Статыстыка пасля ўсталёўкі
 'install_stats_books'   => 'кніг у бібліятэцы',            // Метрыка
 'install_stats_authors' => 'аўтараў',                      // Метрыка
@@ -660,7 +656,6 @@ return [
 // ПАМЫЛКІ І ПАВЕДАМЛЕННІ
 // ============================================
 'error_occurred'        => 'Адбылася памылка',             // Агульная памылка
-'error_unknown'         => 'Невядомая памылка',           // Невядомая памылка
 'error_invalid_id'      => 'Няправільны ID',                  // Няправільны ID
 'error_not_found'       => 'Не знойдзена',                   // Не знойдзена
 'error_access_denied'   => 'Доступ забаронены',              // Доступ забаронены
@@ -703,9 +698,6 @@ return [
 'rating_votes_1'        => 'ацэнка',                             // для 1 ацэнкі
 'rating_votes_2'        => 'ацэнкі',                            // для 2-4 ацэнак
 'rating_votes_5'        => 'ацэнак',                            // для 5+ ацэнак
-'rating_star_1'         => 'зорка',                               // для 1 зоркі
-'rating_star_2'         => 'зоркі',                              // для 2-4 зорак
-'rating_star_5'         => 'зорак',                              // для 5+ зорак
 'book_number'           => 'Кніга #%s',                           // "Кніга %s"
 'book_description_missing' => 'Апісанне кнігі адсутнічае',        // "Апісанне кнігі адсутнічае"
 'back_to_list'          => 'Назад да спісу',                       // "Назад да спісу"
@@ -716,10 +708,6 @@ return [
 'error'                 => 'Памылка',
 'success'               => 'Поспех',
 'warning'               => 'Папярэджанне',
-'info'                  => 'Інфармацыя',
-'confirm_delete'        => 'Вы ўпэўнены, што хочаце выдаліць?',
-'favorites_added'       => 'Дададзена ў выбранае',
-'favorites_removed'     => 'Выдалена з выбранага',
 'footer_tagline'        => 'Ваша персанальная электронная бібліятэка',
 'footer_books'          => 'Кніг',
 'footer_memory'         => 'Памяці',
@@ -730,36 +718,14 @@ return [
 'of'                    => 'з',
 'previous'              => 'Папярэдняя',
 'next'                  => 'Наступная',
-'pagination'            => 'Пагінацыя',
 'actions'               => 'Дзеянні',
-'top_rated_title'       => 'Лепшыя кнігі па ацэнках чытачоў',
-'top_rated_description' => 'Тут прадстаўлены кнігі з найвышэйшым рэйтынгам ад карыстальнікаў бібліятэкі. Для траплення ў рэйтынг кніга павінна мець мінімум <strong>1 ацэнку</strong>. Даныя абнаўляюцца кожную гадзіну.',
-'top_rated_empty'       => 'Пакуль няма кніг з ацэнкамі. Будзьце першым, хто ацэніць кнігі!',
-'top_rated_total_rated' => 'Усяго ацэнена кніг',
-'top_rated_in_top'      => 'у топе',
-'top_rated_total_votes' => 'Усяго ацэнак',
-'top_rated_from_users'  => 'ад карыстальнікаў',
-'top_rated_books'       => 'Рэйтынг кніг',
-'top_rated_page'        => 'Старонка',
-'top_rated_author'      => 'Аўтар',
-'top_rated_rating'      => 'Рэйтынг',
-'top_rated_votes'       => 'Ацэнак',
-'top_rated_format'      => 'Фармат',
-'top_rated_actions'     => 'Дзеянні',
-'top_rated_find_more'   => 'Знайсці больш кніг',
-'top_rated_full_stats'  => 'Поўная статыстыка',
 'stats_full'            => 'Поўная статыстыка',
 'stats_queries'         => 'Запытаў',
 'votes'                 => 'Ацэнак',
-'rating'                => 'Рэйтынг',
-'reader_loading'           => 'Загрузка...',
 'reader_fullscreen'        => 'Поўнаэкранны рэжым',
 'reader_fb2_title'         => 'Чыталка FB2',
 'reader_epub_title'        => 'Чыталка EPUB',
 'reader_pdf_title'         => 'Чыталка PDF',
-'reader_format_not_supported' => 'Фармат не падтрымліваецца для анлайн-чытання',
-'reader_format_desc'       => 'Кніга ў фармаце %s не можа быць адлюстравана ў браўзеры.',
-'reader_download'          => 'Спагнаць кнігу',
 'reader_font_decrease'     => 'Паменшыць шрыфт',
 'reader_font_increase'     => 'Павялічыць шрыфт',
 'reader_prev_page'         => 'Папярэдняя старонка',
@@ -785,54 +751,26 @@ return [
 'reader_page'              => 'Стр.',
 'security_warning_short'    => 'ВАЖНА!',
 'security_warning_install'  => 'Пасля ўсталёўкі выдаліце дырэкторыю %s або абараніце яе паролем.',
-'install_wizard'           => 'Майстар усталёўкі бібліятэкі',
-'install_step'             => 'Крок %s з 6',
-'install_step2_title'          => 'Наладка шляхоў',
-'install_step2_desc'           => 'Пакажыце шляхі да каталога з кнігамі і сканеру',
-'install_books_dir'            => 'Каталог з кнігамі',
-'install_books_dir_label'      => 'Шлях да дырэкторыі з кнігамі',
-'install_books_dir_default'    => 'Па змаўчанні',
-'install_books_dir_hint'       => 'Абсалютны шлях да папкі, дзе захоўваюцца вашы кнігі (FB2, EPUB, PDF і г.д.)',
-'install_books_dir_tip'        => 'Упэўніцеся, што ў вэб-сервера ёсць правы на чытанне гэтай дырэкторыі.',
 'install_tip'                   => 'Парада:',
-'install_cache_dir'             => 'Дырэкторыя кэша',
-'install_cache_dir_label'       => 'Шлях да дырэкторыі кэша',
-'install_cache_dir_hint'        => 'Дырэкторыя для захоўвання кэша (вокладкі, часовыя файлы)',
-'install_scanner_dir'           => 'Сканер кніг',
-'install_scanner_label'         => 'Шлях да выканальнага файла сканера',
-'install_scanner_hint'          => 'Поўны шлях да бінарнага файла сканера (пакіньце пустым, калі хочаце ўсталяваць пазней)',
+
 'install_scanner_found'         => '✅ Сканер знойдзены (версія: %s)',
 'install_current_paths'         => 'Бягучыя шляхі (з Config)',
 'install_base_path'             => 'Базавы шлях:',
 'install_scanner_default'       => 'Шлях да сканера па змаўчанні:',
 'install_paths_note'            => 'Гэта бягучыя шляхі па змаўчанні. Вы можаце змяніць іх вышэй.',
-'install_back'                   => 'Назад',
-'install_save_paths'             => 'Захаваць шляхі',
+
+
 'install_books_dir_required'     => 'Шлях да дырэкторыі з кнігамі абавязковы',
 'install_path_relative_warning'  => 'Шлях выглядае як адносны. Вы ўпэўнены, што хочаце выкарыстоўваць адносны шлях?',
-'install_step3_title'           => 'Наладка базы даных',
-'install_step3_desc'            => 'Выберыце тып базы даных і пакажыце параметры падключэння',
+
 'debug_info'                    => 'Адладачная інфармацыя',
 'session_id'                    => 'ID сесіі',
 'current_step'                  => 'Бягучы крок',
 'db_config_in_session'          => 'db_config у сесіі',
 'type'                          => 'Тып',
-'install_db_sqlite'             => 'SQLite (рэкамендуецца для невялікіх бібліятэк)',
-'install_db_mysql'              => 'MySQL / MariaDB (для вялікіх бібліятэк)',
-'install_sqlite_path'           => 'Шлях да файла SQLite',
-'install_sqlite_auto'           => 'Аўта',
-'install_sqlite_hint'           => 'Абсалютны або адносны шлях да файла .db',
-'install_sqlite_create'         => 'Стварыць файл базы даных, калі не існуе',
-'install_sqlite_diagnose'       => 'Дыягностыка SQLite:',
-'install_mysql_host'            => 'Хост MySQL',
-'install_mysql_port'            => 'Порт',
-'install_mysql_dbname'          => 'Імя базы даных',
-'install_mysql_user'            => 'Карыстальнік',
-'install_mysql_password'        => 'Пароль',
+
 'install_mysql_warning'         => 'Упэўніцеся, што сервер базы даных запушчаны і ўліковыя даныя верныя.',
-'install_test_connection'       => 'Праверыць падключэнне',
-'install_continue_configured'   => 'Працягнуць (падключэнне наладжана)',
-'install_test_first'            => 'Спачатку выканайце праверку падключэння да базы даных.',
+
 'install_db_info'               => 'Інфармацыя аб базах даных',
 'install_sqlite_pros_1'         => 'Не патрабуе асобнага сервера',
 'install_sqlite_pros_2'         => 'Легка рабіць рэзервовую копію (проста скапіяваць файл)',
@@ -851,8 +789,7 @@ return [
 'install_step4_dir_not_writable'    => 'Дырэкторыя %s недаступна для запісу',
 'install_step4_file_not_writable'   => 'Файл базы даных недаступны для запісу',
 'install_step4_permission_problem'  => 'Праблема з правамі доступу:',
-'install_step4_title'               => 'Стварэнне структуры базы даных',
-'install_step4_desc'                => 'Зараз будуць створаны ўсе неабходныя табліцы',
+
 'install_step4_success'             => 'База даных паспяхова створана!',
 'install_step4_db_status'           => 'Статус базы даных',
 'install_step4_db_type'             => 'Тып БД:',
@@ -878,8 +815,7 @@ return [
 'install_step4_creating'             => 'Стварэнне базы даных...',
 'install_step4_continue'              => 'Працягнуць (крок 5 - наладка адміністратара)',
 'install_step4_ready'                 => 'База даных паспяхова створана! Можна пераходзіць да наступнага кроку.',
-'install_step5_title'               => 'Стварэнне адміністратара',
-'install_step5_desc'                => 'Наладка ўліковага запісу для кіравання бібліятэкай',
+
 'install_step5_admin_data'          => 'Даныя адміністратара',
 'install_step5_username'            => 'Імя карыстальніка',
 'install_step5_username_hint'       => 'Імя карыстальніка заўсёды "admin"',
@@ -930,7 +866,6 @@ return [
 'install_step6_remove_reminder'      => 'Напамін: Выдаліце дырэкторыю install для бяспекі. Перайсці ў адмін-панэль зараз?',
 'install_error_creating_db' => 'Памылка стварэння базы даных',
 'install_error_connection' => 'Памылка падключэння',
-'install_error_create_dir' => 'Не ўдалося стварыць дырэкторыю: %s',
 'install_error_dir_not_writable' => 'Дырэкторыя %s недаступна для запісу (правы: %s)',
 'install_error_create_file' => 'Не ўдалося стварыць файл: %s',
 'install_error_file_not_writable' => 'Файл %s недаступны для запісу (правы: %s)',
@@ -1062,13 +997,10 @@ return [
 'admin_scanner_refresh' => 'Абнавіць статус',
 // --- База даных ---
 'admin_db_connection_error' => 'Памылка падключэння да базы даных',
-'admin_db_backup_created' => 'Рэзервовая копія створана: %s (%s)',
 'admin_db_backup_error' => 'Памылка стварэння рэзервовай копіі: %s',
 'admin_db_optimized' => 'База даных аптымізавана',
 'admin_db_optimized_freed' => 'Вызвалена: %s',
 'admin_db_optimize_error' => 'Памылка аптымізацыі: %s',
-'admin_db_integrity_ok' => 'Праверка цэласнасці завершана: %s',
-'admin_db_integrity_error' => 'Памылка праверкі цэласнасці: %s',
 'admin_db_restore_success' => 'База даных адноўлена з рэзервовай копіі',
 'admin_db_restore_error' => 'Памылка аднаўлення: %s',
 'admin_db_backup_deleted' => 'Рэзервовая копія выдалена',
@@ -1080,7 +1012,6 @@ return [
 'admin_db_restore_confirm' => 'Аднавіць базу даных з рэзервовай копіі %s? Бягучая база будзе заменена.',
 // --- Налады ---
 'admin_settings_saved' => 'Налады паспяхова захаваны',
-'admin_settings_save_error' => 'Памылка захавання налад: %s',
 'admin_settings_db_test_success' => 'Падключэнне да базы даных паспяхова',
 'admin_settings_db_test_error' => 'Памылка падключэння: %s',
 'admin_settings_config_restored' => 'Канфігурацыя адноўлена з рэзервовай копіі',
@@ -1119,12 +1050,9 @@ return [
 'admin_error_csrf_missing' => 'Памылка бяспекі: CSRF токен адсутнічае',
 'admin_error_csrf_invalid' => 'Памылка бяспекі: няправільны CSRF токен',
 'admin_error_access_denied' => 'Доступ забаронены',
-'admin_error_database' => 'Памылка базы даных',
 'admin_template_not_found' => 'Шаблон не знойдзены',
 'admin_books_bulk_success' => 'Масавая аперацыя выканана',
 'admin_books_bulk_error' => 'Памылка пры выкананні масавай аперацыі',
-'admin_db_backup_deleted' => 'Рэзервовая копія выдалена',
-'admin_db_backup_delete_error' => 'Не ўдалося выдаліць рэзервовую копію',
 'admin_welcome_install' => 'Сардэчна запрашаем! Для пачатку работы рэкамендуем запусціць сканер кніг.',
 // --- Кнопкі і дзеянні ---
 'admin_btn_save' => 'Захаваць',
@@ -1188,12 +1116,10 @@ return [
 'admin_bulk_genre_confirm' => 'Змяніць жанр на "%s" для выбраных кніг?',
 'admin_bulk_year_invalid' => 'Калі ласка, увядзіце правільны год',
 'admin_bulk_year_confirm' => 'Змяніць год на %s для выбраных кніг?',
-'admin_db_table_view' => 'Прагляд табліцы',
 'admin_db_total_records' => 'Усяго запісаў',
 'admin_db_showing' => 'паказаны',
 'admin_db_no_data' => 'Няма даных',
 'admin_db_load_error' => 'Памылка загрузкі даных',
-'admin_db_table_empty' => 'У табліцы няма запісаў',
 'admin_db_empty' => '(пуста)',
 'admin_db_show_full' => 'Паказаць поўнасцю',
 'admin_db_full_value' => 'Поўнае значэнне',
@@ -1212,31 +1138,20 @@ return [
 'admin_db_export_csv' => 'Экспарт у CSV',
 'admin_status_yes' => 'Так',
 'admin_status_no' => 'Не',
-'admin_status_active' => 'Актыўны',
-'admin_status_error' => 'Памылка',
 // --- Табліцы ---
 'admin_table_indexes_count' => 'Колькасць індэксаў',
 'admin_index_name' => 'Імя індэкса',
-'admin_unique' => 'Унікальны',
 'admin_columns' => 'Калоны',
 'admin_cache_raw_data' => 'Сырыя даныя кэша',
 // --- Рэзервовыя копіі ---
 'admin_backup_actions' => 'Дзеянні',
-'admin_backup_restore_confirm' => 'Аднаўленне заменіць бягучую базу даных. Працягнуць?',
-'admin_backup_delete_confirm' => 'Выдаліць рэзервовую копію %s?',
+
 'settings_enabled' => 'Уключана',
 'settings_disabled' => 'Выключана',
 'settings_testing' => 'Праверка...',
 'settings_test_error' => 'Памылка злучэння',
 'settings_saving' => 'Захаванне...',
-// --- Групы налад ---
-'settings_group_site' => 'Налады сайта',
-'settings_group_opds' => 'OPDS-каталог',
-'settings_group_cache' => 'Кэшаванне',
-'settings_group_database' => 'База даных',
-'settings_group_paths' => 'Шляхі',
-'settings_group_performance' => 'Прадукцыйнасць',
-'settings_group_security' => 'Бяспека',
+
 // --- Палі налад - Сайт ---
 'settings_field_site_title' => 'Назва сайта',
 'settings_field_site_title_desc' => 'Адлюстроўваецца ў загалоўку старонак',
@@ -1292,37 +1207,8 @@ return [
 'settings_field_admin_password_desc' => 'Для змены пароля ўвядзіце новы ў поле ніжэй',
 'settings_field_admin_allowed_ips' => 'Дазволеныя IP',
 'settings_field_admin_allowed_ips_desc' => 'IP-адрасы, з якіх дазволены ўваход (праз коску)',
-'admin_books_edit_success' => 'Кніга паспяхова захавана',
-'admin_books_edit_error' => 'Памылка пры захаванні кнігі',
-'admin_books_delete_success' => 'Кніга выдалена',
-'admin_books_delete_error' => 'Памылка пры выдаленні кнігі',
-'admin_books_bulk_success' => 'Масавая аперацыя выканана',
-'admin_books_bulk_error' => 'Памылка пры выкананні масавай аперацыі',
-'admin_settings_saved' => 'Налады паспяхова захаваны',
 'admin_settings_save_error' => 'Памылка захавання налад',
-'admin_scanner_log_cleared' => 'Журнал сканера ачышчаны',
-'admin_scanner_inpx_import_completed' => 'Імпарт з INPX завершаны',
 'admin_db_backup_created' => 'Рэзервовая копія створана: %s (%s)',
-'admin_db_backup_error' => 'Памылка стварэння рэзервовай копіі: %s',
-'admin_db_optimized' => 'База даных аптымізавана',
-'admin_db_optimized_freed' => 'Вызвалена: %s',
-'admin_db_optimize_error' => 'Памылка аптымізацыі: %s',
-'admin_db_integrity_ok' => 'Праверка цэласнасці завершана',
-'admin_db_integrity_error' => 'Памылка праверкі цэласнасці: %s',
-'admin_db_restore_success' => 'База даных адноўлена з рэзервовай копіі',
-'admin_db_restore_error' => 'Памылка аднаўлення: %s',
-'admin_db_backup_deleted' => 'Рэзервовая копія выдалена',
-'admin_db_backup_delete_error' => 'Не ўдалося выдаліць рэзервовую копію',
-'admin_error_csrf_missing' => 'Памылка бяспекі: CSRF токен адсутнічае',
-'admin_error_csrf_invalid' => 'Памылка бяспекі: няправільны CSRF токен',
-'admin_error_access_denied' => 'Доступ забаронены',
-'admin_error_database' => 'Памылка базы даных',
-'admin_error_missing_params' => 'Адсутнічаюць абавязковыя параметры',
-'admin_template_not_found' => 'Шаблон не знойдзены',
-'dashboard_total_books' => 'Усяго кніг',
-'dashboard_total_authors' => 'Аўтараў',
-'dashboard_total_genres' => 'Жанраў',
-'dashboard_total_series' => 'Серый',
 'dashboard_php_version' => 'Версія PHP',
 'dashboard_db_type' => 'Тып БД',
 'dashboard_caching' => 'Кэшаванне',
@@ -1364,7 +1250,6 @@ return [
 'admin_db_restore_file_not_found' => 'Файл рэзервовай копіі не знойдзены',
 'admin_db_restore_failed' => 'Памылка аднаўлення',
 'admin_db_restore_copy_failed' => 'Не ўдалося скапіяваць файл',
-'admin_db_restore_success' => 'База даных адноўлена з рэзервовай копіі',
 'admin_db_optimize_success' => 'База даных аптымізавана',
 'admin_db_optimize_failed' => 'Памылка аптымізацыі',
 'admin_db_integrity_ok' => 'Праверка цэласнасці: OK',
@@ -1372,7 +1257,6 @@ return [
 'admin_db_integrity_warning' => 'Праверка цэласнасці: ёсць папярэджанні',
 'admin_db_integrity_failed' => 'Памылка праверкі цэласнасці',
 // --- Book Manager ---
-'admin_book_title_required' => 'Назва кнігі абавязкова для запаўнення',
 'admin_book_add_not_implemented' => 'Дадаванне новых кніг часова недаступна',
 'admin_book_not_found' => 'Кніга не знойдзена',
 'admin_book_delete_error' => 'Памылка пры выдаленні кнігі',
@@ -1396,8 +1280,6 @@ return [
 'admin_logs_errors' => 'Памылкі',
 'admin_logs_warnings' => 'Папярэджанні',
 'admin_logs_success' => 'Паспяхова',
-'admin_logs_last_lines' => 'Апошнія %d радкоў',
-'admin_logs_clear_confirm' => 'Ачысціць файл журнала?',
 'admin_logs_clear_confirm_system' => 'Ачысціць сістэмны журнал? Гэтае дзеянне незваротнае.',
 'admin_logs_clear_confirm_scanner' => 'Ачысціць журнал сканера? Гэтае дзеянне незваротнае.',
 'admin_logs_clear_confirm_php' => 'Ачысціць PHP журнал? Гэтае дзеянне незваротнае.',
@@ -1473,7 +1355,6 @@ return [
 'cache_store' => 'Cache store: %s (TTL: %d сек)',
 'cache_invalidated' => 'Cache: інвалідыравана %d запісаў тыпу "%s"',
 'cache_deleted' => 'Cache: выдалена запіс %s',
-'cache_cleared' => 'Cache: увесь кэш ачышчаны',
 'cache_clear_error' => 'Cache: немагчыма ачысціць кэш (APCu недаступны)',
 'cache_enabled_status' => 'Кэшаванне ўключана (APCu)',
 'cache_disabled_status' => 'Кэшаванне адключана або APCu недаступны',
@@ -1579,22 +1460,8 @@ return [
 'opds_books_in_genre' => '%d кніг у жанры %s',
 'opds_books_in_genre_title' => 'Кнігі ў жанры %s',
 'opds_books_in_series' => 'Кнігі ў серыі %s',
-'error_csrf' => 'Памылка бяспекі: абнавіце старонку',
-'error_unknown' => 'Невядомая памылка',
-'rating_vote_1' => 'ацэнка',
-'rating_vote_2' => 'ацэнкі',
-'rating_vote_5' => 'ацэнак',
-'rating_star_1' => 'зорка',
-'rating_star_2' => 'зоркі',
-'rating_star_5' => 'зорак',
-'favorites_add' => 'Дадаць у выбранае',
-'favorites_remove' => 'Выдаліць з выбранага',
-'close' => 'Закрыць',
 
 'admin_book_add_new' => 'Дадаць кнігу',
-'admin_book_add_title' => 'Дадаванне кнігі',
-'admin_book_year_invalid' => 'Год не можа быць большым за бягучы',
-
 'admin_book_field_file' => 'Файл кнігі',
 'admin_book_file_hint' => 'Падтрымліваемыя фарматы: FB2, EPUB, PDF, TXT. Максімальны памер: 50 МБ.',
 'admin_book_file_required' => 'Калі ласка, выберыце файл кнігі',
@@ -1621,7 +1488,6 @@ return [
 'backup_library_limit_desc' => 'максимум 1 ГБ',
 'backup_library_status' => 'Статус',
 'backup_library_can_backup' => 'Можна стварыць рэзервовую копію',
-'backup_library_too_large' => 'Занадта вялікі памер',
 'backup_library_too_large_desc' => 'Памер бібліятэкі перавышае 1 ГБ. Стварэнне рэзервовай копіі недаступна.',
 'backup_library_stats' => 'Статыстыка рэзервовых копій',
 'backup_library_backups_count' => 'Усяго рэзервовых копій',
@@ -1634,7 +1500,6 @@ return [
 'backup_library_no_backups_desc' => 'Націсніце "Стварыць рэзервовую копію", каб стварыць першую рэзервовую копію.',
 'backup_library_date' => 'Дата стварэння',
 'backup_library_filename' => 'Імя файла',
-'backup_library_size' => 'Памер',
 'backup_library_books' => 'Кніг',
 'backup_library_actions' => 'Дзеянні',
 'backup_library_download' => 'Спампаваць',
@@ -1656,7 +1521,6 @@ return [
 'backup_library_deleted' => 'Рэзервовая копія выдалена.',
 'backup_library_delete_failed' => 'Не ўдалося выдаліць рэзервовую копію.',
 
-'admin_scanner_version' => 'Версія сканара',
 'admin_scanner_version_unknown' => 'Невядомая',
 'admin_scanner_version_updated' => 'Версія сканара абноўлена',
 'admin_scanner_version_error' => 'Не атрымалася атрымаць версію сканара',
@@ -1683,7 +1547,6 @@ return [
 
 'read_book' => '● Чытаем',
 'save_bookmark' => '✓ Захавана',
-'bookmarks' => 'Закладка',
 'bookmark_add' => 'Закладка дададзена',
 'bookmark_name' => 'Увядзіце назву закладкі:',
 'bookmark_error' => 'Памылка: ',
@@ -1711,7 +1574,6 @@ return [
 'notes_count_label' => 'Нататак',
 'highlights_count' => 'Падсветка',
 'bookmarks_count' => 'Закладак',
-'all_books' => 'Усе кнігі',
 'go_to_reading' => 'Перайсці да месца ў кнізе',
 'search_to_notes' => 'Пошук па нататках...',
 'search_notes' => 'Пошук',
@@ -1733,26 +1595,9 @@ return [
 
 'no_notes_desc' => 'Дадавайце нататкі, цытаты і падсветкі падчас чытання кніг.',
 
-'book_marks' => 'Закладкі',
-'my_bookmark' => 'Мае закладкі',
-'last_read' => 'Апошняе прачытанае',
-'no_name_book' => 'Без назвы',
 'incognito' => 'Невядомы',
-'restore_read' => 'Працягнуць чытанне',
 'no_bookmarks1' => 'У вас пакуль няма закладак.',
 'no_bookmarks2' => 'Дадавайце іх падчас чытання кніг.',
-'delete_bookmark' => 'Выдаліць?',
-'bookmark_read' => 'Чытаць',
-
-'read_book' => '● Чытаем',
-'save_bookmark' => '✓ Захавана',
-'bookmark_add' => 'Закладка дададзена',
-'bookmark_name' => 'Увядзіце назву закладкі:',
-'bookmark_error' => 'Памылка: ',
-'bookmark_msg' => 'Адбылася памылка пры даданні закладкі',
-'read_book_pause' => '○ Паўза',
-'bookmark_error_' => '✗ Памылка',
-
 
 'notes_all' => 'Усе',
 'notes_c' => '💬 Цытаты',
@@ -1817,7 +1662,6 @@ return [
 'author_deduplicate_settings' => 'Налады пошуку',
 'author_deduplicate_threshold' => 'Парог падабенства',
 'author_deduplicate_threshold_desc' => 'Чым вышэй парог, тым дакладней супадзенні (рэкамендуецца 70-80%)',
-'author_deduplicate_scan' => 'Знайсці дублікаты',
 'author_deduplicate_auto_merge' => 'Аўта-абяднанне',
 'author_deduplicate_auto_confirm' => 'Вы ўпэўненыя, што жадаеце аўтаматычна абяднаць усе знойдзеныя групы? Гэта дзеянне незваротна!',
 'author_deduplicate_groups' => 'Знойдзеныя групы дублікатаў',
@@ -1861,7 +1705,6 @@ return [
 'author_deduplicate_scan' => 'Сканіраванне',
 'author_deduplicate_merge_bath' => 'Выберыце варыянт для абяднання',
 
-
 'stats_by_date' => 'Даданне па дат',
 'date' => 'Дата',
 'count' => 'Колькасць',
@@ -1869,7 +1712,6 @@ return [
 'last_update' => 'Апошняе абнаўленне:',
 
 'books' => 'кніг',
-
 
 'opds_sort_new' => 'Па даце дадання',
 'opds_sort_title' => 'Па назове',
@@ -1884,7 +1726,6 @@ return [
 'sort_by_author' => 'Па аўтару',
 'grid_view' => 'Плітка',
 'list_view' => 'Спіс',
-'search_placeholder' => 'Пошук кніг...',
 'show_more' => 'Паказаць яшчэ',
 'all_books_loaded' => 'Усе кнігі загружаны',
 'switch_theme' => 'Пераключыць тэму',
@@ -1893,7 +1734,10 @@ return [
 'filter_reset' => 'Скінуць фільтр',
 'filter_by_genre' => 'Фільтр па жанры',
 'no_genres' => 'Няма жанраў',
-'books' => 'кніг',
 
+'settings_field_fts_enabled' => 'Паўнатэкставы пошук (FTS)',
+'settings_field_fts_enabled_desc' => 'Выкарыстоўваць паўнатэкставы пошук для SQLite. Паскарае пошук, але патрабуе больш дыскавай прасторы.',
+'search_fts_enabled' => 'Паўнатэкставы пошук уключаны',
+'search_fts_disabled' => 'Паўнатэкставы пошук выключаны',
 
 ];

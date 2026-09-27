@@ -335,5 +335,6 @@ return [
     'rus_classic' => 'Russian Classics',
     'sf_russian' => 'Russian Science Fiction',
     'fantasy_russian' => 'Russian Fantasy',
-    'Islam' => 'Islam'
+    'Islam' => 'Islam',
+    'romance_sf' => 'Science fiction romance',
 ];

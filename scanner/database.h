@@ -30,6 +30,7 @@ int create_archive_table(DatabaseHandle *db_handle, Config *config);
 int create_ratings_table(DatabaseHandle *db_handle, Config *config);
 int create_favorites_table(DatabaseHandle *db_handle, Config *config);
 int create_bookmarks_table(DatabaseHandle *db_handle, Config *config);
+int create_books_fts_table(DatabaseHandle *db_handle, Config *config);
 int create_bookmarks_fts_table(DatabaseHandle *db_handle, Config *config);
 int create_bookmark_tags_table(DatabaseHandle *db_handle, Config *config);
 int create_reading_history_table(DatabaseHandle *db_handle, Config *config);
@@ -47,10 +48,10 @@ void update_archive_info(DatabaseHandle *db_handle, const char *archive_path,
 int book_exists(DatabaseHandle *db_handle, const char *filepath,
                 const char *archive_path, const char *internal_path,
                 const char *file_hash, Config *config);
-void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath,
-                       BookMeta *meta, const char *archive_path,
-                       const char *internal_path, const char *file_hash,
-                       Config *config);
+int insert_book_to_db(DatabaseHandle *db_handle, const char *filepath,
+                      BookMeta *meta, const char *archive_path,
+                      const char *internal_path, const char *file_hash,
+                      Config *config);
 
 int db_begin_transaction(DatabaseHandle *db_handle, Config *config);
 int db_commit_transaction(DatabaseHandle *db_handle, Config *config);

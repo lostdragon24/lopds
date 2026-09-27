@@ -140,7 +140,7 @@ class Config
             $lang = env('OPDS_LANG', 'ru');
 
             if ($lang !== 'ru') {
-                my_log("Using deprecated OPDS_LANG, please rename to OPDS_DEFAULT_LANG in .env");
+                // my_log("Using deprecated OPDS_LANG, please rename to OPDS_DEFAULT_LANG in .env");
             }
         }
 
@@ -199,9 +199,6 @@ class Config
     {
         return 'mysql' === self::getDbType();
     }
-
-
-
 
     // ===== БАЗА ДАННЫХ (ленивая загрузка) =====
 
@@ -288,8 +285,14 @@ class Config
         'page_cache' => ['ttl' => 300],
     ];
 
+
+    public static function isFulltextEnabled(): bool
+    {
+        return filter_var(env('FTS', 'true'), FILTER_VALIDATE_BOOLEAN);
+    }
+
     public const SEARCH_OPTIMIZATION = [
-        'enable_fulltext' => false,
+        'enable_fulltext' => 'true',
         'min_word_length' => 3,
         'cache_search_results' => true,
         'search_cache_ttl' => 300,

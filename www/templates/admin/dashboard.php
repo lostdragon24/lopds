@@ -51,6 +51,19 @@
                     </tr>
                     <?php endforeach; ?>
                 </table>
+
+<?php if (Config::isFulltextEnabled()): ?>
+    <span class="badge bg-success">
+        <i class="fas fa-search me-1"></i>
+        <?= __('search_fts_enabled'); ?>
+    </span>
+<?php else: ?>
+    <span class="badge bg-secondary">
+        <i class="fas fa-search me-1"></i>
+        <?= __('search_fts_disabled'); ?>
+    </span>
+<?php endif; ?>
+
             </div>
         </div>
     </div>
@@ -84,6 +97,10 @@
                     </div>
                 <?php endif; ?>
             </div>
+
+
+
+
         </div>
     </div>
 </div>

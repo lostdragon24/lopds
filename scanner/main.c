@@ -175,7 +175,9 @@ int main(int argc, char *argv[]) {
 
   free_config(config);
 
-  fprintf(stderr, "[%s] INFO: === SCANNER FINISHED ===\n",
-          get_current_timestamp());
+  char *ts = get_current_timestamp();
+  fprintf(stderr, "[%s] INFO: === SCANNER FINISHED ===\n", ts);
+  free(ts);
+
   return 0;
 }

@@ -47,7 +47,13 @@ class SettingsManager
                         'required' => true,
                         'min' => 5,
                         'max' => 100
-                    ]
+                    ],
+                    'FTS' => [
+                        'label' => __('settings_field_fts_enabled'),
+                        'type' => 'checkbox',
+                        'default' => true,
+                        'description' => __('settings_field_fts_enabled_desc'),
+                    ],
                 ]
             ],
 
@@ -276,7 +282,8 @@ class SettingsManager
                 'cover_cache_dir' => Config::getCoverCacheDir(),
                 'scanner_path' => Config::getScannerPath(),
                 'cache_enabled' => Config::isCacheEnabled(),
-                'use_apcu' => Config::isUseApcu()
+                'use_apcu' => Config::isUseApcu(),
+                'fts' => Config::isFulltextEnabled()
             ]
         ];
     }
@@ -333,6 +340,8 @@ class SettingsManager
 
         // 8. Очищаем кэш
         $this->clearConfigCache();
+        Cache::invalidateByType(Cache::TYPE_SEARCH);
+        Cache::invalidateByType('search_results');
 
         return $result;
     }
@@ -347,10 +356,10 @@ class SettingsManager
         // Список всех полей, которые нужно сохранять
         $allFields = [
             // Site settings
-            'SITE_TITLE', 'ITEMS_PER_PAGE',
+            'SITE_TITLE', 'ITEMS_PER_PAGE', 'FTS',
 
             // OPDS settings
-            'OPDS_TITLE', 'OPDS_AUTHOR', 'OPDS_ID', 'OPDS_DEFAULT_LANG', // <- Добавьте эту строку
+            'OPDS_TITLE', 'OPDS_AUTHOR', 'OPDS_ID', 'OPDS_DEFAULT_LANG',
 
             // Cache settings
             'ENABLE_CACHE', 'USE_APCU', 'CACHE_TTL', 'PAGE_CACHE_ENABLED',

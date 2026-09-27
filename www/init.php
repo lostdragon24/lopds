@@ -10,6 +10,15 @@ require_once LOPDS_ROOT . '/config/config.php';
 // ============================================
 require_once LOPDS_ROOT . '/lib/SessionManager.php';
 require_once LOPDS_ROOT . '/lib/SessionInitializer.php';
+
+// ============================================
+// ПОДКЛЮЧАЕМ ПЕРЕВОД
+// ============================================
+require_once LOPDS_ROOT . '/lib/LanguageDetector.php';
+require_once LOPDS_ROOT . '/lib/Translator.php';
+require_once LOPDS_ROOT . '/lib/Logger.php';
+Logger::setLogFile(Config::getCacheDir() . '/system.log');
+
 SessionInitializer::initialize();
 
 
@@ -32,29 +41,16 @@ if (isset($_COOKIE['device_fp'])) {
 }
 define('DEVICE_ID', $deviceId);
 
-
-
 SessionManager::start();
 
 require_once LOPDS_ROOT . '/lib/SecurityHelper.php';
 SecurityHelper::getInstance()->addSecurityHeaders();
-
 
 // ============================================
 // ИНИЦИАЛИЗИРУЕМ ПРИЛОЖЕНИЕ
 // ============================================
 require_once LOPDS_ROOT . '/lib/AppInitializer.php';
 AppInitializer::init();
-
-// ============================================
-// ПОДКЛЮЧАЕМ ПЕРЕВОД
-// ============================================
-require_once LOPDS_ROOT . '/lib/LanguageDetector.php';
-require_once LOPDS_ROOT . '/lib/Translator.php';
-require_once LOPDS_ROOT . '/lib/Logger.php';
-Logger::setLogFile(Config::getCacheDir() . '/system.log');
-
-
 
 // Инициализируем переводчик (он определит язык из сессии или POST)
 $translator = Translator::getInstance();

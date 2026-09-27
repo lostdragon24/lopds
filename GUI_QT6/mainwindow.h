@@ -17,8 +17,11 @@
 #include "scannerdialog.h"
 #include "favoritesdialog.h"
 #include "fb2reader.h"
+#include "EpubReader.h"
 #include <QTemporaryFile>
 #include <QNetworkInterface>
+#include <QtConcurrent>
+#include <QFutureWatcher>
 
 
 QT_BEGIN_NAMESPACE
@@ -40,6 +43,18 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
+
+    struct BookContent {
+        QByteArray data;
+        QPixmap cover;
+        QString description;
+        bool hasCover = false;
+        bool hasDescription = false;
+
+        BookContent() = default;
+    };
+
+
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
     void openBookById(int bookId);
@@ -67,6 +82,7 @@ private slots:
     void onTreeViewExpanded(const QModelIndex &index);
     void onTreeViewModeChanged();
     void about();
+    void onCoverLoadingFinished();
 
 
 private:
@@ -98,17 +114,6 @@ private:
     // Кэши
     QCache<QString, QPixmap> *coverCache;
     QCache<QString, QString> *descriptionCache;
-
-    // Структура для хранения данных извлеченной книги
-    struct BookContent {
-        QByteArray data;
-        QPixmap cover;
-        QString description;
-        bool hasCover = false;
-        bool hasDescription = false;
-
-        BookContent() = default;
-    };
 
     QString getCacheDir() const;
     QString getCoverCachePath(int bookId) const;
@@ -226,6 +231,23 @@ private:
 
     QString getCoverCacheKey(const QString& filePath, const QString& archivePath, const QString& internalPath);
     QString getDescriptionCacheKey(const QString& filePath, const QString& archivePath, const QString& internalPath);
+
+
+    // Для асинхронной загрузки обложек
+    QFutureWatcher<BookContent> *m_coverWatcher;
+    int m_currentLoadingBookId;
+    bool m_isLoadingCover;
+
+    // Метод для асинхронной загрузки
+    void loadBookCoverAndDescriptionAsync(int bookId);
+    BookContent loadBookContentAsync(const QString& filePath, const QString& archivePath, const QString& internalPath);
+
+    EpubReader *m_epubReader = nullptr;
+
+    void openEpubFile(const QString &filePath);
+    void openEpubInReader(const QString& filePath, const QString& archivePath,
+                          const QString& internalPath, const QString& title);
+
 };
 
 #endif // MAINWINDOW_H

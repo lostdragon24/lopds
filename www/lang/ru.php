@@ -69,7 +69,6 @@ return [
     'book_archive_internal' => 'Внутренний путь:',      // Путь внутри архива
 
     // Поиск
-    'search_placeholder'    => 'Введите запрос...',     // Плейсхолдер поля поиска
     'search_in'             => 'Искать в:',             // Заголовок для выбора поля
     'search_all'            => 'Везде',                  // Искать во всех полях
     'search_title'          => 'Названия',               // Искать в названиях
@@ -320,7 +319,6 @@ return [
     'admin_scanner_config'  => 'Путь к конфигу:',             // Путь к конфигу
     'admin_scanner_inpx'    => 'INPX файл:',                  // Наличие INPX
     'admin_scanner_inpx_found' => 'Найден',                   // Найден
-    'admin_scanner_inpx_not_found' => 'Не найден',            // Не найден
 
     // Статистика библиотеки
     'admin_library_stats'   => 'Статистика библиотеки',       // Заголовок
@@ -701,7 +699,6 @@ return [
 
     // Статус БД
     'install_db_status'     => 'Статус базы данных',           // Заголовок
-    'install_db_exists'     => 'Существует:',                  // Статус
     'install_db_will_be_created' => '⚠️ Будет создана',         // Статус
     'install_tables_exist'  => 'Таблицы:',                     // Статус
     'install_tables_will_be_created' => '⚠️ Будут созданы',     // Статус
@@ -725,7 +722,6 @@ return [
 
     // Шаг 5 - Создание администратора
     'install_step5_title'   => 'Создание администратора',      // Заголовок
-    'install_step5_desc'    => 'Укажите данные для входа в панель управления', // Описание
 
     // Форма администратора
     'install_admin_data'    => 'Данные администратора',        // Заголовок
@@ -742,7 +738,6 @@ return [
 
     // Шаг 6 - Завершение
     'install_step6_title'   => 'Установка завершена!',         // Заголовок
-    'install_step6_desc'    => 'Библиотека успешно установлена и готова к работе', // Описание
 
     // Статистика после установки
     'install_stats_books'   => 'книг в библиотеке',            // Метрика
@@ -769,7 +764,6 @@ return [
     // ============================================
 
     'error_occurred'        => 'Произошла ошибка',             // Общая ошибка
-    'error_unknown'         => 'Неизвестная ошибка',           // Неизвестная ошибка
     'error_invalid_id'      => 'Неверный ID',                  // Неверный ID
     'error_not_found'       => 'Не найдено',                   // Не найдено
     'error_access_denied'   => 'Доступ запрещен',              // Доступ запрещен
@@ -811,7 +805,6 @@ return [
 'recent_books'          => 'Последние добавленные книги',                    // "Последние добавленные книги"
 'book_cover'            => 'Обложка',                      // "Обложка"
 'stats_unavailable'     => 'Статистика недоступна',          // "Статистика недоступна"
-'pagination'            => 'Page navigation',                 // для aria-label
 'page_of'               => 'Страница %s из %s',                   // "Страница X из Y"
 'stats_total_genres'	=> 'Жанров',				// "Жанров"
 
@@ -822,9 +815,6 @@ return [
 'rating_votes_1'        => 'рейтинг',                             // для 1 оценки
 'rating_votes_2'        => 'рейтинги',                            // для 2-4 оценок
 'rating_votes_5'        => 'рейтинги',                            // для 5+ оценок
-'rating_star_1'         => 'звезда',                               // для 1 звезды
-'rating_star_2'         => 'звезды',                              // для 2-4 звезд
-'rating_star_5'         => 'звёзд',                              // для 5+ звезд
 'book_number'           => 'Книга #%s',                           // "Книга %s"
 'book_description_missing' => 'Описание книги отсутствует',        // "Описание книги отсутствует"
 'back_to_list'          => 'Назад к списку',                       // "Назад к списку"
@@ -837,10 +827,6 @@ return [
 'error'                 => 'Ошибка',
 'success'               => 'Успех',
 'warning'               => 'Предупреждение',
-'info'                  => 'Информация',
-'confirm_delete'        => 'Вы уверены, что хотите удалить?',
-'favorites_added'       => 'Добавлено в избранное',
-'favorites_removed'     => 'Удалено из избранного',
 
 'footer_tagline'        => 'Ваша персональная электронная библиотека',
 'footer_books'          => 'Книг',
@@ -856,36 +842,14 @@ return [
 'pagination'            => 'Пагинация',
 'actions'               => 'Действия',
 
-
-'top_rated_title'       => 'Лучшие книги по оценкам читателей',
-'top_rated_description' => 'Здесь представлены книги с наивысшим рейтингом от пользователей библиотеки. Для попадания в рейтинг книга должна иметь минимум <strong>1 оценку</strong>. Данные обновляются каждый час.',
-'top_rated_empty'       => 'Пока нет книг с оценками. Будьте первым, кто оценит книги!',
-'top_rated_total_rated' => 'Всего оценено книг',
-'top_rated_in_top'      => 'в топе',
-'top_rated_total_votes' => 'Всего оценок',
-'top_rated_from_users'  => 'от пользователей',
-'top_rated_books'       => 'Рейтинг книг',
-'top_rated_page'        => 'Страница',
-'top_rated_author'      => 'Автор',
-'top_rated_rating'      => 'Рейтинг',
-'top_rated_votes'       => 'Оценок',
-'top_rated_format'      => 'Формат',
-'top_rated_actions'     => 'Действия',
-'top_rated_find_more'   => 'Найти больше книг',
-'top_rated_full_stats'  => 'Полная статистика',
 'stats_full'            => 'Полная статистика',
 'stats_queries'         => 'Запросов',
 'votes'                 => 'Оценок',
-'rating'                => 'Рейтинг',
 
-'reader_loading'           => 'Загрузка...',
 'reader_fullscreen'        => 'Полноэкранный режим',
 'reader_fb2_title'         => 'Читалка FB2',
 'reader_epub_title'        => 'Читалка EPUB',
 'reader_pdf_title'         => 'Читалка PDF',
-'reader_format_not_supported' => 'Формат не поддерживается для онлайн-чтения',
-'reader_format_desc'       => 'Книга в формате %s не может быть отображена в браузере.',
-'reader_download'          => 'Скачать книгу',
 'reader_font_decrease'     => 'Уменьшить шрифт',
 'reader_font_increase'     => 'Увеличить шрифт',
 'reader_prev_page'         => 'Предыдущая страница (←)',
@@ -916,58 +880,20 @@ return [
 'security_warning_short'    => 'ВАЖНО!',
 'security_warning_install'  => 'После установки удалите директорию %s или защитите её паролем.',
 
-'install_wizard'           => 'Мастер установки библиотеки',
-'install_step'             => 'Шаг %s из 6',
-
-
-'install_step2_title'          => 'Настройка путей',
-'install_step2_desc'           => 'Укажите пути к каталогу с книгами и сканеру',
-'install_books_dir'            => 'Каталог с книгами',
-'install_books_dir_label'      => 'Путь к директории с книгами',
-'install_books_dir_default'    => 'По умолчанию',
-'install_books_dir_hint'       => 'Абсолютный путь к папке, где хранятся ваши книги (FB2, EPUB, PDF и т.д.)',
-'install_books_dir_tip'        => 'Убедитесь, что у веб-сервера есть права на чтение этой директории.',
 'install_tip'                   => 'Совет:',
-'install_cache_dir'             => 'Директория кэша',
-'install_cache_dir_label'       => 'Путь к директории кэша',
-'install_cache_dir_hint'        => 'Директория для хранения кэша (обложки, временные файлы)',
-'install_scanner_dir'           => 'Сканер книг',
-'install_scanner_label'         => 'Путь к исполняемому файлу сканера',
-'install_scanner_hint'          => 'Полный путь к бинарному файлу сканера (оставьте пустым, если хотите установить позже)',
 'install_scanner_found'         => '✅ Сканер найден (версия: %s)',
 'install_current_paths'         => 'Текущие пути (из Config)',
 'install_base_path'             => 'Базовый путь:',
 'install_scanner_default'       => 'Путь к сканеру по умолчанию:',
 'install_paths_note'            => 'Это текущие пути по умолчанию. Вы можете изменить их выше.',
-'install_back'                   => 'Назад',
-'install_save_paths'             => 'Сохранить пути',
 'install_books_dir_required'     => 'Путь к директории с книгами обязателен',
 'install_path_relative_warning'  => 'Путь выглядит как относительный. Вы уверены, что хотите использовать относительный путь?',
-
-
-'install_step3_title'           => 'Настройка базы данных',
-'install_step3_desc'            => 'Выберите тип базы данных и укажите параметры подключения',
 'debug_info'                    => 'Отладочная информация',
 'session_id'                    => 'ID сессии',
 'current_step'                  => 'Текущий шаг',
 'db_config_in_session'          => 'db_config в сессии',
 'type'                          => 'Тип',
-'install_db_sqlite'             => 'SQLite (рекомендуется для небольших библиотек)',
-'install_db_mysql'              => 'MySQL / MariaDB (для больших библиотек)',
-'install_sqlite_path'           => 'Путь к файлу SQLite',
-'install_sqlite_auto'           => 'Авто',
-'install_sqlite_hint'           => 'Абсолютный или относительный путь к файлу .db',
-'install_sqlite_create'         => 'Создать файл базы данных, если не существует',
-'install_sqlite_diagnose'       => 'Диагностика SQLite:',
-'install_mysql_host'            => 'Хост MySQL',
-'install_mysql_port'            => 'Порт',
-'install_mysql_dbname'          => 'Имя базы данных',
-'install_mysql_user'            => 'Пользователь',
-'install_mysql_password'        => 'Пароль',
 'install_mysql_warning'         => 'Убедитесь, что сервер базы данных запущен и учетные данные верны.',
-'install_test_connection'       => 'Проверить подключение',
-'install_continue_configured'   => 'Продолжить (подключение настроено)',
-'install_test_first'            => 'Сначала выполните проверку подключения к базе данных.',
 'install_db_info'               => 'Информация о базах данных',
 'install_sqlite_pros_1'         => 'Не требует отдельного сервера',
 'install_sqlite_pros_2'         => 'Легко бэкапить (просто скопировать файл)',
@@ -987,8 +913,6 @@ return [
 'install_step4_dir_not_writable'    => 'Директория %s не доступна для записи',
 'install_step4_file_not_writable'   => 'Файл базы данных не доступен для записи',
 'install_step4_permission_problem'  => 'Проблема с правами доступа:',
-'install_step4_title'               => 'Создание структуры базы данных',
-'install_step4_desc'                => 'Сейчас будут созданы все необходимые таблицы',
 'install_step4_success'             => 'База данных успешно создана!',
 'install_step4_db_status'           => 'Статус базы данных',
 'install_step4_db_type'             => 'Тип БД:',
@@ -1015,7 +939,6 @@ return [
 'install_step4_continue'              => 'Продолжить (шаг 5 - настройка администратора)',
 'install_step4_ready'                 => 'База данных успешно создана! Можно переходить к следующему шагу.',
 
-'install_step5_title'               => 'Создание администратора',
 'install_step5_desc'                => 'Настройка учетной записи для управления библиотекой',
 'install_step5_admin_data'          => 'Данные администратора',
 'install_step5_username'            => 'Имя пользователя',
@@ -1049,7 +972,6 @@ return [
 'install_step5_success_desc'        => 'Теперь вы можете войти в панель администратора с именем пользователя "admin" и указанным паролем.',
 'install_step5_continue'             => 'Перейти к завершению',
 
-'install_step6_title'               => 'Установка завершена!',
 'install_step6_desc'                => 'Ваша библиотека успешно установлена и готова к работе',
 'install_step6_tip_start_title'     => 'Начать просмотр',
 'install_step6_tip_start_desc'      => 'Перейдите в библиотеку и начните изучать свою коллекцию книг',
@@ -1071,7 +993,6 @@ return [
 
 
 'install_error_connection' => 'Ошибка подключения',
-'install_error_create_dir' => 'Не удалось создать директорию: %s',
 'install_error_dir_not_writable' => 'Директория %s не доступна для записи (права: %s)',
 'install_error_create_file' => 'Не удалось создать файл: %s',
 'install_error_file_not_writable' => 'Файл %s не доступен для записи (права: %s)',
@@ -1079,7 +1000,6 @@ return [
 'install_error_no_type' => 'Тип базы данных не указан',
 'install_mysql_success' => 'Подключение к MySQL успешно!',
 'install_db_exists' => 'База данных существует.',
-'install_db_will_be_created' => 'База данных будет создана.',
 'install_sqlite_success' => 'SQLite база данных доступна для записи',
 
 'install_step4_permissions_info' => 'Права доступа к базе данных',
@@ -1221,12 +1141,8 @@ return [
 'admin_db_optimized' => 'База данных оптимизирована',
 'admin_db_optimized_freed' => 'Освобождено: %s',
 'admin_db_optimize_error' => 'Ошибка оптимизации: %s',
-'admin_db_integrity_ok' => 'Проверка целостности завершена: %s',
-'admin_db_integrity_error' => 'Ошибка проверки целостности: %s',
-'admin_db_restore_success' => 'База данных восстановлена из бэкапа',
 'admin_db_restore_error' => 'Ошибка восстановления: %s',
 'admin_db_backup_deleted' => 'Бэкап удалён',
-'admin_db_backup_delete_error' => 'Не удалось удалить бэкап',
 'admin_db_table_empty' => 'В таблице нет записей',
 'admin_db_table_view' => 'Просмотр таблицы',
 'admin_db_backup_confirm' => 'Создать бэкап базы данных?',
@@ -1235,7 +1151,6 @@ return [
 
 // --- Настройки ---
 'admin_settings_saved' => 'Настройки успешно сохранены',
-'admin_settings_save_error' => 'Ошибка сохранения настроек: %s',
 'admin_settings_db_test_success' => 'Подключение к базе данных успешно',
 'admin_settings_db_test_error' => 'Ошибка подключения: %s',
 'admin_settings_config_restored' => 'Конфигурация восстановлена из бэкапа',
@@ -1259,7 +1174,6 @@ return [
 'admin_logs_system' => 'Системный лог',
 'admin_logs_empty' => 'Лог пуст',
 'admin_logs_file_size' => 'Размер файла',
-'admin_logs_last_lines' => 'Последние строки',
 'admin_logs_clear' => 'Очистить',
 'admin_logs_clear_confirm' => 'Очистить лог?',
 'admin_logs_download' => 'Скачать',
@@ -1278,11 +1192,9 @@ return [
 'admin_error_csrf_missing' => 'Ошибка безопасности: CSRF токен отсутствует',
 'admin_error_csrf_invalid' => 'Ошибка безопасности: неверный CSRF токен',
 'admin_error_access_denied' => 'Доступ запрещен',
-'admin_error_database' => 'Ошибка базы данных',
 'admin_template_not_found' => 'Шаблон не найден',
 'admin_books_bulk_success' => 'Массовая операция выполнена',
 'admin_books_bulk_error' => 'Ошибка при выполнении массовой операции',
-'admin_db_backup_deleted' => 'Бэкап удалён',
 'admin_db_backup_delete_error' => 'Не удалось удалить бэкап',
 'admin_welcome_install' => 'Добро пожаловать! Для начала работы рекомендуем запустить сканер книг.',
 
@@ -1357,12 +1269,10 @@ return [
 'admin_bulk_year_invalid' => 'Please enter a valid year',
 'admin_bulk_year_confirm' => 'Change year to %s for selected books?',
 
-'admin_db_table_view' => 'Просмотр таблицы',
 'admin_db_total_records' => 'Всего записей',
 'admin_db_showing' => 'показаны',
 'admin_db_no_data' => 'Нет данных',
 'admin_db_load_error' => 'Ошибка загрузки данных',
-'admin_db_table_empty' => 'В таблице нет записей',
 'admin_db_empty' => '(пусто)',
 'admin_db_show_full' => 'Показать полностью',
 'admin_db_full_value' => 'Полное значение',
@@ -1382,35 +1292,20 @@ return [
 
 'admin_status_yes' => 'Да',
 'admin_status_no' => 'Нет',
-'admin_status_active' => 'Активен',
-'admin_status_error' => 'Ошибка',
-
 // --- Таблицы ---
 'admin_table_indexes_count' => 'Количество индексов',
 'admin_index_name' => 'Имя индекса',
-'admin_unique' => 'Уникальный',
 'admin_columns' => 'Колонки',
 'admin_cache_raw_data' => 'Сырые данные кэша',
 
 // --- Бэкапы ---
 'admin_backup_actions' => 'Действия',
-'admin_backup_restore_confirm' => 'Восстановление заменит текущую базу данных. Продолжить?',
-'admin_backup_delete_confirm' => 'Удалить бэкап %s?',
 
 'settings_enabled' => 'Включено',
 'settings_disabled' => 'Выключено',
 'settings_testing' => 'Проверка...',
 'settings_test_error' => 'Ошибка соединения',
 'settings_saving' => 'Сохранение...',
-
-// --- Группы настроек ---
-'settings_group_site' => 'Настройки сайта',
-'settings_group_opds' => 'OPDS-каталог',
-'settings_group_cache' => 'Кэширование',
-'settings_group_database' => 'База данных',
-'settings_group_paths' => 'Пути',
-'settings_group_performance' => 'Производительность',
-'settings_group_security' => 'Безопасность',
 
 // --- Поля настроек - Сайт ---
 'settings_field_site_title' => 'Название сайта',
@@ -1474,39 +1369,8 @@ return [
 'settings_field_admin_allowed_ips' => 'Разрешённые IP',
 'settings_field_admin_allowed_ips_desc' => 'IP-адреса, с которых разрешён вход (через запятую)',
 
-'admin_books_edit_success' => 'Книга успешно сохранена',
-'admin_books_edit_error' => 'Ошибка при сохранении книги',
-'admin_books_delete_success' => 'Книга удалена',
-'admin_books_delete_error' => 'Ошибка при удалении книги',
-'admin_books_bulk_success' => 'Массовая операция выполнена',
-'admin_books_bulk_error' => 'Ошибка при выполнении массовой операции',
-'admin_settings_saved' => 'Настройки успешно сохранены',
 'admin_settings_save_error' => 'Ошибка сохранения настроек',
-'admin_scanner_log_cleared' => 'Лог сканера очищен',
-'admin_scanner_inpx_import_completed' => 'Импорт из INPX завершён',
-'admin_db_backup_created' => 'Бэкап создан: %s (%s)',
-'admin_db_backup_error' => 'Ошибка создания бэкапа: %s',
-'admin_db_optimized' => 'База данных оптимизирована',
-'admin_db_optimized_freed' => 'Освобождено: %s',
-'admin_db_optimize_error' => 'Ошибка оптимизации: %s',
-'admin_db_integrity_ok' => 'Проверка целостности завершена',
-'admin_db_integrity_error' => 'Ошибка проверки целостности: %s',
-'admin_db_restore_success' => 'База данных восстановлена из бэкапа',
-'admin_db_restore_error' => 'Ошибка восстановления: %s',
-'admin_db_backup_deleted' => 'Бэкап удалён',
-'admin_db_backup_delete_error' => 'Не удалось удалить бэкап',
-'admin_error_csrf_missing' => 'Ошибка безопасности: CSRF токен отсутствует',
-'admin_error_csrf_invalid' => 'Ошибка безопасности: неверный CSRF токен',
-'admin_error_access_denied' => 'Доступ запрещен',
-'admin_error_database' => 'Ошибка базы данных',
-'admin_error_missing_params' => 'Отсутствуют обязательные параметры',
-'admin_template_not_found' => 'Шаблон не найден',
 
-
-'dashboard_total_books' => 'Всего книг',
-'dashboard_total_authors' => 'Авторов',
-'dashboard_total_genres' => 'Жанров',
-'dashboard_total_series' => 'Серий',
 'dashboard_php_version' => 'Версия PHP',
 'dashboard_db_type' => 'Тип БД',
 'dashboard_caching' => 'Кэширование',
@@ -1559,7 +1423,6 @@ return [
 'admin_db_integrity_failed' => 'Ошибка проверки целостности',
 
 // --- Book Manager ---
-'admin_book_title_required' => 'Название книги обязательно для заполнения',
 'admin_book_add_not_implemented' => 'Добавление новых книг временно недоступно',
 'admin_book_not_found' => 'Книга не найдена',
 'admin_book_delete_error' => 'Ошибка при удалении книги',
@@ -1586,7 +1449,6 @@ return [
 'admin_logs_warnings' => 'Предупреждения',
 'admin_logs_success' => 'Успешно',
 'admin_logs_last_lines' => 'Последние %d строк',
-'admin_logs_clear_confirm' => 'Очистить лог-файл?',
 'admin_logs_clear_confirm_system' => 'Очистить системный лог? Это действие необратимо.',
 'admin_logs_clear_confirm_scanner' => 'Очистить лог сканера? Это действие необратимо.',
 'admin_logs_clear_confirm_php' => 'Очистить PHP лог? Это действие необратимо.',
@@ -1672,7 +1534,6 @@ return [
 'cache_store' => 'Cache store: %s (TTL: %d сек)',
 'cache_invalidated' => 'Cache: инвалидировано %d записей типа "%s"',
 'cache_deleted' => 'Cache: удалена запись %s',
-'cache_cleared' => 'Cache: весь кэш очищен',
 'cache_clear_error' => 'Cache: невозможно очистить кэш (APCu не доступен)',
 'cache_enabled_status' => 'Кэширование включено (APCu)',
 'cache_disabled_status' => 'Кэширование отключено или APCu недоступен',
@@ -1786,23 +1647,7 @@ return [
 'opds_books_in_genre_title' => 'Книги в жанре %s',
 'opds_books_in_series' => 'Книги в серии %s',
 
-'error_csrf' => 'Ошибка безопасности: обновите страницу',
-'error_unknown' => 'Неизвестная ошибка',
-'rating_vote_1' => 'оценка',
-'rating_vote_2' => 'оценки',
-'rating_vote_5' => 'оценок',
-'rating_star_1' => 'звезда',
-'rating_star_2' => 'звезды',
-'rating_star_5' => 'звёзд',
-'favorites_add' => 'Добавить в избранное',
-'favorites_remove' => 'Удалить из избранного',
-
-'close' => 'Закрыть',
-
 'admin_book_add_new' => 'Добавить книгу',
-'admin_book_add_title' => 'Добавление книги',
-'admin_book_year_invalid' => 'Год не может быть больше текущего',
-
 'admin_book_field_file' => 'Файл книги',
 'admin_book_file_hint' => 'Поддерживаемые форматы: FB2, EPUB, PDF, TXT. Максимальный размер: 50 МБ.',
 'admin_book_file_required' => 'Пожалуйста, выберите файл книги',
@@ -1829,7 +1674,6 @@ return [
 'backup_library_limit_desc' => 'максимум 1 ГБ',
 'backup_library_status' => 'Статус',
 'backup_library_can_backup' => 'Можно создать бэкап',
-'backup_library_too_large' => 'Слишком большой размер',
 'backup_library_too_large_desc' => 'Размер библиотеки превышает 1 ГБ. Создание бэкапа недоступно.',
 'backup_library_stats' => 'Статистика бэкапов',
 'backup_library_backups_count' => 'Всего бэкапов',
@@ -1842,7 +1686,6 @@ return [
 'backup_library_no_backups_desc' => 'Нажмите "Создать бэкап", чтобы создать первую резервную копию.',
 'backup_library_date' => 'Дата создания',
 'backup_library_filename' => 'Имя файла',
-'backup_library_size' => 'Размер',
 'backup_library_books' => 'Книг',
 'backup_library_actions' => 'Действия',
 'backup_library_download' => 'Скачать',
@@ -1864,7 +1707,6 @@ return [
 'backup_library_deleted' => 'Бэкап удалён.',
 'backup_library_delete_failed' => 'Не удалось удалить бэкап.',
 
-'admin_scanner_version' => 'Версия сканера',
 'admin_scanner_version_unknown' => 'Неизвестна',
 'admin_scanner_version_updated' => 'Версия сканера обновлена',
 'admin_scanner_version_error' => 'Не удалось получить версию сканера',
@@ -1898,7 +1740,6 @@ return [
 'notes_count_label' => 'Заметок',
 'highlights_count' => 'Подсветок',
 'bookmarks_count' => 'Закладок',
-'all_books' => 'Все книги',
 'go_to_reading' => 'Перейти к месту в книге',
 'search_to_notes' => 'Поиск по заметкам...',
 'search_notes' => 'Поиск',
@@ -1963,7 +1804,7 @@ return [
 'about_author' => 'Автор',
 'about_license' => 'Лицензия',
 'about_website' => 'Сайт',
-'about_description' => 'Little OPDS — это легковесная домашняя библиотека с поддержкой OPDS, встроенной читалкой, системой заметок и цитат. Позволяет организовать коллекцию книг в форматах FB2, EPUB, PDF с удобным поиском и каталогизацией.',
+'about_description' => 'Little OPDS - это легковесная домашняя библиотека с поддержкой OPDS, встроенной читалкой, системой заметок и цитат. Позволяет организовать коллекцию книг в форматах FB2, EPUB, PDF с удобным поиском и каталогизацией. Комплексное решение состящее из сканера (написанного на чистом C) и фронтенда (PHP+JavaScript+CSS)',
 'about_statistics' => 'Статистика библиотеки',
 'about_quick_actions' => 'Быстрые действия',
 'about_environment' => 'Окружение',
@@ -2050,7 +1891,6 @@ return [
 'author_deduplicate_merge3' => 'Объединение',
 'author_deduplicate_scan_Done' => 'Готово!',
 'author_deduplicate_not_found' => 'Дубликатов не найдено!',
-'author_deduplicate_scan' => 'Сканирование',
 'author_deduplicate_merge_bath' => 'Выберите вариант для объединения',
 
 'stats_by_date' => 'Добавление по датам',
@@ -2083,7 +1923,12 @@ return [
 'filter_by_genre' => 'Фильтр по жанру',
 'no_genres' => 'Нет жанров',
 'books' => 'книг',
+'yes' => 'Да',
+'no' => 'Нет',
 
-
+'settings_field_fts_enabled' => 'Полнотекстовый поиск (FTS)',
+'settings_field_fts_enabled_desc' => 'Использовать полнотекстовый поиск для SQLite. Ускоряет поиск, но требует больше дискового пространства.',
+'search_fts_enabled' => 'Полнотекстовый поиск включён',
+'search_fts_disabled' => 'Полнотекстовый поиск выключен',
 
 ];

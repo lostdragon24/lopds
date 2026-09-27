@@ -6,6 +6,8 @@
 #include "scannerdialog.h"
 #include "favoritesdialog.h"
 #include "fb2reader.h"
+#include "FormatEPub.h"
+#include "EpubReader.h"
 
 #include <QSqlDatabase>
 #include <QSqlQuery>
@@ -53,6 +55,8 @@
 #include <QAbstractSocket>
 #include <QStandardPaths>
 #include <QDir>
+#include <QtConcurrent>
+#include <functional>
 
 constexpr int PlaceholderRole = Qt::UserRole + 100;
 
@@ -73,6 +77,9 @@ MainWindow::MainWindow(QWidget *parent)
     , descriptionCache(nullptr)
     , bookContentCache(nullptr)
     , fb2Reader(nullptr)
+    , m_coverWatcher(nullptr)
+    , m_currentLoadingBookId(-1)
+    , m_isLoadingCover(false)
 {
     ui->setupUi(this);
 
@@ -151,6 +158,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(actionFavorites, &QAction::triggered, this, &MainWindow::showFavoritesDialog);
     ui->menu->addAction(actionFavorites);
 
+    // Инициализируем watcher для асинхронной загрузки
+    m_coverWatcher = new QFutureWatcher<BookContent>(this);
+    connect(m_coverWatcher, &QFutureWatcher<BookContent>::finished,
+            this, &MainWindow::onCoverLoadingFinished);
 
     // Открываем базу данных при запуске
     openDatabase();
@@ -174,11 +185,28 @@ QString MainWindow::getCoverCachePath(int bookId) const
 
 void MainWindow::saveCoverToCache(int bookId, const QPixmap& cover)
 {
-    if (cover.isNull()) return;
+    if (cover.isNull()) {
+        qDebug() << "Cannot save null cover to cache for book ID:" << bookId;
+        return;
+    }
 
     QString cachePath = getCoverCachePath(bookId);
-    cover.save(cachePath, "PNG");
-    qDebug() << "Cover saved to cache:" << cachePath;
+    qDebug() << "Saving cover to:" << cachePath;
+
+    // Создаем директорию если нужно
+    QFileInfo info(cachePath);
+    QDir dir;
+    if (!dir.exists(info.absolutePath())) {
+        dir.mkpath(info.absolutePath());
+    }
+
+    bool saved = cover.save(cachePath, "PNG");
+    qDebug() << "Cover saved:" << saved;
+
+    if (saved) {
+        // Добавляем в кэш памяти
+        coverCache->insert(QString::number(bookId), new QPixmap(cover));
+    }
 }
 
 QPixmap MainWindow::loadCoverFromCache(int bookId) const
@@ -309,7 +337,7 @@ void MainWindow::setupTreeViewModeSelector()
 void MainWindow::about()
 {
     QMessageBox::about(this, "О программе",
-                      "<h3>Электронная библиотека v 0.15</h3>"
+                      "<h3>Электронная библиотека v 0.16</h3>"
                       "<p>Приложение для каталогизации электронных книг <br>в формате fb2</p>"
                       "<p><b>Поддерживаемые форматы:</b><br>"
                       "• fb2, epub, pdf (Только имя файла)<br>"
@@ -382,7 +410,10 @@ void MainWindow::setupAlphabetButtons()
     QStringList russianAlphabet = {
         "А", "Б", "В", "Г", "Д", "Е", "Ё", "Ж", "З", "И", "Й",
         "К", "Л", "М", "Н", "О", "П", "Р", "С", "Т", "У", "Ф",
-        "Х", "Ц", "Ч", "Ш", "Щ", "Ъ", "Ы", "Ь", "Э", "Ю", "Я"
+        "Х", "Ц", "Ч", "Ш", "Щ", "Ы", "Э", "Ю", "Я",
+        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K",
+        "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V",
+        "W", "X", "Y", "Z"
     };
 
     // Создаем контейнер для кнопок
@@ -394,7 +425,7 @@ void MainWindow::setupAlphabetButtons()
 
     // Размещаем кнопки в два ряда
     int totalLetters = russianAlphabet.size();
-    int lettersPerRow = (totalLetters + 1) / 2; // Округление вверх
+    int lettersPerRow = (totalLetters + 1) / 4; // Округление вверх
 
     for (int i = 0; i < totalLetters; ++i) {
         int row = i / lettersPerRow;
@@ -1093,6 +1124,19 @@ MainWindow::~MainWindow()
         db.close();
     }
 
+    // Отменяем загрузку если она выполняется
+    if (m_coverWatcher && m_coverWatcher->isRunning()) {
+        m_coverWatcher->cancel();
+        m_coverWatcher->waitForFinished();
+    }
+
+    // Закрываем EPUB ридер
+    if (m_epubReader) {
+        m_epubReader->close();
+        delete m_epubReader;
+        m_epubReader = nullptr;
+    }
+
     // Освобождаем память кэшей
     delete coverCache;
     delete descriptionCache;
@@ -1104,6 +1148,233 @@ MainWindow::~MainWindow()
     }
 
     delete ui;
+}
+
+void MainWindow::loadBookCoverAndDescriptionAsync(int bookId)
+{
+    if (!isDatabaseOpen()) return;
+
+    qDebug() << "=== LOAD BOOK COVER ASYNC ===";
+    qDebug() << "Book ID:" << bookId;
+    qDebug() << "Current loading book ID:" << m_currentLoadingBookId;
+    qDebug() << "Is loading cover:" << m_isLoadingCover;
+
+    // 1. Если эта же книга уже загружается — выходим
+    if (m_currentLoadingBookId == bookId && m_isLoadingCover) {
+        qDebug() << "Same book is already loading, skipping...";
+        return;
+    }
+
+    // 2. Если загружается ДРУГАЯ книга — отменяем её
+    if (m_coverWatcher && m_coverWatcher->isRunning()) {
+        qDebug() << "Canceling previous loading for book:" << m_currentLoadingBookId;
+        m_coverWatcher->cancel();
+        m_coverWatcher->waitForFinished();
+        m_isLoadingCover = false;
+        m_currentLoadingBookId = -1;
+    }
+
+    m_currentLoadingBookId = bookId;
+    m_isLoadingCover = true;
+
+    // Показываем индикатор загрузки
+    ui->lbl_cover->setText("Загрузка...");
+    ui->txtDescription->setPlainText("Загрузка описания...");
+    ui->lbl_cover->setStyleSheet("border: 1px solid #ccc; background-color: #f8f8f8; color: #666; padding: 5px;");
+
+    // 1. Сначала проверяем кэш (это быстро, делаем в основном потоке)
+    QPixmap cachedCover = loadCoverFromCache(bookId);
+
+    QSqlQuery query(db);
+    query.prepare("SELECT description FROM books WHERE id = ?");
+    query.addBindValue(bookId);
+
+    QString dbDescription;
+    if (query.exec() && query.next()) {
+        dbDescription = query.value(0).toString();
+    }
+
+    // Если всё есть в кэше - отображаем сразу
+    if (!cachedCover.isNull() && !dbDescription.isEmpty()) {
+        qDebug() << "Using cached cover and description for book ID:" << bookId;
+        displayCover(cachedCover);
+        ui->txtDescription->setPlainText(dbDescription);
+        m_isLoadingCover = false;
+        m_currentLoadingBookId = -1;
+        return;
+    }
+
+    // Если обложка есть в кэше, отображаем её сразу
+    if (!cachedCover.isNull()) {
+        qDebug() << "Using cached cover for book ID:" << bookId;
+        displayCover(cachedCover);
+    }
+
+    // Если описание есть в БД, отображаем его сразу
+    if (!dbDescription.isEmpty()) {
+        qDebug() << "Using cached description for book ID:" << bookId;
+        ui->txtDescription->setPlainText(dbDescription);
+    }
+
+    // Получаем пути к файлу для загрузки в фоне
+    QSqlQuery fileQuery(db);
+    fileQuery.prepare("SELECT file_path, archive_path, archive_internal_path FROM books WHERE id = ?");
+    fileQuery.addBindValue(bookId);
+
+    if (!fileQuery.exec() || !fileQuery.next()) {
+        qDebug() << "Failed to get file info for book ID:" << bookId;
+        ui->txtDescription->setPlainText("Не удалось получить информацию о книге");
+        m_isLoadingCover = false;
+        m_currentLoadingBookId = -1;
+        return;
+    }
+
+    QString filePath = fileQuery.value(0).toString();
+    QString archivePath = fileQuery.value(1).toString();
+    QString internalPath = fileQuery.value(2).toString();
+
+    qDebug() << "Starting async load for book:" << bookId;
+
+    // Запускаем асинхронную загрузку
+    QFuture<BookContent> future = QtConcurrent::run([this, filePath, archivePath, internalPath]() {
+        return loadBookContentAsync(filePath, archivePath, internalPath);
+    });
+    m_coverWatcher->setFuture(future);
+}
+
+// Метод для асинхронной загрузки (выполняется в отдельном потоке)
+MainWindow::BookContent MainWindow::loadBookContentAsync(const QString& filePath,
+                                                         const QString& archivePath,
+                                                         const QString& internalPath)
+{
+    BookContent result;
+
+    qDebug() << "=== ASYNC LOADING BOOK CONTENT ===";
+    qDebug() << "File path:" << filePath;
+    qDebug() << "Archive path:" << archivePath;
+    qDebug() << "Internal path:" << internalPath;
+
+    QByteArray fileContent;
+
+    // Извлекаем файл из архива или читаем напрямую
+    if (!archivePath.isEmpty() && !internalPath.isEmpty()) {
+        qDebug() << "Extracting from archive...";
+        fileContent = extractFileFromArchive(archivePath, internalPath);
+    } else {
+        qDebug() << "Reading file directly...";
+        QFile file(filePath);
+        if (file.open(QIODevice::ReadOnly)) {
+            fileContent = file.readAll();
+            file.close();
+        }
+    }
+
+    if (fileContent.isEmpty()) {
+        qDebug() << "ERROR: File content is empty!";
+        return result;
+    }
+
+    qDebug() << "File content size:" << fileContent.size() << "bytes";
+    result.data = fileContent;
+
+    // Определяем формат и извлекаем обложку и описание
+    QString contentStart = QString::fromUtf8(fileContent.left(1000));
+    qDebug() << "Content starts with:" << contentStart.left(100);
+
+    if (contentStart.contains("<?xml") && contentStart.contains("FictionBook")) {
+        qDebug() << "Detected FB2 format";
+        result.cover = parseCoverFromFB2Content(fileContent);
+        result.description = parseDescriptionFromFB2Content(fileContent);
+    } else if (contentStart.contains("PK") && contentStart.contains("application/epub+zip")) {
+        qDebug() << "Detected EPUB format";
+        result.cover = parseCoverFromEpubContent(fileContent);
+        result.description = parseDescriptionFromEpubContent(fileContent);
+    } else {
+        qDebug() << "Unknown format";
+        result.cover = QPixmap();
+        result.description = "Описание отсутствует";
+    }
+
+    result.hasCover = !result.cover.isNull();
+    result.hasDescription = !result.description.isEmpty() && result.description != "Описание отсутствует";
+
+    qDebug() << "Has cover:" << result.hasCover;
+    qDebug() << "Has description:" << result.hasDescription;
+
+    return result;
+}
+
+// Слот, вызываемый по завершении асинхронной загрузки
+void MainWindow::onCoverLoadingFinished()
+{
+    qDebug() << "=== ON COVER LOADING FINISHED CALLED ===";
+
+    if (!m_coverWatcher || !m_coverWatcher->isFinished()) {
+        qDebug() << "Watcher not finished or null";
+        m_isLoadingCover = false;
+        m_currentLoadingBookId = -1;
+        return;
+    }
+
+    // Проверяем, не была ли отменена загрузка
+    if (m_coverWatcher->isCanceled()) {
+        qDebug() << "Loading was canceled for book:" << m_currentLoadingBookId;
+        m_isLoadingCover = false;
+        m_currentLoadingBookId = -1;
+        return;
+    }
+
+    // Получаем результат
+    BookContent content = m_coverWatcher->result();
+
+    int bookId = m_currentLoadingBookId;
+
+    qDebug() << "=== COVER LOADING FINISHED ===";
+    qDebug() << "Book ID:" << bookId;
+    qDebug() << "Has cover:" << content.hasCover;
+    qDebug() << "Has description:" << content.hasDescription;
+
+    // Проверяем, что книга все еще актуальна (не была выбрана другая)
+    if (bookId != m_currentLoadingBookId) {
+        qDebug() << "Book ID changed, ignoring result";
+        m_isLoadingCover = false;
+        return;
+    }
+
+    // Сохраняем обложку в кэш
+    if (content.hasCover && !content.cover.isNull()) {
+        qDebug() << "Saving cover to cache for book ID:" << bookId;
+        saveCoverToCache(bookId, content.cover);
+        displayCover(content.cover);
+    } else {
+        qDebug() << "No cover to save for book ID:" << bookId;
+        ui->lbl_cover->setText("Обложка\nне найдена");
+        ui->lbl_cover->setStyleSheet("border: 1px solid #ccc; background-color: #f8f8f8; color: #666; padding: 5px;");
+    }
+
+    // Сохраняем описание в БД
+    if (content.hasDescription && !content.description.isEmpty()) {
+        qDebug() << "Saving description to DB for book ID:" << bookId;
+        saveBookDescriptionToDb(bookId, content.description);
+        ui->txtDescription->setPlainText(content.description);
+    } else {
+        qDebug() << "No description to save for book ID:" << bookId;
+        // Проверяем, есть ли описание в БД
+        QSqlQuery query(db);
+        query.prepare("SELECT description FROM books WHERE id = ?");
+        query.addBindValue(bookId);
+        if (query.exec() && query.next()) {
+            QString dbDesc = query.value(0).toString();
+            if (dbDesc.isEmpty()) {
+                ui->txtDescription->setPlainText("Описание отсутствует");
+            }
+        }
+    }
+
+    m_isLoadingCover = false;
+    m_currentLoadingBookId = -1;
+
+    qDebug() << "=== COVER LOADING COMPLETE ===";
 }
 
 void MainWindow::showEvent(QShowEvent *event)
@@ -1587,6 +1858,9 @@ void MainWindow::loadBookDetails(int bookId)
 {
     if (!isDatabaseOpen()) return;
 
+    qDebug() << "=== LOAD BOOK DETAILS ===";
+    qDebug() << "Book ID:" << bookId;
+
     QSqlQuery query;
     query.prepare("SELECT id, title, author, series, series_number, year, language, "
                   "publisher, description, file_path, archive_path, archive_internal_path, "
@@ -1600,14 +1874,15 @@ void MainWindow::loadBookDetails(int bookId)
         return;
     }
 
+    // Обновляем детали (быстро, без загрузки обложки)
     updateBookDetails(query);
 
     // Показываем блок избранного и рейтинга
     ui->widgetRatingFavorites->setVisible(true);
     ui->label_favorites->setVisible(true);
 
-    // Загружаем обложку и полное описание
-    loadBookCoverAndDescription(bookId);
+    // Загружаем обложку и описание асинхронно
+    loadBookCoverAndDescriptionAsync(bookId);
 }
 
 
@@ -2275,6 +2550,8 @@ QPixmap MainWindow::parseCoverFromFB2(const QByteArray& content)
 
 QPixmap MainWindow::parseCoverFromFB2Content(const QByteArray& content)
 {
+    qDebug() << "=== PARSING COVER FROM FB2 ===";
+
     QXmlStreamReader xml(content);
     QString coverId;
 
@@ -2283,16 +2560,20 @@ QPixmap MainWindow::parseCoverFromFB2Content(const QByteArray& content)
         xml.readNext();
 
         if (xml.isStartElement() && xml.name().toString() == "coverpage") {
+            qDebug() << "Found coverpage element";
             while (!xml.atEnd() && !xml.hasError()) {
                 xml.readNext();
 
                 if (xml.isStartElement() && xml.name().toString() == "image") {
                     QXmlStreamAttributes attrs = xml.attributes();
                     for (const auto& attr : attrs) {
-                        if (attr.name().toString().contains("href", Qt::CaseInsensitive)) {
+                        QString attrName = attr.name().toString();
+                        if (attrName.contains("href", Qt::CaseInsensitive)) {
                             QString href = attr.value().toString();
+                            qDebug() << "Found href attribute:" << href;
                             if (href.startsWith('#')) {
                                 coverId = href.mid(1);
+                                qDebug() << "Cover ID:" << coverId;
                             }
                             break;
                         }
@@ -2309,6 +2590,7 @@ QPixmap MainWindow::parseCoverFromFB2Content(const QByteArray& content)
     }
 
     if (coverId.isEmpty()) {
+        qDebug() << "No cover ID found";
         return QPixmap();
     }
 
@@ -2320,15 +2602,19 @@ QPixmap MainWindow::parseCoverFromFB2Content(const QByteArray& content)
         xml.readNext();
 
         if (xml.isStartElement() && xml.name().toString() == "binary") {
-            if (xml.attributes().value("id").toString() == coverId) {
+            QString id = xml.attributes().value("id").toString();
+            if (id == coverId) {
                 QString contentType = xml.attributes().value("content-type").toString();
+                qDebug() << "Found binary with ID:" << id << "content-type:" << contentType;
 
                 if (contentType.startsWith("image/")) {
                     QString base64Data = xml.readElementText();
                     QByteArray imageData = QByteArray::fromBase64(base64Data.toUtf8());
+                    qDebug() << "Base64 data size:" << base64Data.size() << "decoded size:" << imageData.size();
 
                     QPixmap cover;
                     if (cover.loadFromData(imageData)) {
+                        qDebug() << "Cover loaded successfully!";
                         return cover;
                     }
 
@@ -2343,90 +2629,110 @@ QPixmap MainWindow::parseCoverFromFB2Content(const QByteArray& content)
                         cover.loadFromData(imageData);
                     }
 
-                    return cover;
+                    if (!cover.isNull()) {
+                        qDebug() << "Cover loaded with fallback format!";
+                        return cover;
+                    } else {
+                        qDebug() << "Failed to load cover from data";
+                    }
                 }
             }
         }
     }
 
+    qDebug() << "Cover not found";
     return QPixmap();
 }
+
 
 QPixmap MainWindow::parseCoverFromEpubContent(const QByteArray& epubData)
 {
     qDebug() << "Parsing cover from EPUB content";
 
-    // Создаем временный файл для парсинга EPUB
     QTemporaryFile tempFile;
-    if (!tempFile.open()) {
-        qDebug() << "Failed to create temp file for EPUB cover parsing";
-        return QPixmap();
-    }
-
+    if (!tempFile.open()) return QPixmap();
     tempFile.write(epubData);
     tempFile.flush();
 
-    // Используем ArchiveHandler для извлечения обложки
     ArchiveHandler archiveHandler;
-    if (!archiveHandler.openArchive(tempFile.fileName())) {
-        qDebug() << "Failed to open EPUB archive for cover extraction";
-        return QPixmap();
-    }
+    if (!archiveHandler.openArchive(tempFile.fileName())) return QPixmap();
 
-    // Получаем список файлов в EPUB
-    QVector<ArchiveFile> files = archiveHandler.listFiles();
-
-    // Ищем файлы обложки (обычно называются cover.* или находятся в папке images)
-    QString coverPath;
-    for (const ArchiveFile &file : files) {
-        QString fileName = file.name.toLower();
-        QString filePath = file.path.toLower();
-
-        if (fileName.startsWith("cover.") ||
-            fileName.contains("cover") ||
-            filePath.contains("/cover.") ||
-            filePath.contains("/images/") ||
-            filePath.contains("/cover/")) {
-
-            // Проверяем расширение изображения
-            QString extension = QFileInfo(fileName).suffix().toLower();
-            if (extension == "jpg" || extension == "jpeg" || extension == "png" ||
-                extension == "gif" || extension == "bmp") {
-                coverPath = file.path;
-                qDebug() << "Found potential cover:" << coverPath;
+    // Определяем базовый путь из container.xml
+    QString basePath;
+    QString containerXml = readFileFromArchive(tempFile.fileName(), "META-INF/container.xml");
+    if (!containerXml.isEmpty()) {
+        QXmlStreamReader xml(containerXml);
+        while (!xml.atEnd() && !xml.hasError()) {
+            xml.readNext();
+            if (xml.isStartElement() && xml.name().toString() == "rootfile") {
+                QString fullPath = xml.attributes().value("full-path").toString();
+                if (!fullPath.isEmpty()) {
+                    int lastSlash = fullPath.lastIndexOf('/');
+                    if (lastSlash > 0) {
+                        basePath = fullPath.left(lastSlash + 1); // "OEBPS/"
+                    }
+                }
                 break;
             }
         }
     }
+    qDebug() << "EPUB base path:" << basePath;
 
-    // Если не нашли по имени, ищем в OPF файле
-    if (coverPath.isEmpty()) {
-        QString opfContent = readFileFromArchive(tempFile.fileName(), "OEBPS/content.opf");
-        if (opfContent.isEmpty()) {
-            opfContent = readFileFromArchive(tempFile.fileName(), "content.opf");
-        }
-
-        if (!opfContent.isEmpty()) {
-            coverPath = parseCoverPathFromOpf(opfContent);
-            qDebug() << "Found cover path from OPF:" << coverPath;
-        }
+    // Ищем OPF
+    QString opfContent;
+    QString opfPath = basePath + "content.opf";
+    opfContent = readFileFromArchive(tempFile.fileName(), opfPath);
+    if (opfContent.isEmpty()) {
+        opfContent = readFileFromArchive(tempFile.fileName(), "OEBPS/content.opf");
+        if (!opfContent.isEmpty()) basePath = "OEBPS/";
+    }
+    if (opfContent.isEmpty()) {
+        opfContent = readFileFromArchive(tempFile.fileName(), "content.opf");
+        if (!opfContent.isEmpty()) basePath = "";
     }
 
     QPixmap cover;
-    if (!coverPath.isEmpty()) {
-        QByteArray coverData = archiveHandler.readFile(coverPath);
-        if (!coverData.isEmpty()) {
-            if (cover.loadFromData(coverData)) {
-                qDebug() << "Successfully loaded cover from EPUB";
-            } else {
-                qDebug() << "Failed to load cover image data";
+    if (!opfContent.isEmpty()) {
+        QString coverHref = parseCoverPathFromOpf(opfContent);
+        if (!coverHref.isEmpty()) {
+            // Пробуем с базовым путём и без
+            QStringList pathsToTry = {
+                basePath + coverHref,
+                coverHref,
+                "OEBPS/" + coverHref,
+                "EPUB/" + coverHref
+            };
+            for (const QString &path : pathsToTry) {
+                QByteArray coverData = archiveHandler.readFile(path);
+                if (!coverData.isEmpty()) {
+                    if (cover.loadFromData(coverData)) {
+                        qDebug() << "Cover loaded from:" << path;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback: ищем файлы с "cover" в имени
+    if (cover.isNull()) {
+        QVector<ArchiveFile> files = archiveHandler.listFiles();
+        for (const ArchiveFile &file : files) {
+            QString fn = file.name.toLower();
+            QString ext = QFileInfo(fn).suffix();
+            if ((fn.contains("cover")) &&
+                (ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "webp")) {
+                QByteArray coverData = archiveHandler.readFile(file.path);
+                if (!coverData.isEmpty() && cover.loadFromData(coverData)) {
+                    qDebug() << "Cover found by name:" << file.path;
+                    break;
+                }
             }
         }
     }
 
     archiveHandler.closeArchive();
     tempFile.close();
-
     return cover;
 }
 
@@ -2555,40 +2861,46 @@ QString MainWindow::parseDescriptionFromEpubContent(const QByteArray& epubData)
 {
     qDebug() << "Parsing description from EPUB content";
 
-    // Создаем временный файл
     QTemporaryFile tempFile;
-    if (!tempFile.open()) {
-        qDebug() << "Failed to create temp file for EPUB description";
-        return "Описание отсутствует";
-    }
-
+    if (!tempFile.open()) return "Описание отсутствует";
     tempFile.write(epubData);
     tempFile.flush();
 
-    // Ищем OPF файл
     ArchiveHandler archiveHandler;
-    if (!archiveHandler.openArchive(tempFile.fileName())) {
-        qDebug() << "Failed to open EPUB archive for description";
-        return "Описание отсутствует";
+    if (!archiveHandler.openArchive(tempFile.fileName())) return "Описание отсутствует";
+
+    // Определяем базовый путь
+    QString basePath;
+    QString containerXml = readFileFromArchive(tempFile.fileName(), "META-INF/container.xml");
+    if (!containerXml.isEmpty()) {
+        QXmlStreamReader xml(containerXml);
+        while (!xml.atEnd() && !xml.hasError()) {
+            xml.readNext();
+            if (xml.isStartElement() && xml.name().toString() == "rootfile") {
+                QString fullPath = xml.attributes().value("full-path").toString();
+                int lastSlash = fullPath.lastIndexOf('/');
+                if (lastSlash > 0) basePath = fullPath.left(lastSlash + 1);
+                break;
+            }
+        }
     }
 
-    QString opfContent = readFileFromArchive(tempFile.fileName(), "OEBPS/content.opf");
-    if (opfContent.isEmpty()) {
-        opfContent = readFileFromArchive(tempFile.fileName(), "content.opf");
+    QString opfContent;
+    QStringList opfPaths = {basePath + "content.opf", "OEBPS/content.opf", "content.opf"};
+    for (const QString &p : opfPaths) {
+        opfContent = readFileFromArchive(tempFile.fileName(), p);
+        if (!opfContent.isEmpty()) break;
     }
 
     if (opfContent.isEmpty()) {
-        qDebug() << "Cannot find OPF file in EPUB";
         archiveHandler.closeArchive();
+        tempFile.close();
         return "Описание отсутствует";
     }
 
-    // Парсим описание из OPF
     QString description = parseDescriptionFromOpf(opfContent);
-
     archiveHandler.closeArchive();
     tempFile.close();
-
     return description.isEmpty() ? "Описание отсутствует" : description;
 }
 
@@ -2596,21 +2908,17 @@ QString MainWindow::parseDescriptionFromOpf(const QString& opfContent)
 {
     QXmlStreamReader xml(opfContent);
     QString description;
-
     while (!xml.atEnd() && !xml.hasError()) {
         QXmlStreamReader::TokenType token = xml.readNext();
-
         if (token == QXmlStreamReader::StartElement) {
-            QString elementName = xml.name().toString();
-
-            if (elementName == "description" || elementName == "dc:description") {
+            // Ищем по локальному имени (без учёта namespace)
+            QString localName = xml.name().toString();
+            if (localName == "description") {
                 description = xml.readElementText().trimmed();
-                qDebug() << "Found description in OPF:" << description.left(100) + "...";
-                break;
+                if (!description.isEmpty()) break;
             }
         }
     }
-
     return description;
 }
 
@@ -2933,7 +3241,22 @@ void MainWindow::on_treeView_clicked(const QModelIndex &index)
     if (item && item->parent()) { // Клик на книге (не на авторе)
         int bookId = item->data(Qt::UserRole).toInt();
         if (bookId > 0) {
+            qDebug() << "TreeView clicked - loading book ID:" << bookId;
             loadBookDetails(bookId);
+        }
+    }
+}
+
+void MainWindow::on_treeView_doubleClicked(const QModelIndex &index)
+{
+    if (!index.isValid()) return;
+
+    QStandardItem *item = treeModel->itemFromIndex(index);
+    if (item && item->parent()) { // Клик на книге (не на авторе/серии/жанре)
+        int bookId = item->data(Qt::UserRole).toInt();
+        if (bookId > 0) {
+            qDebug() << "TreeView doubleClicked - opening book ID:" << bookId;
+            openBook(bookId);
         }
     }
 }
@@ -3497,34 +3820,16 @@ void MainWindow::on_actionReconnect_triggered()
     openDatabase();
 }
 
-
-
-
-
-
-
-
-
-
-
-// Слот для двойного клика
-void MainWindow::on_treeView_doubleClicked(const QModelIndex &index)
-{
-    if (!index.isValid()) return;
-
-    QStandardItem *item = treeModel->itemFromIndex(index);
-    if (item && item->parent()) { // Клик на книге (не на авторе/серии/жанре)
-        int bookId = item->data(Qt::UserRole).toInt();
-        if (bookId > 0) {
-            openBook(bookId);
-        }
-    }
-}
-
 // Метод для открытия книги
 void MainWindow::openBook(int bookId)
 {
     if (!isDatabaseOpen()) return;
+
+    if (m_epubReader && m_epubReader->isVisible()) {
+        m_epubReader->raise();
+        m_epubReader->activateWindow();
+        return;
+    }
 
     QSqlQuery query;
     query.prepare("SELECT title, file_path, archive_path, archive_internal_path, file_type FROM books WHERE id = ?");
@@ -3539,11 +3844,17 @@ void MainWindow::openBook(int bookId)
     QString filePath = query.value("file_path").toString();
     QString archivePath = query.value("archive_path").toString();
     QString internalPath = query.value("archive_internal_path").toString();
-    QString fileType = query.value("file_type").toString().toLower();
+    QString fileType = query.value("file_type").toString().toLower();  // Только одно объявление
 
     // Проверяем поддерживаемые форматы для чтения
-    if (fileType != "fb2" && fileType != "txt") {
-        showInfo("Чтение поддерживается только для FB2 и TXT файлов");
+    if (fileType != "fb2" && fileType != "txt" && fileType != "epub") {
+        showInfo("Чтение поддерживается только для FB2, TXT и EPUB файлов");
+        return;
+    }
+
+    if (fileType == "epub") {
+        // Открываем в EPUB ридере
+        openEpubInReader(filePath, archivePath, internalPath, title);
         return;
     }
 
@@ -3559,6 +3870,52 @@ void MainWindow::openBook(int bookId)
     QApplication::restoreOverrideCursor();
     statusLabel->setText("Готово");
 }
+
+void MainWindow::openEpubInReader(const QString& filePath, const QString& archivePath,
+                                  const QString& internalPath, const QString& title)
+{
+    QByteArray content;
+
+    if (!archivePath.isEmpty() && !internalPath.isEmpty()) {
+        content = extractFileFromArchive(archivePath, internalPath);
+    } else {
+        QFile file(filePath);
+        if (file.open(QIODevice::ReadOnly)) {
+            content = file.readAll();
+            file.close();
+        }
+    }
+
+    if (content.isEmpty()) {
+        showError("Не удалось загрузить EPUB");
+        return;
+    }
+
+    // Закрываем старый ридер, если он есть
+    if (m_epubReader) {
+        m_epubReader->close();
+        delete m_epubReader;
+        m_epubReader = nullptr;
+    }
+
+    m_epubReader = new EpubReader(this);
+    m_epubReader->setAttribute(Qt::WA_DeleteOnClose);
+
+    // Подключаем сигнал закрытия для очистки указателя
+    connect(m_epubReader, &EpubReader::destroyed, this, [this]() {
+        m_epubReader = nullptr;
+    });
+
+    if (m_epubReader->loadEpubFromMemory(content, title)) {
+        m_epubReader->show();
+        m_epubReader->raise();
+        m_epubReader->activateWindow();
+    } else {
+        delete m_epubReader;
+        m_epubReader = nullptr;
+    }
+}
+
 
 void MainWindow::openBookFile(const QString& filePath, const QString& archivePath, const QString& internalPath, const QString& title)
 {

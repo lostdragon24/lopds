@@ -9,7 +9,7 @@
 #include <archive_entry.h>
 #include <pthread.h>
 
-#define SUPPORTED_FORMATS 8
+#define SUPPORTED_FORMATS 7
 #define MAX_QUEUE_SIZE 2000
 #define NUM_THREADS 4 // Можно сделать конфигурируемым
 
@@ -120,7 +120,8 @@ void scan_directory_multithreaded(const char *path, DatabaseHandle *db_handle,
 // Старые функции остаются для совместимости
 void scan_directory(const char *path, DatabaseHandle *db_handle, Config *config,
                     int in_transaction);
-void process_single_file(const char *filepath, struct stat *statbuf);
+void process_single_file(const char *filepath, struct stat *statbuf,
+                         Config *config);
 
 void process_archive(const char *archive_path, DatabaseHandle *db_handle,
                      Config *config, int in_transaction);

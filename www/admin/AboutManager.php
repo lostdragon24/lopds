@@ -4,7 +4,7 @@
 
 class AboutManager
 {
-    private $version = '0.1.16';
+    private $version = '0.1.16.2';
     private $appName = 'Little OPDS';
 
     public function getAppInfo()
@@ -15,6 +15,7 @@ class AboutManager
             'author' => 'Squee&Dragon',
             'license' => 'GNU GPL v2',
             'website' => 'https://github.com/lostdragon24/lopds',
+            'website2' => 'https://gitflic.ru/project/ldragon246/lopds',
             'description' => __('about_description'),
             'php_version' => PHP_VERSION,
             'db_type' => Config::getDbType(),
@@ -32,6 +33,23 @@ class AboutManager
     public function getChangelog()
     {
         return [
+            '0.1.16.2' => [
+                'date' => '2026-09-29',
+                'title' => 'Cтабильная версия',
+                'changes' => [
+                    '🔧 Изменён дизайн главной страницы',
+                    '➕ Добавлен блок поиска, с пятью рандомными книгами',
+                    '➕ Добавлен фильтр жанров',
+                    '➕ Добавлена тёмная тема',
+                    '➕ Добавлена возможность включения полнотекстового поиска (параметр FTS в конфигурационном файле (true\false))',
+                    '🔧 Бесконечный список вместо пагинации',
+                    '🐛 Исправления в читалке (форматирование)',
+                    '🐛 Исправлениt и доработка функции дедупликации авторов',
+                    '🐛 Исправления конвертора FB2->EPUB',
+                    '🐛 Исправления в установщике библиотеки (создание базы данных)',
+                    '🐛 Исправления в управлении санером (включение\отключеие INPX)',
+                ]
+            ],
             '0.1.16' => [
                 'date' => '2026-07-24',
                 'title' => 'Cтабильная версия',
@@ -97,6 +115,8 @@ class AboutManager
         return [
             'core' => [
                 'Алексей Плотников' => 'Идея, разработка',
+                'Егор Плотников' => 'Тестирование...',
+                'Дана Плотникова' => 'Тестирование OPDS...',
                 'Андрей Поляков' => 'Идеи...',
             ],
             'libraries' => [

@@ -3,7 +3,6 @@
 require_once __DIR__.'/EnvLoader.php';
 require_once __DIR__.'/PathManager.php';
 require_once __DIR__.'/SessionManager.php';
-require_once __DIR__.'/ScannerConfigGenerator.php';
 
 class AppInitializer
 {
@@ -28,7 +27,7 @@ class AppInitializer
         self::setMemoryLimit();
 
         // Создаем конфиг для сканера
-        ScannerConfigGenerator::generate();
+        // ScannerConfigGenerator::generate();
 
         self::$initialized = true;
     }
@@ -42,6 +41,7 @@ class AppInitializer
             PathManager::getCacheDir(),
             PathManager::getCoverCacheDir(),
             PathManager::getDataDir(),
+            PathManager::getBooksDir(),
         ];
 
         foreach ($dirs as $dir) {

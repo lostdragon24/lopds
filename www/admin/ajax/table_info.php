@@ -40,7 +40,9 @@ if (empty($table)) {
 }
 
 // Безопасность: разрешаем только определенные таблицы
-$allowedTables = ['books', 'book_ratings', 'book_favorites', 'archives', 'bookmarks', 'reading_history', 'bookmark_tags', 'bookmarks_fts', 'bookmarks_fts_config', 'bookmarks_fts_data', 'bookmarks_fts_docsize', 'bookmarks_fts_idx'];
+$allowedTables = ['books', 'book_ratings', 'book_favorites', 'archives', 'bookmarks', 'reading_history', 'bookmark_tags', 'bookmarks_fts', 'bookmarks_fts_config', 'bookmarks_fts_data', 'bookmarks_fts_docsize', 'bookmarks_fts_idx', 'books_fts', 'books_fts_config', 'books_fts_data', 'books_fts_docsize', 'books_fts_idx'];
+
+
 if (!in_array($table, $allowedTables)) {
     echo json_encode([
         'success' => false,

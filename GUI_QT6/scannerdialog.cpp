@@ -522,7 +522,6 @@ void BookScanner::processArchive(const QString &archivePath) {
     ArchiveFile fileInfo;
     int processedCount = 0;
 
-
     // 3. Итерируемся по файлам БЕЗ переоткрытия
     while (m_archiveHandler->readNextHeader(fileInfo)) {
         if (m_abort) break;

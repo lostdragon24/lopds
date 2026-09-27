@@ -158,7 +158,7 @@ int mysql_create_tables(MySQLConnection *mysql_conn, Config *config) {
       "    file_type VARCHAR(10),"
       "    archive_path TEXT,"
       "    archive_internal_path TEXT,"
-      "    file_hash VARCHAR(64) UNIQUE,"
+      "    file_hash VARCHAR(64),"
       "    title TEXT,"
       "    author TEXT,"
       "    genre TEXT,"
@@ -183,7 +183,8 @@ int mysql_create_tables(MySQLConnection *mysql_conn, Config *config) {
       "    INDEX idx_added_date (added_date),"
       "    INDEX idx_file_type (file_type),"
       "    INDEX idx_year (year),"
-      "    FULLTEXT INDEX ft_search (title, author, genre, series)"
+      "    FULLTEXT INDEX ft_search (title, author, genre, series, publisher, "
+      "description)"
       ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
   if (!mysql_execute_query(mysql_conn, create_books_table, config)) {
@@ -332,6 +333,25 @@ int mysql_create_bookmark_tags_table(MySQLConnection *mysql_conn,
 
   if (!mysql_execute_query(mysql_conn, query, config)) {
     return 0;
+  }
+
+  if (!mysql_create_books_fts_table(mysql_conn, config)) {
+    return 0;
+  }
+
+  return 1;
+}
+
+int mysql_create_books_fts_table(MySQLConnection *mysql_conn, Config *config) {
+  // Для MySQL используем FULLTEXT индекс прямо в таблице bookmarks
+  const char *query = "ALTER TABLE books "
+                      "ADD FULLTEXT INDEX ft_search (title, "
+                      "author, genre, series, publisher, description)";
+
+  // Пробуем добавить FULLTEXT индекс (если его нет)
+  if (!mysql_execute_query(mysql_conn, query, config)) {
+    // Если индекс уже есть, ошибку игнорируем
+    log_message(config, "DEBUG", "FULLTEXT index may already exist");
   }
 
   if (!mysql_create_bookmarks_fts_table(mysql_conn, config)) {
@@ -562,8 +582,8 @@ void mysql_update_archive_info(MySQLConnection *mysql_conn,
 
   MYSQL_BIND bind[5];
   unsigned long lengths[5];
-  mysql_bool_t is_null[5] = {0};
-  mysql_bool_t false_val = 0;
+  _Bool is_null[5] = {0};
+  _Bool false_val = 0;
 
   memset(bind, 0, sizeof(bind));
 
@@ -800,20 +820,21 @@ int mysql_reconnect(MySQLConnection *mysql_conn, Config *config) {
   return 1;
 }
 
-void mysql_insert_book(MySQLConnection *mysql_conn, const char *filepath,
-                       BookMeta *meta, const char *archive_path,
-                       const char *internal_path, const char *file_hash,
-                       Config *config) {
+int mysql_insert_book(MySQLConnection *mysql_conn, const char *filepath,
+                      BookMeta *meta, const char *archive_path,
+                      const char *internal_path, const char *file_hash,
+                      Config *config) {
   if (!mysql_conn || !mysql_conn->mysql) {
     log_message(config, "ERROR", "MySQL connection is not valid");
-    return;
+    return 0;
   }
 
   if (!meta || !filepath) {
     log_message(config, "ERROR", "Invalid parameters for book insertion");
-    return;
+    return 0;
   }
 
+  int result = 0;
   // ============================================================
   // ПРОВЕРКА СОЕДИНЕНИЯ - БЕЗ ПЕРЕПОДКЛЮЧЕНИЯ!
   // ============================================================
@@ -831,7 +852,7 @@ void mysql_insert_book(MySQLConnection *mysql_conn, const char *filepath,
       log_message(config, "INFO", "Reconnected successfully");
     } else {
       log_message(config, "ERROR", "Reconnection failed");
-      return;
+      return 0;
     }
   }
 
@@ -887,7 +908,7 @@ void mysql_insert_book(MySQLConnection *mysql_conn, const char *filepath,
     free(escaped_description);
     free(escaped_archive);
     free(escaped_internal);
-    return;
+    return 0;
   }
 
   mysql_real_escape_string(mysql_conn->mysql, escaped_filepath, filepath,
@@ -982,6 +1003,10 @@ void mysql_insert_book(MySQLConnection *mysql_conn, const char *filepath,
   char sql[32768]; // Увеличиваем буфер
   int len = 0;
   int written;
+
+  // size_t sql_size =
+  //     4096 + (meta->description ? strlen(meta->description) * 2 + 1 : 0);
+  // char *sql = malloc(sql_size);
 
   written =
       snprintf(sql + len, sizeof(sql) - len,
@@ -1174,10 +1199,12 @@ void mysql_insert_book(MySQLConnection *mysql_conn, const char *filepath,
   len += written;
 
   // Выполняем запрос
+
   if (mysql_query(mysql_conn->mysql, sql)) {
     log_message(config, "ERROR", "MySQL insert failed: %s",
                 mysql_error(mysql_conn->mysql));
     log_message(config, "ERROR", "Failed SQL: %s", sql);
+    result = 0;
     goto cleanup;
   }
 
@@ -1186,11 +1213,13 @@ void mysql_insert_book(MySQLConnection *mysql_conn, const char *filepath,
     log_message(config, "DEBUG", "Book already exists: %s - %s",
                 meta->title ? meta->title : "Unknown",
                 meta->author ? meta->author : "Unknown");
+    result = 0;
   } else {
     log_message(config, "INFO",
                 "Book inserted successfully: %s - %s (type: %s)",
                 meta->title ? meta->title : "Unknown",
                 meta->author ? meta->author : "Unknown", file_type);
+    result = 1;
   }
 
 cleanup:
@@ -1208,6 +1237,8 @@ cleanup:
     free(escaped_description);
   free(escaped_archive);
   free(escaped_internal);
+
+  return result;
 }
 
 int mysql_begin_transaction(MySQLConnection *mysql_conn, Config *config) {

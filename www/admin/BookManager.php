@@ -84,7 +84,7 @@ class BookManager
         }
         $orderDir = strtoupper($orderDir) === 'ASC' ? 'ASC' : 'DESC';
 
-        $sql .= " ORDER BY b.$orderBy $orderDir LIMIT ? OFFSET ?";
+        $sql .= " ORDER BY $orderBy $orderDir LIMIT ? OFFSET ?";
         $params[] = $perPage;
         $params[] = $offset;
 

@@ -884,4 +884,115 @@ document.addEventListener('DOMContentLoaded', function() {
     window.AnimationManager = AnimationManager;
     window.apiRequest = apiRequest;
 
+
+
+// Переключение вида (плитка/список)
+document.addEventListener('DOMContentLoaded', function() {
+    const gridViewBtn = document.getElementById('gridViewBtn');
+    const listViewBtn = document.getElementById('listViewBtn');
+    const booksContainer = document.getElementById('booksGrid');
+    
+    // Проверяем наличие элементов
+    if (!gridViewBtn || !listViewBtn || !booksContainer) {
+        console.warn('View switcher elements not found');
+        return;
+    }
+
+    // Загружаем сохранённый вид
+    const savedView = localStorage.getItem('booksView') || 'grid';
+    console.log('Loaded view from localStorage:', savedView);
+    
+    function setView(view) {
+        console.log('Setting view to:', view);
+        
+        // Удаляем все классы вида
+        booksContainer.classList.remove('grid-view', 'list-view');
+        
+        if (view === 'list') {
+            booksContainer.classList.add('list-view');
+            gridViewBtn.classList.remove('active');
+            listViewBtn.classList.add('active');
+            
+            // Меняем размер колонок для каждого элемента
+            document.querySelectorAll('.book-item').forEach(item => {
+                item.style.flex = '0 0 100%';
+                item.style.maxWidth = '100%';
+            });
+            
+        } else {
+            booksContainer.classList.add('grid-view');
+            gridViewBtn.classList.add('active');
+            listViewBtn.classList.remove('active');
+            
+            // Восстанавливаем размер колонок
+            document.querySelectorAll('.book-item').forEach(item => {
+                item.style.flex = '';
+                item.style.maxWidth = '';
+            });
+        }
+        
+        localStorage.setItem('booksView', view);
+    }
+
+    // Применяем сохранённый вид при загрузке
+    setView(savedView);
+
+    // Обработчики кликов
+    gridViewBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        setView('grid');
+    });
+
+    listViewBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        setView('list');
+    });
+
+    // Сортировка
+    const sortSelect = document.getElementById('sortSelect');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', function() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('sort', this.value);
+            window.location.href = url.toString();
+        });
+    }
+});
+
+
+
+// Плавная загрузка карточек
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('.book-card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        
+        setTimeout(() => {
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, 50 * index);
+    });
+});
+
+
+// Показываем/скрываем дополнительную информацию в зависимости от вида
+function toggleListMeta(view) {
+    const metaElements = document.querySelectorAll('.list-meta');
+    if (view === 'list') {
+        metaElements.forEach(el => el.classList.remove('d-none'));
+        // Убираем текстовое обрезание для заголовка в списке
+        document.querySelectorAll('#booksGrid.list-view .card-title').forEach(el => {
+            el.classList.remove('text-truncate');
+        });
+    } else {
+        metaElements.forEach(el => el.classList.add('d-none'));
+        document.querySelectorAll('#booksGrid:not(.list-view) .card-title').forEach(el => {
+            el.classList.add('text-truncate');
+        });
+    }
+}
+
+
 })();

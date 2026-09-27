@@ -222,13 +222,112 @@ class Database
         $offset = (int)(($page - 1) * $perPage);
         $perPage = min((int)$perPage, 100);
 
-        // Пытаемся использовать FULLTEXT поиск для MySQL
+        // MySQL FULLTEXT
         if (Config::isMysql() && strlen($query) >= 3 && Config::SEARCH_OPTIMIZATION['enable_fulltext']) {
             return $this->searchBooksFulltext($query, $field, $offset, $perPage, $filters);
         }
 
+        // SQLite FTS — только если таблица реально существует
+
+        if (Config::isSqlite()
+            && strlen($query) >= 2
+            && Config::isFulltextEnabled()
+            && $this->isFtsAvailable()
+        ) {
+            try {
+
+                $result = $this->searchBooksSqliteFts($query, $field, $offset, $perPage, $filters);
+                if ($cacheKey) {
+                    Cache::set($cacheKey, $result, 'search_results');
+                }
+                return $result;
+            } catch (Exception $e) {
+                // падаем в LIKE ниже
+            }
+        }
+
         // Fallback на LIKE поиск
+
         return $this->searchBooksLike($query, $field, $offset, $perPage, $cacheKey, $filters);
+    }
+
+    private function searchBooksSqliteFts($query, $field, $offset, $perPage, $filters = [])
+    {
+
+        // 0. Убираем скобки если они есть в строке
+        $query = str_replace(['(', ')'], '', $query);
+
+        // 1. Очистка запроса от спецсимволов, которые могут сломать синтаксис FTS5
+        $cleanQuery = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $query);
+        $cleanQuery = trim(preg_replace('/\s+/', ' ', $cleanQuery));
+
+        if ($cleanQuery === '') {
+            return [];
+        }
+
+        // 2. Префиксный поиск: "слово" -> "слово*"
+        $words = explode(' ', $cleanQuery);
+        $ftsQuery = implode(' ', array_map(fn ($w) => $w . '*', $words));
+
+        // 3. Формирование выражения MATCH
+        $allowedFields = ['title', 'author', 'genre', 'series', 'publisher', 'description'];
+
+        if ($field !== 'all' && in_array($field, $allowedFields, true)) {
+            // Одинарные кавычки вокруг $ftsQuery обязательны, если в запросе есть пробелы!
+            $matchExpr = "{$field} : '{$ftsQuery}'";
+        } else {
+            $matchExpr = $ftsQuery;
+        }
+
+        $params = ['search' => $matchExpr];
+
+        // 4. Сборка условий WHERE через массив
+        $conditions = ['books_fts MATCH :search'];
+
+        if (!empty($filters['lang'])) {
+            $conditions[] = 'b.language = :lang';
+            $params['lang'] = $filters['lang'];
+        }
+        if (!empty($filters['format'])) {
+            $conditions[] = 'b.file_type = :format';
+            $params['format'] = $filters['format'];
+        }
+
+        $whereClause = implode(' AND ', $conditions);
+
+        // 5. Сортировка
+        if (!empty($filters['sort']) && $filters['sort'] !== 'relevance') {
+            $orderBy = $this->buildOrderBy($filters['sort']);
+            error_log("Sorting by custom field: " . $filters['sort']);
+        } else {
+            // rank в FTS5: чем меньше число, тем выше релевантность. ASC - стандарт для FTS5.
+            $orderBy = 'ORDER BY rank ASC';
+            error_log("Sorting by relevance (rank)");
+        }
+
+        // 6. Формирование итогового запроса
+        $sql = "
+        SELECT b.*
+        FROM books_fts
+        JOIN books b ON b.id = books_fts.rowid
+        WHERE {$whereClause}
+        {$orderBy}
+        LIMIT :limit OFFSET :offset
+    ";
+
+        $stmt = $this->pdo->prepare($sql);
+
+        // Биндим параметры
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+        $stmt->bindValue('limit', (int)$perPage, PDO::PARAM_INT);
+        $stmt->bindValue('offset', (int)$offset, PDO::PARAM_INT);
+
+        $stmt->execute();
+
+        // 7. Возврат результата (мертвый код удален)
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
 
@@ -289,6 +388,20 @@ class Database
 
         $query = $this->security->sanitizeSearchQuery($query);
         $field = $this->security->sanitizeSearchField($field);
+
+        if (Config::isSqlite()
+    && Config::isFulltextEnabled()
+    && $this->isFtsAvailable()
+        ) {
+            try {
+                $count = $this->countBooksSqliteFts($query, $field, $filters);
+                Cache::set($cacheKey, $count, 'statistics');
+                return $count;
+            } catch (Exception $e) {
+
+                // падаем в LIKE-ветку ниже
+            }
+        }
 
         // Используем приблизительный подсчет для больших таблиц
         if (Config::isMysql() && $this->getTotalBooksCount() > 10000) {
@@ -372,6 +485,76 @@ class Database
         return $count;
     }
 
+
+    private function countBooksSqliteFts($query, $field, $filters = [])
+    {
+        $cleanQuery = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $query);
+        $cleanQuery = trim(preg_replace('/\s+/', ' ', $cleanQuery));
+
+        if ($cleanQuery === '') {
+            return 0;
+        }
+
+        $words = explode(' ', $cleanQuery);
+        $ftsQuery = implode(' ', array_map(fn ($w) => $w . '*', $words));
+
+        $allowedFields = ['title', 'author', 'genre', 'series', 'publisher', 'description'];
+
+        if ($field !== 'all' && in_array($field, $allowedFields, true)) {
+            $matchExpr = "{$field} : ({$ftsQuery})";
+        } else {
+            $matchExpr = $ftsQuery;
+        }
+
+        $params = ['search' => $matchExpr];
+
+        $filterSql = '';
+        if (!empty($filters['lang'])) {
+            $filterSql .= ' AND b.language = :lang';
+            $params['lang'] = $filters['lang'];
+        }
+        if (!empty($filters['format'])) {
+            $filterSql .= ' AND b.file_type = :format';
+            $params['format'] = $filters['format'];
+        }
+
+        $sql = "
+        SELECT COUNT(*)
+        FROM books_fts
+        JOIN books b ON b.id = books_fts.rowid
+        WHERE books_fts MATCH :search {$filterSql}
+    ";
+
+        $stmt = $this->pdo->prepare($sql);
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+        $stmt->execute();
+
+        return (int)$stmt->fetchColumn();
+    }
+
+    private function isFtsAvailable(): bool
+    {
+        static $available = null;
+        if ($available !== null) {
+            return $available;
+        }
+
+        try {
+            $stmt = $this->pdo->query(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='books_fts' LIMIT 1"
+            );
+            $available = (bool)$stmt->fetchColumn();
+        } catch (Exception $e) {
+            $available = false;
+        }
+
+        return $available;
+    }
+
+
+
     /**
      * FULLTEXT поиск (быстрый)
      */
@@ -411,7 +594,7 @@ class Database
             return $stmt->fetchAll();
 
         } catch (Exception $e) {
-            error_log('Fulltext search failed, falling back to LIKE: ' . $e->getMessage());
+
             return $this->searchBooksLike($query, $field, $offset, $perPage, null, $filters);
         }
     }

@@ -281,7 +281,6 @@ return [
 'admin_scanner_config'  => 'Шлях до конфігу:',   // Шлях до конфігу
 'admin_scanner_inpx'    => 'INPX файл:',         // Наявність INPX
 'admin_scanner_inpx_found' => 'Знайдено',        // Знайдено
-'admin_scanner_inpx_not_found' => 'Не знайдено', // Не знайдено
 // Статистика бібліотеки
 'admin_library_stats'   => 'Статистика бібліотеки', // Заголовок
 'admin_library_books'   => 'Всього книг:',       // Метрика
@@ -604,8 +603,6 @@ return [
 'install_db_created'    => '✅ Базу даних успішно створено!', // Повідомлення
 // Статус БД
 'install_db_status'     => 'Статус бази даних',  // Заголовок
-'install_db_exists'     => 'Існує:',             // Статус
-'install_db_will_be_created' => '⚠️ Буде створена', // Статус
 'install_tables_exist'  => 'Таблиці:',           // Статус
 'install_tables_will_be_created' => '⚠️ Будуть створені', // Статус
 // Таблиці
@@ -660,7 +657,6 @@ return [
 // ПОМИЛКИ ТА ПОВІДОМЛЕННЯ
 // ============================================
 'error_occurred'        => 'Сталася помилка',    // Загальна помилка
-'error_unknown'         => 'Невідома помилка',   // Невідома помилка
 'error_invalid_id'      => 'Невірний ID',        // Невірний ID
 'error_not_found'       => 'Не знайдено',        // Не знайдено
 'error_access_denied'   => 'Доступ заборонено',  // Доступ заборонено
@@ -703,9 +699,6 @@ return [
 'rating_votes_1'        => 'оцінка',             // для 1 оцінки
 'rating_votes_2'        => 'оцінки',             // для 2-4 оцінок
 'rating_votes_5'        => 'оцінок',             // для 5+ оцінок
-'rating_star_1'         => 'зірка',              // для 1 зірки
-'rating_star_2'         => 'зірки',              // для 2-4 зірок
-'rating_star_5'         => 'зірок',              // для 5+ зірок
 'book_number'           => 'Книга #%s',          // "Книга %s"
 'book_description_missing' => 'Опис книги відсутній', // "Опис книги відсутній"
 'back_to_list'          => 'Назад до списку',    // "Назад до списку"
@@ -717,8 +710,6 @@ return [
 'error'                 => 'Помилка',
 'success'               => 'Успіх',
 'warning'               => 'Попередження',
-'favorites_added'       => 'Додано в обране',
-'favorites_removed'     => 'Видалено з обраного',
 'footer_tagline'        => 'Ваша персональна електронна бібліотека',
 'footer_books'          => 'Книг',
 'footer_memory'         => 'Пам\'яті',
@@ -855,7 +846,6 @@ return [
 // Помилки встановлення
 'install_error_creating_db' => 'Помилка створення бази даних',
 'install_error_connection' => 'Помилка підключення',
-'install_error_create_dir' => 'Не вдалося створити директорію: %s',
 'install_error_dir_not_writable' => 'Директорія %s не доступна для запису (права: %s)',
 'install_error_create_file' => 'Не вдалося створити файл: %s',
 'install_error_file_not_writable' => 'Файл %s не доступний для запису (права: %s)',
@@ -995,8 +985,6 @@ return [
 'admin_db_optimized' => 'Базу даних оптимізовано',
 'admin_db_optimized_freed' => 'Звільнено: %s',
 'admin_db_optimize_error' => 'Помилка оптимізації: %s',
-'admin_db_integrity_ok' => 'Перевірку цілісності завершено: %s',
-'admin_db_integrity_error' => 'Помилка перевірки цілісності: %s',
 'admin_db_restore_success' => 'Базу даних відновлено з бекапу',
 'admin_db_restore_error' => 'Помилка відновлення: %s',
 'admin_db_backup_deleted' => 'Бекап видалено',
@@ -1031,7 +1019,6 @@ return [
 'admin_logs_system' => 'Системний лог',
 'admin_logs_empty' => 'Лог порожній',
 'admin_logs_file_size' => 'Розмір файлу',
-'admin_logs_last_lines' => 'Останні рядки',
 'admin_logs_clear' => 'Очистити',
 'admin_logs_clear_confirm' => 'Очистити лог?',
 'admin_logs_download' => 'Завантажити',
@@ -1269,7 +1256,6 @@ return [
 'admin_logs_warnings' => 'Попередження',
 'admin_logs_success' => 'Успішно',
 'admin_logs_last_lines' => 'Останні %d рядків',
-'admin_logs_clear_confirm' => 'Очистити лог-файл?',
 'admin_logs_clear_confirm_system' => 'Очистити системний лог? Ця дія незворотна.',
 'admin_logs_clear_confirm_scanner' => 'Очистити лог сканера? Ця дія незворотна.',
 'admin_logs_clear_confirm_php' => 'Очистити PHP лог? Ця дія незворотна.',
@@ -1345,7 +1331,6 @@ return [
 'cache_store' => 'Cache store: %s (TTL: %d сек)',
 'cache_invalidated' => 'Cache: інвалідовано %d записів типу "%s"',
 'cache_deleted' => 'Cache: видалено запис %s',
-'cache_cleared' => 'Cache: весь кеш очищено',
 'cache_clear_error' => 'Cache: неможливо очистити кеш (APCu не доступний)',
 'cache_enabled_status' => 'Кешування увімкнено (APCu)',
 'cache_disabled_status' => 'Кешування вимкнено або APCu недоступний',
@@ -1452,8 +1437,6 @@ return [
 'opds_books_in_genre_title' => 'Книги в жанрі %s',
 'opds_books_in_series' => 'Книги в серії %s',
 'admin_book_add_new' => 'Додати книгу',
-'admin_book_add_title' => 'Додавання книги',
-'admin_book_year_invalid' => 'Рік не може бути більшим за поточний',
 
 'admin_book_field_file' => 'Файл книги',
 'admin_book_file_hint' => 'Підтримувані формати: FB2, EPUB, PDF, TXT. Максимальний розмір: 50 МБ.',
@@ -1481,7 +1464,6 @@ return [
 'backup_library_limit_desc' => 'максимум 1 ГБ',
 'backup_library_status' => 'Статус',
 'backup_library_can_backup' => 'Можна створити резервну копію',
-'backup_library_too_large' => 'Завеликий розмір',
 'backup_library_too_large_desc' => 'Розмір бібліотеки перевищує 1 ГБ. Створення резервної копії недоступне.',
 'backup_library_stats' => 'Статистика резервних копій',
 'backup_library_backups_count' => 'Усього резервних копій',
@@ -1494,7 +1476,6 @@ return [
 'backup_library_no_backups_desc' => 'Натисніть "Створити резервну копію", щоб створити першу резервну копію.',
 'backup_library_date' => 'Дата створення',
 'backup_library_filename' => 'Ім\'я файлу',
-'backup_library_size' => 'Розмір',
 'backup_library_books' => 'Книг',
 'backup_library_actions' => 'Дії',
 'backup_library_download' => 'Завантажити',
@@ -1516,7 +1497,6 @@ return [
 'backup_library_deleted' => 'Резервну копію видалено.',
 'backup_library_delete_failed' => 'Не вдалося видалити резервну копію.',
 
-'admin_scanner_version' => 'Версія сканера',
 'admin_scanner_version_unknown' => 'Невідома',
 'admin_scanner_version_updated' => 'Версія сканера оновлена',
 'admin_scanner_version_error' => 'Не вдалося отримати версію сканера',
@@ -1570,12 +1550,10 @@ return [
 'notes_count_label' => 'Нотаток',
 'highlights_count' => 'Підсвічування',
 'bookmarks_count' => 'Закладок',
-'all_books' => 'Всі книги',
 'go_to_reading' => 'Перейти до місця в книзі',
 'search_to_notes' => 'Пошук за нотатками...',
 'search_notes' => 'Пошук',
 
-'bookmarks' => 'Закладки',
 'notes_and_quotes' => 'Нотатки та цитати',
 'no_bookmarks_desc' => 'Додайте закладки під час читання книг, натиснувши кнопку із закладкою.',
 'filter_by_type' => 'Тип',
@@ -1592,26 +1570,9 @@ return [
 
 'no_notes_desc' => 'Додайте нотатки, цитати та підсвічування під час читання книг.',
 
-'book_marks' => 'Закладки',
-'my_bookmark' => 'Мої закладки',
-'last_read' => 'Останнє прочитане',
-'no_name_book' => 'Без назви',
 'incognito' => 'Невідомий',
-'restore_read' => 'Продовжити читання',
 'no_bookmarks1' => 'У вас поки немає закладок.',
 'no_bookmarks2' => 'Додайте їх під час читання книг.',
-'delete_bookmark' => 'Видалити?',
-'bookmark_read' => 'Читати',
-
-'read_book' => '● Читаємо',
-'save_bookmark' => '✓ Збережено',
-'bookmark_add' => 'Закладка додана',
-'bookmark_name' => 'Введіть назву закладки:',
-'bookmark_error' => 'Помилка: ',
-'bookmark_msg' => 'Помилка при додаванні закладки',
-'read_book_pause' => '○ Пауза',
-'bookmark_error_' => '✗ Помилка',
-
 
 'notes_all' => 'Всі',
 'notes_c' => '💬 Цитати',
@@ -1718,7 +1679,6 @@ return [
 'author_deduplicate_merge3' => 'Обєднання',
 'author_deduplicate_scan_Done' => 'Готово!',
 'author_deduplicate_not_found' => 'Дублікати не знайдено!',
-'author_deduplicate_scan' => 'Сканування',
 'author_deduplicate_merge_bath' => 'Виберіть варіант для обєднання',
 
 
@@ -1744,7 +1704,6 @@ return [
 'sort_by_author' => 'За автором',
 'grid_view' => 'Плитка',
 'list_view' => 'Список',
-'search_placeholder' => 'Пошук книг...',
 'show_more' => 'Показати ще',
 'all_books_loaded' => 'Всі книги завантажені',
 'switch_theme' => 'Переключити тему',
@@ -1753,6 +1712,10 @@ return [
 'filter_reset' => 'Скинути фільтр',
 'filter_by_genre' => 'Фільтр за жанром',
 'no_genres' => 'Немає жанрів',
-'books' => 'книг',
+
+'settings_field_fts_enabled' => 'Повнотекстовий пошук (FTS)',
+'settings_field_fts_enabled_desc' => 'Використовувати повнотекстовий пошук для SQLite. Прискорює пошук, але потребує більше дискового простору.',
+'search_fts_enabled' => 'Повнотекстовий пошук включено',
+'search_fts_disabled' => 'Повнотекстовий пошук вимкнено',
 
 ];

@@ -78,7 +78,7 @@ try {
         WHERE b.user_fingerprint = :fingerprint
           AND b.is_deleted = 0
           AND b.note = 'Последнее прочитанное'
-        ORDER BY b.updated_at asc
+        ORDER BY b.updated_at desc
         LIMIT 1
     ");
     $stmt->execute([':fingerprint' => $fingerprint]);
@@ -98,7 +98,7 @@ try {
         $sql .= " AND (b.type IS NULL OR b.type = '' OR b.type = 'bookmark' OR b.type = 'last_read')";
     }
 
-    $sql .= " ORDER BY b.updated_at DESC";
+    $sql .= " ORDER BY b.updated_at ASC";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([':fingerprint' => $fingerprint]);

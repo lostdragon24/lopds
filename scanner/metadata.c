@@ -151,7 +151,8 @@ static BookMeta *parse_epub_metadata(const char *content_opf) {
   return meta;
 }
 
-BookMeta *parse_metadata(const char *filepath, const char *file_type) {
+BookMeta *parse_metadata(const char *filepath, const char *file_type,
+                         Config *config) {
   BookMeta *meta = calloc(1, sizeof(BookMeta));
   if (!meta) {
     return NULL;
@@ -246,7 +247,7 @@ BookMeta *parse_metadata(const char *filepath, const char *file_type) {
       free_book_meta(fb2_meta);
     }
   } else if (strcasecmp(file_type, "epub") == 0) {
-    BookMeta *epub_meta = parse_epub(filepath);
+    BookMeta *epub_meta = parse_epub(filepath, config);
     if (epub_meta) {
       // EPUB обычно уже в UTF-8, но на всякий случай проверяем
       if (epub_meta->title) {
@@ -277,12 +278,12 @@ BookMeta *parse_metadata(const char *filepath, const char *file_type) {
     }
   }
 
-  // Fallback: если не удалось распарсить или неподдерживаемый формат
+  // если не удалось распарсить или неподдерживаемый формат
   if (!meta->title) {
     const char *filename = strrchr(filepath, '/');
     filename = filename ? filename + 1 : filepath;
 
-    char *dash = strstr(filename, " - ");
+    const char *dash = strstr(filename, " - ");
     if (dash) {
       meta->author = strndup(filename, dash - filename);
       const char *title_start = dash + 3;
@@ -358,7 +359,7 @@ BookMeta *parse_fb2(const char *filepath) {
   meta->language = extract_xml_tag_content(content_to_parse, "lang");
   meta->publisher = extract_xml_tag_content(content_to_parse, "publisher");
 
-  // ===== ИСПРАВЛЕНО: РАСКОММЕНТИРОВАНО =====
+  // ЗАКОММЕНТИРОВАНО ОГРАНИЧЕНИЕ=====
   char *annotation = extract_xml_tag_content(content_to_parse, "annotation");
   if (annotation) {
     // Ограничиваем длину до 1000 символов (вместо 1000)
@@ -451,7 +452,6 @@ BookMeta *parse_fb2_from_memory(const char *content, size_t content_size) {
   meta->language = extract_xml_tag_content(content_to_parse, "lang");
   meta->publisher = extract_xml_tag_content(content_to_parse, "publisher");
 
-  // ===== ИСПРАВЛЕНО: РАСКОММЕНТИРОВАНО =====
   char *annotation = extract_xml_tag_content(content_to_parse, "annotation");
   if (annotation) {
     if (strlen(annotation) > 10000) {
@@ -478,15 +478,15 @@ BookMeta *parse_fb2_from_memory(const char *content, size_t content_size) {
 }
 
 char *extract_fb2_sequence(const char *xml) {
-  char *sequence_start = strstr(xml, "<sequence");
+  const char *sequence_start = strstr(xml, "<sequence");
   if (!sequence_start) {
     sequence_start = strstr(xml, "<sequence>");
     if (!sequence_start)
       return NULL;
   }
 
-  char *name_start = NULL;
-  char *name_end = NULL;
+  const char *name_start = NULL;
+  const char *name_end = NULL;
 
   name_start = strstr(sequence_start, "name=\"");
   if (name_start) {
@@ -510,10 +510,10 @@ char *extract_fb2_sequence(const char *xml) {
     }
   }
 
-  char *tag_end = strstr(sequence_start, ">");
+  const char *tag_end = strstr(sequence_start, ">");
   if (tag_end) {
     tag_end++;
-    char *close_tag = strstr(tag_end, "</sequence>");
+    const char *close_tag = strstr(tag_end, "</sequence>");
     if (close_tag) {
       size_t content_len = close_tag - tag_end;
       if (content_len > 0 && content_len < 1000) {
@@ -542,14 +542,14 @@ char *extract_fb2_sequence(const char *xml) {
 }
 
 int extract_fb2_sequence_number(const char *xml) {
-  char *sequence_start = strstr(xml, "<sequence");
+  const char *sequence_start = strstr(xml, "<sequence");
   if (!sequence_start)
     return 0;
 
-  char *number_start = strstr(sequence_start, "number=\"");
+  const char *number_start = strstr(sequence_start, "number=\"");
   if (number_start) {
     number_start += 8;
-    char *number_end = strchr(number_start, '"');
+    const char *number_end = strchr(number_start, '"');
     if (number_end) {
       size_t num_len = number_end - number_start;
       if (num_len > 0 && num_len < 20) {
@@ -577,12 +577,12 @@ char *extract_xml_tag_content(const char *xml, const char *tag_name) {
   snprintf(open_tag, sizeof(open_tag), "<%s>", tag_name);
   snprintf(close_tag, sizeof(close_tag), "</%s>", tag_name);
 
-  char *start = strstr(xml, open_tag);
+  const char *start = strstr(xml, open_tag);
   if (!start)
     return NULL;
 
   start += strlen(open_tag);
-  char *end = strstr(start, close_tag);
+  const char *end = strstr(start, close_tag);
   if (!end)
     return NULL;
 
@@ -599,14 +599,14 @@ char *extract_xml_tag_content(const char *xml, const char *tag_name) {
   if (strcmp(tag_name, "annotation") == 0) {
     // printf("DEBUG: Found annotation content: %s\n", content);
     // Пробуем найти <description><title-info><annotation>
-    char *desc_start = strstr(xml, "<description>");
+    const char *desc_start = strstr(xml, "<description>");
     if (desc_start) {
-      char *title_info = strstr(desc_start, "<title-info>");
+      const char *title_info = strstr(desc_start, "<title-info>");
       if (title_info) {
-        char *ann = strstr(title_info, "<annotation>");
+        const char *ann = strstr(title_info, "<annotation>");
         if (ann) {
           ann += strlen("<annotation>");
-          char *ann_end = strstr(ann, "</annotation>");
+          const char *ann_end = strstr(ann, "</annotation>");
           if (ann_end) {
             size_t len = ann_end - ann;
             // char *content = malloc(len + 1);
@@ -642,11 +642,11 @@ char *extract_xml_tag_content(const char *xml, const char *tag_name) {
 }
 
 char *extract_fb2_author(const char *xml) {
-  char *author_start = strstr(xml, "<author>");
+  const char *author_start = strstr(xml, "<author>");
   if (!author_start)
     return NULL;
 
-  char *author_end = strstr(author_start, "</author>");
+  const char *author_end = strstr(author_start, "</author>");
   if (!author_end)
     return NULL;
 
@@ -714,15 +714,16 @@ void free_book_meta(BookMeta *meta) {
     free(meta->file_hash);
     meta->file_hash = NULL;
   }
+  free(meta);
 }
 
-BookMeta *parse_epub(const char *filepath) {
+BookMeta *parse_epub(const char *filepath, Config *config) {
   if (!filepath) {
-    log_message(NULL, "ERROR", "[PARSE_EPUB] NULL filepath");
+    log_message(config, "ERROR", "[PARSE_EPUB] NULL filepath");
     return NULL;
   }
 
-  log_message(NULL, "DEBUG", "[PARSE_EPUB] Opening: %s", filepath);
+  log_message(config, "DEBUG", "[PARSE_EPUB] Opening: %s", filepath);
 
   struct archive *a;
   struct archive_entry *entry;
@@ -735,7 +736,8 @@ BookMeta *parse_epub(const char *filepath) {
   // 1. Открываем EPUB как ZIP архив
   a = archive_read_new();
   if (!a) {
-    log_message(NULL, "ERROR", "[PARSE_EPUB] Failed to create archive object");
+    log_message(config, "ERROR",
+                "[PARSE_EPUB] Failed to create archive object");
     return NULL;
   }
 
@@ -744,7 +746,7 @@ BookMeta *parse_epub(const char *filepath) {
 
   r = archive_read_open_filename(a, filepath, 10240);
   if (r != ARCHIVE_OK) {
-    log_message(NULL, "ERROR", "[PARSE_EPUB] Cannot open file: %s",
+    log_message(config, "ERROR", "[PARSE_EPUB] Cannot open file: %s",
                 archive_error_string(a));
     archive_read_free(a);
     return NULL;
@@ -770,9 +772,9 @@ BookMeta *parse_epub(const char *filepath) {
           if (bytes_read == (la_ssize_t)size) {
             container_xml[size] = '\0';
             found_container = 1;
-            log_message(NULL, "DEBUG", "[PARSE_EPUB] Found container.xml");
+            log_message(config, "DEBUG", "[PARSE_EPUB] Found container.xml");
           } else {
-            log_message(NULL, "WARNING",
+            log_message(config, "WARNING",
                         "[PARSE_EPUB] Failed to read container.xml");
             free(container_xml);
             container_xml = NULL;
@@ -786,7 +788,7 @@ BookMeta *parse_epub(const char *filepath) {
   }
 
   if (!found_container || !container_xml) {
-    log_message(NULL, "WARNING", "[PARSE_EPUB] No container.xml found");
+    log_message(config, "WARNING", "[PARSE_EPUB] No container.xml found");
     archive_read_free(a);
     return NULL;
   }
@@ -797,12 +799,12 @@ BookMeta *parse_epub(const char *filepath) {
   free(container_xml);
 
   if (!content_opf_path) {
-    log_message(NULL, "WARNING",
+    log_message(config, "WARNING",
                 "[PARSE_EPUB] Could not extract OPF path, trying default");
     content_opf_path = strdup("content.opf");
   }
 
-  log_message(NULL, "DEBUG", "[PARSE_EPUB] OPF path: %s", content_opf_path);
+  log_message(config, "DEBUG", "[PARSE_EPUB] OPF path: %s", content_opf_path);
 
   // 4. Закрываем архив
   archive_read_free(a);
@@ -810,7 +812,8 @@ BookMeta *parse_epub(const char *filepath) {
   // 5. Открываем архив снова для поиска OPF файла
   a = archive_read_new();
   if (!a) {
-    log_message(NULL, "ERROR", "[PARSE_EPUB] Failed to create archive object");
+    log_message(config, "ERROR",
+                "[PARSE_EPUB] Failed to create archive object");
     free(content_opf_path);
     return NULL;
   }
@@ -820,7 +823,7 @@ BookMeta *parse_epub(const char *filepath) {
 
   r = archive_read_open_filename(a, filepath, 10240);
   if (r != ARCHIVE_OK) {
-    log_message(NULL, "ERROR", "[PARSE_EPUB] Cannot reopen file: %s",
+    log_message(config, "ERROR", "[PARSE_EPUB] Cannot reopen file: %s",
                 archive_error_string(a));
     archive_read_free(a);
     free(content_opf_path);
@@ -850,11 +853,11 @@ BookMeta *parse_epub(const char *filepath) {
           if (bytes_read == (la_ssize_t)size) {
             content_opf[size] = '\0';
             found_content = 1;
-            log_message(NULL, "DEBUG", "[PARSE_EPUB] Found OPF file: %s",
+            log_message(config, "DEBUG", "[PARSE_EPUB] Found OPF file: %s",
                         filename);
             break;
           } else {
-            log_message(NULL, "WARNING",
+            log_message(config, "WARNING",
                         "[PARSE_EPUB] Failed to read OPF file");
             free(content_opf);
             content_opf = NULL;
@@ -869,7 +872,7 @@ BookMeta *parse_epub(const char *filepath) {
   free(content_opf_path);
 
   if (!found_content || !content_opf) {
-    log_message(NULL, "WARNING", "[PARSE_EPUB] No OPF file found");
+    log_message(config, "WARNING", "[PARSE_EPUB] No OPF file found");
     return NULL;
   }
 
@@ -878,19 +881,20 @@ BookMeta *parse_epub(const char *filepath) {
   free(content_opf);
 
   if (!meta) {
-    log_message(NULL, "WARNING", "[PARSE_EPUB] Failed to parse metadata");
+    log_message(config, "WARNING", "[PARSE_EPUB] Failed to parse metadata");
     return NULL;
   }
 
   return meta;
 }
 
-BookMeta *parse_epub_from_memory(const char *content, size_t content_size) {
-  log_message(NULL, "DEBUG", "[PARSE_EPUB_FROM_MEMORY] Processing %zu bytes",
+BookMeta *parse_epub_from_memory(const char *content, size_t content_size,
+                                 Config *config) {
+  log_message(config, "DEBUG", "[PARSE_EPUB_FROM_MEMORY] Processing %zu bytes",
               content_size);
 
   if (!content || content_size == 0) {
-    log_message(NULL, "ERROR", "[PARSE_EPUB_FROM_MEMORY] Empty content");
+    log_message(config, "ERROR", "[PARSE_EPUB_FROM_MEMORY] Empty content");
     return NULL;
   }
 
@@ -905,18 +909,18 @@ BookMeta *parse_epub_from_memory(const char *content, size_t content_size) {
   }
 
   if (fd == -1) {
-    log_message(NULL, "ERROR",
+    log_message(config, "ERROR",
                 "[PARSE_EPUB_FROM_MEMORY] Cannot create temp file");
     return NULL;
   }
 
-  log_message(NULL, "DEBUG", "[PARSE_EPUB_FROM_MEMORY] Temp file: %s",
+  log_message(config, "DEBUG", "[PARSE_EPUB_FROM_MEMORY] Temp file: %s",
               temp_path);
 
   // Пишем данные в временный файл
   ssize_t written = write(fd, content, content_size);
   if (written != (ssize_t)content_size) {
-    log_message(NULL, "ERROR",
+    log_message(config, "ERROR",
                 "[PARSE_EPUB_FROM_MEMORY] Write failed: wrote %zd of %zu bytes",
                 written, content_size);
     close(fd);
@@ -927,15 +931,15 @@ BookMeta *parse_epub_from_memory(const char *content, size_t content_size) {
   close(fd);
 
   // Парсим EPUB из временного файла
-  BookMeta *meta = parse_epub(temp_path);
+  BookMeta *meta = parse_epub(temp_path, config);
 
   // Удаляем временный файл
   unlink(temp_path);
 
   if (meta) {
-    log_message(NULL, "DEBUG", "[PARSE_EPUB_FROM_MEMORY] Success!");
+    log_message(config, "DEBUG", "[PARSE_EPUB_FROM_MEMORY] Success!");
   } else {
-    log_message(NULL, "WARNING", "[PARSE_EPUB_FROM_MEMORY] Failed to parse");
+    log_message(config, "WARNING", "[PARSE_EPUB_FROM_MEMORY] Failed to parse");
   }
 
   return meta;

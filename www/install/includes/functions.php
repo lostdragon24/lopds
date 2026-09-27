@@ -393,7 +393,8 @@ function handleSaveAdmin($post)
         $_SESSION['admin_created'] = true;
 
         // Принудительно сохраняем сессию
-        session_write_close();
+        //session_write_close();
+        session_commit();
 
         // Формируем URL для редиректа
         $protocol = isset($_SERVER['HTTPS']) ? 'https://' : 'http://';

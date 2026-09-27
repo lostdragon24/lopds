@@ -47,6 +47,12 @@ void task_queue_push(TaskQueue *q, FileTask *task) {
 
   if (q->shutdown) {
     pthread_mutex_unlock(&q->mutex);
+    if (task) {
+      free(task->filepath);
+      free(task->archive_path);
+      free(task->internal_path);
+      free(task);
+    }
     return;
   }
 
@@ -173,7 +179,7 @@ void result_queue_shutdown(ResultQueue *q) {
 }
 
 const char *supported_formats[SUPPORTED_FORMATS] = {
-    ".epub", ".fb2", ".pdf", ".txt", ".zip", ".rar", ".7z", ".mobi"};
+    ".epub", ".fb2", ".pdf", ".txt", ".zip", ".rar", ".7z"};
 
 // Определения функций проверки форматов
 int is_supported_format(const char *filename) {
@@ -241,7 +247,8 @@ void scan_directory(const char *path, DatabaseHandle *db_handle, Config *config,
   // ============================================================
   // 2. ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ОБРАБОТКИ ОДНОГО ФАЙЛА
   // ============================================================
-  void process_single_file(const char *filepath, struct stat *statbuf) {
+  void process_single_file(const char *filepath, struct stat *statbuf,
+                           Config *config) {
     const char *filename = strrchr(filepath, '/');
     if (!filename) {
       filename = filepath;
@@ -266,7 +273,7 @@ void scan_directory(const char *path, DatabaseHandle *db_handle, Config *config,
     if (!ext)
       return;
 
-    BookMeta *meta = parse_metadata(filepath, ext + 1);
+    BookMeta *meta = parse_metadata(filepath, ext + 1, config);
     if (!meta) {
       stats.books_failed++;
       log_message(config, "WARNING", "Failed to parse metadata for: %s",
@@ -384,7 +391,7 @@ void scan_directory(const char *path, DatabaseHandle *db_handle, Config *config,
         }
         dir_stack[stack_size++] = strdup(full_path);
       } else if (S_ISREG(statbuf.st_mode)) {
-        process_single_file(full_path, &statbuf);
+        process_single_file(full_path, &statbuf, config);
         batch_counter++;
 
         // ============================================================
@@ -920,7 +927,7 @@ int process_small_archive_file(struct archive *a, struct archive_entry *entry,
     if (strcasecmp(ext + 1, "fb2") == 0) {
       meta = parse_fb2_from_memory(content, size);
     } else if (strcasecmp(ext + 1, "epub") == 0) {
-      meta = parse_epub_from_memory(content, size);
+      meta = parse_epub_from_memory(content, size, config);
     }
   }
 
@@ -1007,7 +1014,7 @@ int process_large_archive_file(struct archive *a, struct archive_entry *entry,
     if (strcasecmp(ext + 1, "fb2") == 0) {
       meta = parse_fb2(temp_path);
     } else if (strcasecmp(ext + 1, "epub") == 0) {
-      meta = parse_epub(temp_path);
+      meta = parse_epub(temp_path, config);
     }
   }
 
@@ -1114,10 +1121,13 @@ void *file_worker_thread(void *arg) {
           thread_db, // Используем ЛИЧНОЕ соединение
           config, result_queue);
       if (books_found > 0) {
-        log_message(config, "INFO", "Archive processed: %s, %d books extracted",
-                    task->filepath, books_found);
+        log_message(config, "DEBUG",
+                    "Archive processed: %s, %d books extracted", task->filepath,
+                    books_found);
       }
       free(task->filepath);
+      free(task->archive_path);
+      free(task->internal_path);
       free(task);
       continue;
     }
@@ -1148,7 +1158,7 @@ void *file_worker_thread(void *arg) {
     // ============================================================
     // ПАРСИМ МЕТАДАННЫЕ
     // ============================================================
-    BookMeta *meta = parse_metadata(task->filepath, ext + 1);
+    BookMeta *meta = parse_metadata(task->filepath, ext + 1, config);
     if (!meta) {
       log_message(config, "WARNING", "Failed to parse metadata: %s",
                   task->filepath);
@@ -1363,7 +1373,7 @@ int process_archive_multithreaded(const char *archive_path,
       if (strcasecmp(ext + 1, "fb2") == 0) {
         meta = parse_fb2_from_memory(content, size);
       } else if (strcasecmp(ext + 1, "epub") == 0) {
-        meta = parse_epub_from_memory(content, size);
+        meta = parse_epub_from_memory(content, size, config);
       }
 
       // Вычисляем хеш
@@ -1421,7 +1431,7 @@ int process_archive_multithreaded(const char *archive_path,
       if (strcasecmp(ext + 1, "fb2") == 0) {
         meta = parse_fb2(temp_path);
       } else if (strcasecmp(ext + 1, "epub") == 0) {
-        meta = parse_epub(temp_path);
+        meta = parse_epub(temp_path, config);
       }
 
       // Вычисляем хеш
@@ -1544,6 +1554,7 @@ void *db_worker_thread(void *arg) {
 
   int batch_count = 0;
   int total_inserted = 0;
+  int total_skipped = 0;
   int total_archives = 0;
   int total_errors = 0;
   const int MAX_ERRORS = 100;
@@ -1657,17 +1668,21 @@ void *db_worker_thread(void *arg) {
     }
 
     // ВСТАВЛЯЕМ КНИГУ В БД
-    insert_book_to_db(db_handle, result->filepath, result->meta,
-                      result->archive_path, result->internal_path,
-                      result->file_hash, config);
+    if (insert_book_to_db(db_handle, result->filepath, result->meta,
+                          result->archive_path, result->internal_path,
+                          result->file_hash, config)) {
+      total_inserted++;
+    } else {
+      total_skipped++;
+    }
 
-    total_inserted++;
     batch_count++;
 
-    if (total_inserted % batch_size == 0) {
-      log_message(config, "INFO",
-                  "DB worker: Inserted %d books, updated %d archives",
-                  total_inserted, total_archives);
+    if ((total_inserted + total_skipped) % batch_size == 0) {
+      log_message(
+          config, "INFO",
+          "DB worker: Inserted %d books, skipped %d, updated %d archives",
+          total_inserted, total_skipped, total_archives);
     }
 
     // COMMIT при достижении batch_size
@@ -1765,8 +1780,9 @@ void *db_worker_thread(void *arg) {
   }
 
   log_message(config, "INFO",
-              "DB worker finished: Inserted %d books, updated %d archives",
-              total_inserted, total_archives);
+              "DB worker finished: Inserted %d books, skipped %d duplicates, "
+              "updated %d archives",
+              total_inserted, total_skipped, total_archives);
   return NULL;
 }
 

@@ -1443,7 +1443,9 @@ function handleCoverError(img, height = 400) {
         ]).catch(() => fallback);
     }
     
-    async function cryptoHash(str) {
+async function cryptoHash(str) {
+    // Явно проверяем, доступен ли крипто-модуль браузера
+    if (window.crypto && window.crypto.subtle) {
         try {
             const encoder = new TextEncoder();
             const data = encoder.encode(str);
@@ -1451,17 +1453,18 @@ function handleCoverError(img, height = 400) {
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         } catch (error) {
-            console.warn('Crypto hash failed, using simple hash:', error);
-            // Простой fallback для старых браузеров
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-                const char = str.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash;
-            }
-            return Math.abs(hash).toString(16);
+            console.warn('Crypto hash failed:', error);
         }
     }
+
+    // Если мы на HTTP (в локальной сети) — используем стабильный алгоритм MurmurHash или DJB2
+    // Этот fallback сработает мягко и без ошибок в консоли
+    let hash = 5381;
+    for (let i = 0; i < str.length; i++) {
+        hash = (hash * 33) ^ str.charCodeAt(i);
+    }
+    return (hash >>> 0).toString(16);
+}
     
     async function getCanvasFingerprint() {
         try {

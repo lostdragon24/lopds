@@ -60,7 +60,69 @@ SRCS = main.c config.c database.c scanner.c metadata.c utils.c \
        path_validation.c
 OBJS = $(SRCS:.c=.o)
 TARGET = book_scanner
-LIBS = -lsqlite3 -larchive -lssl -lcrypto -liconv
+
+LIBS = -lsqlite3 -larchive -lssl -lcrypto
+
+# ============================================================================
+# ICONV (автоопределение)
+# ============================================================================
+# Порядок приоритетов:
+#   1. Если пользователь задал ICONV_CFLAGS/ICONV_LIBS — используем их.
+#   2. Если найдена GNU libiconv (линкуется -liconv) — используем её.
+#   3. Иначе — glibc-шный iconv (Linux), ничего линковать не надо.
+#   4. На не-Linux (macOS, *BSD) — по умолчанию -liconv.
+#
+# Ручное управление:
+#   make ICONV_CFLAGS="-I/usr/local/include" \
+#        ICONV_LIBS="-L/usr/local/lib -liconv" \
+#        ICONV_RPATH="-Wl,-rpath,/usr/local/lib"
+#   make ICONV_LIBS=""   # принудительно glibc-iconv
+# ============================================================================
+
+UNAME_S := $(shell uname -s)
+
+ICONV_CFLAGS ?=
+ICONV_LIBS   ?=
+ICONV_RPATH  ?=
+
+# Если пользователь ничего не задал — попробуем определить автоматически
+ifeq ($(ICONV_CFLAGS)$(ICONV_LIBS),)
+
+    # Проверяем, линкуется ли -liconv (без каких-либо -I/-L)
+    ICONV_HAS_LIB := $(shell \
+        printf 'int main(void){return 0;}\n' > /tmp/.iconv_test.c; \
+        $(CC) /tmp/.iconv_test.c -liconv -o /tmp/.iconv_test >/dev/null 2>&1 \
+            && echo yes || echo no; \
+        rm -f /tmp/.iconv_test.c /tmp/.iconv_test)
+
+    ifeq ($(ICONV_HAS_LIB),yes)
+        # libiconv доступна линковщику «как есть» (например, лежит в /usr/lib64)
+        ICONV_LIBS := -liconv
+    else
+        # Проверяем GNU libiconv в /usr/local (классический случай)
+        ICONV_HAS_LOCAL := $(shell \
+            printf 'int main(void){return 0;}\n' > /tmp/.iconv_test.c; \
+            $(CC) /tmp/.iconv_test.c -I/usr/local/include \
+                -L/usr/local/lib -liconv -o /tmp/.iconv_test >/dev/null 2>&1 \
+                && echo yes || echo no; \
+            rm -f /tmp/.iconv_test.c /tmp/.iconv_test)
+
+        ifeq ($(ICONV_HAS_LOCAL),yes)
+            ICONV_CFLAGS := -I/usr/local/include
+            ICONV_LIBS   := -L/usr/local/lib -liconv
+            ICONV_RPATH  := -Wl,-rpath,/usr/local/lib
+        else
+            # libiconv нет — используем glibc (Linux) или -liconv (macOS/BSD)
+            ifneq ($(UNAME_S),Linux)
+                ICONV_LIBS := -liconv
+            endif
+        endif
+    endif
+endif
+
+CFLAGS  += $(ICONV_CFLAGS)
+LIBS    += $(ICONV_LIBS)
+LDFLAGS += $(ICONV_RPATH)
 
 # ============================================================================
 # ПРАВИЛА СБОРКИ
@@ -87,7 +149,9 @@ native: CFLAGS += -O3 -march=native -mtune=native
 native: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(LDFLAGS) $(OBJS) -o $(TARGET) $(MYSQL_LIBS) $(LIBS)
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(LDFLAGS) $(OBJS) -o $(TARGET) \
+	    $(MYSQL_LIBS) $(LIBS)
+
 
 %.o: %.c
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(MYSQL_INCLUDE) -c $< -o $@

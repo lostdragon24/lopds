@@ -2,23 +2,24 @@
 #define FB2READER_H
 
 #include <QMainWindow>
-#include <QTextEdit>
+#include <QTextBrowser>
 #include <QMenu>
 #include <QMenuBar>
 #include <QAction>
 #include <QFileDialog>
 #include <QMessageBox>
-#include <QDomDocument>
 #include <QFileInfo>
 #include <QTextStream>
 #include <QToolBar>
 #include <QLabel>
-#include <QList>
 #include <QFontComboBox>
 #include <QSpinBox>
 #include <QComboBox>
 #include <QTextBlock>
 #include <QTextCursor>
+#include <QXmlStreamReader>
+#include <QSysInfo>
+#include <QScrollBar>
 
 class FB2Reader : public QMainWindow
 {
@@ -26,11 +27,11 @@ class FB2Reader : public QMainWindow
 
 public:
     explicit FB2Reader(QWidget *parent = nullptr);
-    void loadFB2Content(const QByteArray &content, const QString &title = "");
+    bool loadFB2Content(const QByteArray &content, const QString &title = "");
 
 private slots:
     void openFile();
-    void loadFB2(const QString &filePath);
+    void loadFB2File(const QString &filePath);
     void changeFont(const QFont &font);
     void changeFontSize(int size);
     void changeLineSpacing(int spacing);
@@ -38,16 +39,20 @@ private slots:
     void zoomIn();
     void zoomOut();
     void resetZoom();
+    void onAnchorClicked(const QUrl &link);
+
 
 private:
     void setupUI();
     void setupToolbar();
-    void loadFB2Direct(const QDomDocument &doc); // Добавьте этот метод
-    void extractTextToCursor(const QDomElement &element, QTextCursor &cursor); // И этот
+    QString parseFB2ToHtml(const QByteArray &content, QStringList &toc);
     void applyCurrentStyles();
-    void reloadContent();
+    void updateContent();
+    QString getColorSchemeStyles();
+    void initColorSchemes();
 
-    QTextEdit *textEdit;
+    // Элементы UI
+    QTextBrowser *textBrowser;  // Изменено с QTextEdit на QTextBrowser
     QMenu *fileMenu;
     QMenu *viewMenu;
     QAction *openAction;
@@ -55,11 +60,8 @@ private:
     QAction *zoomInAction;
     QAction *zoomOutAction;
     QAction *resetZoomAction;
-    QByteArray currentContent;
-    QString currentTitle;
 
-
-    // Элементы управления шрифтом
+    // Элементы управления форматированием
     QFontComboBox *fontComboBox;
     QSpinBox *fontSizeSpinBox;
     QSpinBox *lineSpacingSpinBox;
@@ -70,9 +72,16 @@ private:
     int currentFontSize;
     int currentLineSpacing;
     QString currentColorScheme;
+    QString currentHtmlContent;
+    QStringList currentToc;
+    QString currentTitle;
 
     // Цветовые схемы
     QHash<QString, QColor> colorSchemes;
+    QHash<QString, QString> colorSchemeStyles;
+
+    // Состояние
+    bool isContentLoaded;
 };
 
 #endif // FB2READER_H

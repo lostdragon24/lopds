@@ -353,7 +353,7 @@ char *get_architecture_name(void);
 // ============================================================================
 
 #define PROJECT_NAME "Book Scanner"
-#define PROJECT_VERSION "0.1.16"
+#define PROJECT_VERSION "0.1.16.1"
 #define PROJECT_AUTHOR "Squee&Dragon"
 #define PROJECT_LICENSE "GNU GPLv2"
 

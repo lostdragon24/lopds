@@ -1,10 +1,13 @@
-QT += core gui sql network widgets xml concurrent
+QT += core gui sql network widgets xml concurrent webenginewidgets
 
 QMAKE_CXXFLAGS += -Wl,--stack,16777216  # 16MB stack
 
 CONFIG += c++17
 
 SOURCES += \
+    EpubReader.cpp \
+    EpubZipReader.cpp \
+    FormatEPub.cpp \
     archivehandler.cpp \
     bookparser.cpp \
     favoritesdialog.cpp \
@@ -16,6 +19,9 @@ SOURCES += \
     scannerdialog.cpp
 
 HEADERS += \
+    EpubReader.h \
+    EpubZipReader.h \
+    FormatEPub.h \
     archivehandler.h \
     bookparser.h \
     favoritesdialog.h \

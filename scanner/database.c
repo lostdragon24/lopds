@@ -2,6 +2,7 @@
 #include "common.h"
 #include "database_mysql.h"
 #include "utils.h"
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -44,9 +45,6 @@ DatabaseHandle *db_connect(Config *config) {
 
       // Ждать до 10000 миллисекунд (10 секунд), если файл базы заблокирован
       sqlite3_busy_timeout(db, 10000);
-
-      // Включаем WAL-режим (пишет в лог вместо перезаписи основного файла)
-      sqlite3_exec(db, "PRAGMA journal_mode = WAL;", NULL, NULL, NULL);
 
       // 1. Включаем поддержку внешних ключей
       sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
@@ -516,6 +514,89 @@ int create_bookmarks_table(DatabaseHandle *db_handle, Config *config) {
     return 0;
   }
 
+  if (!create_books_fts_table(db_handle, config)) {
+    return 0;
+  }
+
+  return 1;
+}
+
+int create_books_fts_table(DatabaseHandle *db_handle, Config *config) {
+  if (!db_handle || !db_handle->connection) {
+    log_message(config, "ERROR",
+                "No database connection for creating bookmarks table");
+    return 0;
+  }
+
+  switch (db_handle->db_type) {
+  case DB_SQLITE: {
+    const char *create_books_fts_sql =
+        "CREATE VIRTUAL  TABLE IF NOT EXISTS books_fts USING fts5("
+        "    title,"
+        "    author,"
+        "    genre,"
+        "    series,"
+        "    publisher,"
+        "    description,"
+        "    content='books',"
+        "    content_rowid='id'"
+        ");";
+
+    if (!db_execute(db_handle, create_books_fts_sql, config)) {
+      log_message(config, "ERROR", "Book to create books_fts table");
+      return 0;
+    }
+
+    log_message(config, "DEBUG", "books_fts table created successfully");
+
+    const char *books_ai =
+        "CREATE TRIGGER IF NOT EXISTS books_ai AFTER INSERT ON books BEGIN "
+        "INSERT INTO books_fts(rowid, title, author, genre, series, publisher, "
+        "description) VALUES (new.id, new.title, new.author, new.genre, "
+        "new.series, new.publisher, new.description);END;";
+    if (!db_execute(db_handle, books_ai, config)) {
+      log_message(config, "WARNING", "Failed to create books_ai index");
+    }
+
+    const char *books_ad =
+        "CREATE TRIGGER IF NOT EXISTS books_ad AFTER DELETE ON books BEGIN "
+        "INSERT INTO books_fts(books_fts, rowid, title, author, genre, series, "
+        "publisher, description) VALUES ('delete', old.id, old.title, "
+        "old.author, old.genre, old.series, old.publisher, old.description); "
+        "END;";
+    if (!db_execute(db_handle, books_ad, config)) {
+      log_message(config, "WARNING", "Failed to create books_ad index");
+    }
+
+    const char *books_au =
+        "CREATE TRIGGER IF NOT EXISTS books_au AFTER UPDATE ON books BEGIN "
+        "INSERT INTO books_fts(books_fts, rowid, title, author, genre, series, "
+        "publisher, description) VALUES ('delete', old.id, old.title, "
+        "old.author, old.genre, old.series, old.publisher, old.description); "
+        "INSERT INTO books_fts(rowid, title, author, genre, series, publisher, "
+        "description) VALUES (new.id, new.title, new.author, new.genre, "
+        "new.series, new.publisher, new.description); END;";
+    if (!db_execute(db_handle, books_au, config)) {
+      log_message(config, "WARNING", "Failed to create books_au index");
+    }
+
+    break;
+  }
+
+  case DB_MYSQL:
+    return mysql_create_books_fts_table(
+        (MySQLConnection *)db_handle->connection, config);
+  default:
+    log_message(config, "ERROR",
+                "Unknown database type in create books table: %d",
+                db_handle->db_type);
+    return 0;
+  }
+
+  if (!create_bookmark_tags_table(db_handle, config)) {
+    return 0;
+  }
+
   if (!create_bookmarks_fts_table(db_handle, config)) {
     return 0;
   }
@@ -972,42 +1053,36 @@ int book_exists(DatabaseHandle *db_handle, const char *filepath,
 // ============================================================
 // ВСТАВКА КНИГИ В БАЗУ ДАННЫХ С УМНОЙ ЛОГИКОЙ
 // ============================================================
-void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath,
-                       BookMeta *meta, const char *archive_path,
-                       const char *internal_path, const char *file_hash,
-                       Config *config) {
+int insert_book_to_db(DatabaseHandle *db_handle, const char *filepath,
+                      BookMeta *meta, const char *archive_path,
+                      const char *internal_path, const char *file_hash,
+                      Config *config) {
   if (!db_handle) {
     log_message(config, "ERROR", "[INSERT_BOOK_TO_DB] Database handle is NULL");
-    return;
+    return 0;
   }
-
   if (!db_handle->connection) {
     log_message(config, "ERROR",
                 "[INSERT_BOOK_TO_DB] Database connection is NULL");
-    return;
+    return 0;
   }
-
   if (!filepath) {
     log_message(config, "ERROR", "[INSERT_BOOK_TO_DB] filepath is NULL");
-    return;
+    return 0;
   }
-
   if (!meta) {
     log_message(config, "ERROR", "[INSERT_BOOK_TO_DB] meta is NULL");
-    return;
+    return 0;
   }
 
   log_message(config, "DEBUG", "[INSERT_BOOK_TO_DB] Processing: %s", filepath);
 
-  // ============================================================
-  // 1. ПРОВЕРКА: ЕСТЬ ЛИ ЗАПИСИ В ТАБЛИЦЕ?
-  // ============================================================
+  /* 1. Проверка: есть ли записи в таблице? */
   int has_records = 0;
-
   switch (db_handle->db_type) {
   case DB_SQLITE: {
     sqlite3 *db = (sqlite3 *)db_handle->connection;
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = NULL;
     if (sqlite3_prepare_v2(db, "SELECT 1 FROM books LIMIT 1", -1, &stmt,
                            NULL) == SQLITE_OK) {
       has_records = (sqlite3_step(stmt) == SQLITE_ROW);
@@ -1032,69 +1107,41 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath,
     break;
   }
 
-  log_message(config, "DEBUG", "[INSERT_BOOK_TO_DB] Table has records: %d",
-              has_records);
-
-  // ============================================================
-  // 2. ПРОВЕРКА ДУБЛИКАТОВ (если включена И есть записи в таблице)
-  // ============================================================
+  /* 2. Проверка дубликатов */
   if (config->scanner.find_dup != 0 && has_records) {
-
     log_message(config, "DEBUG", "[INSERT_BOOK_TO_DB] Checking for duplicates");
 
-    // 2.1. ПРОВЕРКА ПО ХЕШУ
-    // Нет смысла использовать поиск по хешу, у нас поле file_hash уникальное,
-    // дубликатов быть не может
-    //    if (file_hash && file_hash[0] != '\0') {
-    //      if (book_exists_by_hash(db_handle, file_hash)) {
-    //        log_message(config, "DEBUG",
-    //                    "[INSERT_BOOK_TO_DB] Book exists by hash, skipping:
-    //                    %s", filepath);
-    //        return;
-    //      }
-    //    }
-
-    // 2.2. ПОИСК ПО АВТОРУ И НАЗВАНИЮ
     if (meta->title && meta->title[0] != '\0' && meta->author &&
         meta->author[0] != '\0') {
 
       BookRecord *existing = find_book_by_title_author(db_handle, meta->title,
                                                        meta->author, config);
-
       if (existing) {
-        log_message(config, "DEBUG",
-                    "[INSERT_BOOK_TO_DB] Found existing book: ID=%d, size=%ld, "
-                    "new size=%ld",
-                    existing->id, existing->file_size, meta->file_size);
-
-        // Если новая книга больше на 10% - обновляем
         if (meta->file_size > existing->file_size * 1.1) {
-          log_message(config, "INFO",
-                      "[INSERT_BOOK_TO_DB] New version is larger, updating: %s "
-                      "- %s (old: %ld, new: %ld)",
-                      meta->title, meta->author, existing->file_size,
-                      meta->file_size);
+          log_message(
+              config, "INFO",
+              "[INSERT_BOOK_TO_DB] New version is larger, updating: %s - %s",
+              meta->title, meta->author);
           update_book_in_db(db_handle, existing->id, meta, filepath, file_hash,
                             config);
           free_book_record(existing);
-          return;
+          return 1; /* обновили существующую */
         } else {
           log_message(config, "DEBUG",
                       "[INSERT_BOOK_TO_DB] Existing version is same or larger, "
                       "skipping");
           free_book_record(existing);
-          return;
+          return 0; /* пропустили */
         }
       }
     }
 
-    // 2.3. ПРОВЕРКА ПО ПУТИ
     if (book_exists(db_handle, filepath, archive_path, internal_path, NULL,
                     config)) {
       log_message(config, "DEBUG",
                   "[INSERT_BOOK_TO_DB] Book exists by path, skipping: %s",
                   filepath);
-      return;
+      return 0; /* пропустили */
     }
   } else if (config->scanner.find_dup == 0) {
     log_message(config, "DEBUG",
@@ -1102,10 +1149,7 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath,
                 filepath);
   }
 
-  // ============================================================
-  // 3. ВСТАВКА НОВОЙ КНИГИ (ЕДИНЫЙ БЛОК ДЛЯ ВСЕХ СЛУЧАЕВ)
-  // ============================================================
-  // Извлекаем имя файла
+  /* 3. Вставка новой книги */
   const char *filename = "unknown";
   if (internal_path && internal_path[0] != '\0') {
     filename = internal_path;
@@ -1114,13 +1158,6 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath,
     filename = slash ? slash + 1 : filepath;
   }
   const char *file_type = normalize_file_type(filename);
-
-  log_message(config, "INFO",
-              "[INSERT_BOOK_TO_DB] Inserting book: %s - %s (size: %ld, "
-              "table_empty: %d)",
-              meta->title ? meta->title : "Unknown",
-              meta->author ? meta->author : "Unknown", meta->file_size,
-              !has_records);
 
   switch (db_handle->db_type) {
   case DB_SQLITE: {
@@ -1133,119 +1170,78 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath,
         "genre, series, series_number, year, language, publisher, description"
         ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-    int rc;
-    static sqlite3_stmt *stmt = NULL;
-
-    if (stmt == NULL) {
-      rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-      if (rc != SQLITE_OK) {
-        log_message(config, "ERROR",
-                    "[INSERT_BOOK_TO_DB] Failed to prepare SQL: %s",
-                    sqlite3_errmsg(db));
-        return;
-      }
-    } else {
-      // Очищаем состояние стейтмента перед новыми данными
-      sqlite3_reset(stmt);
-      sqlite3_clear_bindings(stmt);
+    sqlite3_stmt *stmt = NULL;
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+      log_message(config, "ERROR",
+                  "[INSERT_BOOK_TO_DB] Failed to prepare SQL: %s",
+                  sqlite3_errmsg(db));
+      return 0;
     }
 
     int param = 1;
-
-    // 1. file_path
     sqlite3_bind_text(stmt, param++, filepath, -1, SQLITE_STATIC);
-
-    // 2. file_name
     sqlite3_bind_text(stmt, param++, filename, -1, SQLITE_STATIC);
-
-    // 3. file_size
     sqlite3_bind_int64(stmt, param++,
                        meta->file_size > 0 ? meta->file_size : 0);
-
-    // 4. file_type
     sqlite3_bind_text(stmt, param++, file_type, -1, SQLITE_STATIC);
 
-    // 5. archive_path
-    if (archive_path && archive_path[0] != '\0') {
+    if (archive_path && archive_path[0] != '\0')
       sqlite3_bind_text(stmt, param++, archive_path, -1, SQLITE_STATIC);
-    } else {
+    else
       sqlite3_bind_null(stmt, param++);
-    }
 
-    // 6. archive_internal_path
-    if (internal_path && internal_path[0] != '\0') {
+    if (internal_path && internal_path[0] != '\0')
       sqlite3_bind_text(stmt, param++, internal_path, -1, SQLITE_STATIC);
-    } else {
+    else
       sqlite3_bind_null(stmt, param++);
-    }
 
-    // 7. file_hash
-    if (file_hash && file_hash[0] != '\0') {
+    if (file_hash && file_hash[0] != '\0')
       sqlite3_bind_text(stmt, param++, file_hash, -1, SQLITE_STATIC);
-    } else {
+    else
       sqlite3_bind_null(stmt, param++);
-    }
 
-    // 8. title
     sqlite3_bind_text(stmt, param++,
                       meta->title ? meta->title : "Unknown Title", -1,
                       SQLITE_STATIC);
-
-    // 9. author
     sqlite3_bind_text(stmt, param++,
                       meta->author ? meta->author : "Unknown Author", -1,
                       SQLITE_STATIC);
 
-    // 10. genre
-    if (meta->genre && meta->genre[0] != '\0') {
+    if (meta->genre && meta->genre[0] != '\0')
       sqlite3_bind_text(stmt, param++, meta->genre, -1, SQLITE_STATIC);
-    } else {
+    else
       sqlite3_bind_null(stmt, param++);
-    }
 
-    // 11. series
-    if (meta->series && meta->series[0] != '\0') {
+    if (meta->series && meta->series[0] != '\0')
       sqlite3_bind_text(stmt, param++, meta->series, -1, SQLITE_STATIC);
-    } else {
+    else
       sqlite3_bind_null(stmt, param++);
-    }
 
-    // 12. series_number
     sqlite3_bind_int(stmt, param++,
                      meta->series_number > 0 ? meta->series_number : 0);
-
-    // 13. year
     sqlite3_bind_int(stmt, param++, meta->year > 0 ? meta->year : 0);
 
-    // 14. language
-    if (meta->language && meta->language[0] != '\0') {
+    if (meta->language && meta->language[0] != '\0')
       sqlite3_bind_text(stmt, param++, meta->language, -1, SQLITE_STATIC);
-    } else {
+    else
       sqlite3_bind_null(stmt, param++);
-    }
 
-    // 15. publisher
-    if (meta->publisher && meta->publisher[0] != '\0') {
+    if (meta->publisher && meta->publisher[0] != '\0')
       sqlite3_bind_text(stmt, param++, meta->publisher, -1, SQLITE_STATIC);
-    } else {
+    else
       sqlite3_bind_null(stmt, param++);
-    }
 
-    // 16. description
+    char *desc_truncated = NULL;
     if (meta->description && meta->description[0] != '\0') {
-      // Проверяем длину описания
       size_t desc_len = strlen(meta->description);
       if (desc_len > 65535) {
-        log_message(config, "WARNING",
-                    "[INSERT_BOOK_TO_DB] Description too long (%zu), "
-                    "truncating to 65535",
-                    desc_len);
-        char *truncated = malloc(65536);
-        if (truncated) {
-          memcpy(truncated, meta->description, 65535);
-          truncated[65535] = '\0';
-          sqlite3_bind_text(stmt, param++, truncated, -1, SQLITE_TRANSIENT);
-          free(truncated);
+        desc_truncated = malloc(65536);
+        if (desc_truncated) {
+          memcpy(desc_truncated, meta->description, 65535);
+          desc_truncated[65535] = '\0';
+          sqlite3_bind_text(stmt, param++, desc_truncated, -1,
+                            SQLITE_TRANSIENT);
         } else {
           sqlite3_bind_null(stmt, param++);
         }
@@ -1261,24 +1257,32 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath,
       log_message(config, "ERROR",
                   "[INSERT_BOOK_TO_DB] Insert failed: %s (rc=%d)",
                   sqlite3_errmsg(db), rc);
-    } else {
-      if (sqlite3_changes(db) > 0) {
-        log_message(config, "INFO",
-                    "[INSERT_BOOK_TO_DB] Book inserted successfully: %s - %s "
-                    "(type: %s)",
-                    meta->title ? meta->title : "Unknown",
-                    meta->author ? meta->author : "Unknown", file_type);
-      } else {
-        log_message(
-            config, "DEBUG",
-            "[INSERT_BOOK_TO_DB] Book skipped (already exists): %s - %s",
-            meta->title ? meta->title : "Unknown",
-            meta->author ? meta->author : "Unknown");
-      }
+      sqlite3_finalize(stmt);
+      if (desc_truncated)
+        free(desc_truncated);
+      return 0;
     }
 
-    sqlite3_reset(stmt);
-    break;
+    /* sqlite3_changes > 0 — реально вставилось.
+       Если сработал INSERT OR IGNORE (дубликат) — changes == 0 */
+    int changes = sqlite3_changes(db);
+    sqlite3_finalize(stmt);
+    if (desc_truncated)
+      free(desc_truncated);
+
+    if (changes > 0) {
+      log_message(config, "INFO",
+                  "[INSERT_BOOK_TO_DB] Book inserted successfully: %s - %s",
+                  meta->title ? meta->title : "Unknown",
+                  meta->author ? meta->author : "Unknown");
+      return 1;
+    } else {
+      log_message(config, "DEBUG",
+                  "[INSERT_BOOK_TO_DB] Book skipped (already exists): %s - %s",
+                  meta->title ? meta->title : "Unknown",
+                  meta->author ? meta->author : "Unknown");
+      return 0;
+    }
   }
 
   case DB_MYSQL: {
@@ -1286,18 +1290,18 @@ void insert_book_to_db(DatabaseHandle *db_handle, const char *filepath,
     if (!mysql_conn || !mysql_conn->mysql) {
       log_message(config, "ERROR",
                   "[INSERT_BOOK_TO_DB] MySQL connection is invalid");
-      return;
+      return 0;
     }
-    mysql_insert_book(mysql_conn, filepath, meta, archive_path, internal_path,
-                      file_hash, config);
-    break;
+
+    return mysql_insert_book(mysql_conn, filepath, meta, archive_path,
+                             internal_path, file_hash, config);
   }
 
   default:
     log_message(config, "ERROR",
                 "[INSERT_BOOK_TO_DB] Unknown database type: %d",
                 db_handle->db_type);
-    break;
+    return 0;
   }
 }
 
@@ -1425,27 +1429,23 @@ BookRecord *find_book_by_title_author(DatabaseHandle *db_handle,
   case DB_SQLITE: {
     sqlite3 *db = (sqlite3 *)db_handle->connection;
 
-    // Используем статический stmt для производительности
-    static sqlite3_stmt *stmt = NULL;
-    if (stmt == NULL) {
-      const char *sql = "SELECT id, file_size FROM books WHERE title = ? AND "
-                        "author = ? LIMIT 1;";
-      if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        log_message(config, "ERROR",
-                    "[FIND_BOOK] Failed to prepare statement: %s",
-                    sqlite3_errmsg(db));
-        return NULL;
-      }
-    } else {
-      sqlite3_reset(stmt);
-      sqlite3_clear_bindings(stmt);
+    const char *sql = "SELECT id, file_size FROM books "
+                      "WHERE title = ? AND author = ? LIMIT 1;";
+
+    sqlite3_stmt *stmt = NULL;
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+      log_message(config, "ERROR",
+                  "[FIND_BOOK] Failed to prepare statement: %s",
+                  sqlite3_errmsg(db));
+      return NULL;
     }
 
     sqlite3_bind_text(stmt, 1, title, -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, author, -1, SQLITE_STATIC);
 
-    // ✅ ИСПРАВЛЕНО: используем внешнюю переменную record
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
       record = calloc(1, sizeof(BookRecord));
       if (record) {
         record->id = sqlite3_column_int(stmt, 0);
@@ -1458,12 +1458,18 @@ BookRecord *find_book_by_title_author(DatabaseHandle *db_handle,
         log_message(config, "ERROR",
                     "[FIND_BOOK] Failed to allocate BookRecord");
       }
-    } else {
+    } else if (rc == SQLITE_DONE) {
       log_message(config, "DEBUG", "[FIND_BOOK] Book not found: '%s' by '%s'",
                   title, author);
+    } else {
+      log_message(config, "ERROR",
+                  "[FIND_BOOK] sqlite3_step failed: %s (rc=%d)",
+                  sqlite3_errmsg(db), rc);
     }
 
-    sqlite3_reset(stmt);
+    /* Всегда финализируем — stmt локальный, это безопасно */
+    sqlite3_finalize(stmt);
+    stmt = NULL;
     break;
   }
 
@@ -1474,7 +1480,6 @@ BookRecord *find_book_by_title_author(DatabaseHandle *db_handle,
       return NULL;
     }
 
-    // Проверяем соединение
     if (mysql_ping(mysql_conn->mysql) != 0) {
       log_message(config, "WARNING",
                   "[FIND_BOOK] MySQL connection lost, reconnecting...");
@@ -1484,7 +1489,6 @@ BookRecord *find_book_by_title_author(DatabaseHandle *db_handle,
       }
     }
 
-    // Используем подготовленный запрос (безопаснее и быстрее)
     const char *sql = "SELECT id, file_size, file_path, file_hash FROM books "
                       "WHERE title = ? AND author = ? LIMIT 1";
 
@@ -1501,10 +1505,9 @@ BookRecord *find_book_by_title_author(DatabaseHandle *db_handle,
       return NULL;
     }
 
-    // Биндим параметры
     MYSQL_BIND bind[2];
     unsigned long lengths[2];
-    mysql_bool_t is_null[2] = {0, 0};
+    _Bool is_null[2] = {0, 0};
     memset(bind, 0, sizeof(bind));
 
     lengths[0] = strlen(title);
@@ -1536,7 +1539,6 @@ BookRecord *find_book_by_title_author(DatabaseHandle *db_handle,
       return NULL;
     }
 
-    // Получаем результат
     MYSQL_RES *result = mysql_stmt_result_metadata(stmt);
     if (!result) {
       log_message(config, "DEBUG", "[FIND_BOOK] No result metadata");
@@ -1546,8 +1548,9 @@ BookRecord *find_book_by_title_author(DatabaseHandle *db_handle,
 
     MYSQL_BIND result_bind[4];
     unsigned long result_lengths[4];
-    mysql_bool_t result_is_null[4];
+    _Bool result_is_null[4] = {0};
     memset(result_bind, 0, sizeof(result_bind));
+    memset(result_lengths, 0, sizeof(result_lengths));
 
     int id = 0;
     long file_size = 0;
@@ -1585,7 +1588,8 @@ BookRecord *find_book_by_title_author(DatabaseHandle *db_handle,
       return NULL;
     }
 
-    if (mysql_stmt_fetch(stmt) == 0) {
+    int fetch_rc = mysql_stmt_fetch(stmt);
+    if (fetch_rc == 0 || fetch_rc == MYSQL_DATA_TRUNCATED) {
       record = calloc(1, sizeof(BookRecord));
       if (record) {
         record->id = id;
@@ -1600,9 +1604,12 @@ BookRecord *find_book_by_title_author(DatabaseHandle *db_handle,
         log_message(config, "ERROR",
                     "[FIND_BOOK] Failed to allocate BookRecord");
       }
-    } else {
+    } else if (fetch_rc == MYSQL_NO_DATA) {
       log_message(config, "DEBUG", "[FIND_BOOK] Book not found: '%s' by '%s'",
                   title, author);
+    } else {
+      log_message(config, "ERROR", "[FIND_BOOK] mysql_stmt_fetch failed: %s",
+                  mysql_stmt_error(stmt));
     }
 
     mysql_free_result(result);
@@ -1864,8 +1871,8 @@ void update_book_in_db(DatabaseHandle *db_handle, int book_id, BookMeta *meta,
     // Подготовка параметров
     MYSQL_BIND bind[13];
     unsigned long lengths[13];
-    mysql_bool_t is_null[13] = {MYSQL_BOOL_FALSE};
-    mysql_bool_t false_val = MYSQL_BOOL_FALSE;
+    _Bool is_null[13] = {0};
+    _Bool false_val = 0;
 
     memset(bind, 0, sizeof(bind));
     memset(lengths, 0, sizeof(lengths));

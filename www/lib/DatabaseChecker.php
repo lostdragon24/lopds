@@ -208,7 +208,7 @@ class DatabaseChecker
             $result['tables_found'] = $tables;
 
             // Проверяем наличие необходимых таблиц
-            $requiredTables = ['books', 'book_ratings', 'book_favorites', 'archives', 'bookmarks', 'reading_history', 'bookmark_tags', 'bookmarks_fts', 'bookmarks_fts_config', 'bookmarks_fts_data', 'bookmarks_fts_docsize', 'bookmarks_fts_idx'];
+            $requiredTables = ['books', 'book_ratings', 'book_favorites', 'archives', 'bookmarks', 'reading_history', 'bookmark_tags', 'bookmarks_fts', 'bookmarks_fts_config', 'bookmarks_fts_data', 'bookmarks_fts_docsize', 'bookmarks_fts_idx', 'books_fts', 'books_fts_config', 'books_fts_data', 'books_fts_docsize', 'books_fts_idx'];
             $existingTables = array_intersect($requiredTables, $tables);
 
             $result['tables_exist'] = in_array('books', $tables) && !empty($existingTables);
@@ -363,6 +363,6 @@ class DatabaseChecker
         $dbPathProperty->setValue(null);
 
         // Принудительно перезагружаем
-        Config::init();
+        AppInitializer::init();
     }
 }

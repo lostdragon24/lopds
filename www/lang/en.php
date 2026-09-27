@@ -63,7 +63,6 @@ return [
 'book_path_readonly'   => 'Path cannot be changed',
 'book_archive_internal' => 'Internal path:',
 // Search
-'search_placeholder'    => 'Enter query...',
 'search_in'             => 'Search in:',
 'search_all'            => 'Everywhere',
 'search_title'          => 'Titles',
@@ -283,7 +282,6 @@ return [
 'admin_scanner_config'  => 'Config path:',
 'admin_scanner_inpx'    => 'INPX file:',
 'admin_scanner_inpx_found' => 'Found',
-'admin_scanner_inpx_not_found' => 'Not found',
 // Library statistics
 'admin_library_stats'   => 'Library statistics',
 'admin_library_books'   => 'Total books:',
@@ -662,11 +660,9 @@ return [
 // ERRORS AND MESSAGES
 // ============================================
 'error_occurred'        => 'An error occurred',
-'error_unknown'         => 'Unknown error',
 'error_invalid_id'      => 'Invalid ID',
 'error_not_found'       => 'Not found',
 'error_access_denied'   => 'Access denied',
-'error_csrf'            => 'Security error: refresh page',
 // Success
 'success_operation'     => 'Operation completed successfully',
 'success_saved'         => 'Saved',
@@ -705,9 +701,6 @@ return [
 'rating_votes_1'        => 'rating',
 'rating_votes_2'        => 'ratings',
 'rating_votes_5'        => 'ratings',
-'rating_star_1'         => 'star',
-'rating_star_2'         => 'stars',
-'rating_star_5'         => 'stars',
 'book_number'           => 'Book #%s',
 'book_description_missing' => 'Book description not available',
 'back_to_list'          => 'Back to list',
@@ -815,12 +808,9 @@ return [
 'admin_status_error'    => 'Error',
 'admin_table_indexes_count' => 'Index count',
 'admin_index_name'      => 'Index name',
-'admin_unique'          => 'Unique',
 'admin_columns'         => 'Columns',
 'admin_cache_raw_data'  => 'Raw cache data',
 'admin_backup_actions'  => 'Actions',
-'admin_backup_restore_confirm' => 'Restore will replace current database. Continue?',
-'admin_backup_delete_confirm' => 'Delete backup %s?',
 'settings_enabled'      => 'Enabled',
 'settings_disabled'     => 'Disabled',
 'settings_testing'      => 'Testing...',
@@ -879,19 +869,15 @@ return [
 'admin_db_optimized_freed' => 'Freed: %s',
 'admin_db_optimize_error' => 'Optimization error: %s',
 'admin_db_integrity_ok' => 'Integrity check completed: %s',
-'admin_db_integrity_error' => 'Integrity check error: %s',
 'admin_db_restore_success' => 'Database restored from backup',
 'admin_db_restore_error' => 'Restore error: %s',
 'admin_db_backup_deleted' => 'Backup deleted',
 'admin_db_backup_delete_error' => 'Failed to delete backup',
-'admin_db_table_empty' => 'Table has no records',
-'admin_db_table_view' => 'View table',
 'admin_db_backup_confirm' => 'Create database backup?',
 'admin_db_optimize_confirm' => 'Optimize database? This may take some time.',
 'admin_db_restore_confirm' => 'Restore database from backup %s? Current database will be replaced.',
 // --- Settings ---
 'admin_settings_saved' => 'Settings saved successfully',
-'admin_settings_save_error' => 'Error saving settings: %s',
 'admin_settings_db_test_success' => 'Database connection successful',
 'admin_settings_db_test_error' => 'Connection error: %s',
 'admin_settings_config_restored' => 'Configuration restored from backup',
@@ -914,7 +900,6 @@ return [
 'admin_logs_system' => 'System log',
 'admin_logs_empty' => 'Log is empty',
 'admin_logs_file_size' => 'File size',
-'admin_logs_last_lines' => 'Last lines',
 'admin_logs_clear' => 'Clear',
 'admin_logs_clear_confirm' => 'Clear log?',
 'admin_logs_download' => 'Download',
@@ -969,16 +954,6 @@ return [
 'admin_confirm_restore_config' => 'Restore configuration from backup %s?',
 'admin_confirm_delete_backup' => 'Delete backup %s?',
 
-
-
-// --- Settings groups ---
-'settings_group_site' => 'Site Settings',
-'settings_group_opds' => 'OPDS Catalog',
-'settings_group_cache' => 'Caching',
-'settings_group_database' => 'Database',
-'settings_group_paths' => 'Paths',
-'settings_group_performance' => 'Performance',
-'settings_group_security' => 'Security',
 
 // --- Site fields ---
 'settings_field_site_title' => 'Site Title',
@@ -1042,40 +1017,9 @@ return [
 'settings_field_admin_allowed_ips' => 'Allowed IPs',
 'settings_field_admin_allowed_ips_desc' => 'IP addresses allowed to access admin (comma separated)',
 
-
-'admin_books_edit_success' => 'Book saved successfully',
-'admin_books_edit_error' => 'Error saving book',
-'admin_books_delete_success' => 'Book deleted',
-'admin_books_delete_error' => 'Error deleting book',
-'admin_books_bulk_success' => 'Bulk operation completed',
-'admin_books_bulk_error' => 'Error executing bulk operation',
-'admin_settings_saved' => 'Settings saved successfully',
 'admin_settings_save_error' => 'Error saving settings',
-'admin_scanner_log_cleared' => 'Scanner log cleared',
-'admin_scanner_inpx_import_completed' => 'INPX import completed',
-'admin_db_backup_created' => 'Backup created: %s (%s)',
-'admin_db_backup_error' => 'Backup error: %s',
-'admin_db_optimized' => 'Database optimized',
-'admin_db_optimized_freed' => 'Freed: %s',
-'admin_db_optimize_error' => 'Optimization error: %s',
-'admin_db_integrity_ok' => 'Integrity check completed',
-'admin_db_integrity_error' => 'Integrity check error: %s',
-'admin_db_restore_success' => 'Database restored from backup',
-'admin_db_restore_error' => 'Restore error: %s',
-'admin_db_backup_deleted' => 'Backup deleted',
-'admin_db_backup_delete_error' => 'Failed to delete backup',
-'admin_error_csrf_missing' => 'Security error: CSRF token missing',
-'admin_error_csrf_invalid' => 'Security error: invalid CSRF token',
-'admin_error_access_denied' => 'Access denied',
-'admin_error_database' => 'Database error',
-'admin_error_missing_params' => 'Missing required parameters',
-'admin_template_not_found' => 'Template not found',
 
 // --- Dashboard widgets ---
-'dashboard_total_books' => 'Total Books',
-'dashboard_total_authors' => 'Authors',
-'dashboard_total_genres' => 'Genres',
-'dashboard_total_series' => 'Series',
 'dashboard_php_version' => 'PHP Version',
 'dashboard_db_type' => 'DB Type',
 'dashboard_caching' => 'Caching',
@@ -1118,15 +1062,12 @@ return [
 'admin_db_restore_file_not_found' => 'Backup file not found',
 'admin_db_restore_failed' => 'Restore failed',
 'admin_db_restore_copy_failed' => 'Failed to copy file',
-'admin_db_restore_success' => 'Database restored from backup',
 'admin_db_optimize_success' => 'Database optimized',
 'admin_db_optimize_failed' => 'Optimization failed',
-'admin_db_integrity_ok' => 'Integrity check: OK',
 'admin_db_integrity_error' => 'Integrity check: issues found',
 'admin_db_integrity_warning' => 'Integrity check: warnings',
 'admin_db_integrity_failed' => 'Integrity check failed',
 
-'admin_book_title_required' => 'Book title is required',
 'admin_book_add_not_implemented' => 'Adding new books is temporarily unavailable',
 'admin_book_not_found' => 'Book not found',
 'admin_book_delete_error' => 'Error deleting book',
@@ -1152,7 +1093,6 @@ return [
 'admin_logs_warnings' => 'Warnings',
 'admin_logs_success' => 'Success',
 'admin_logs_last_lines' => 'Last %d lines',
-'admin_logs_clear_confirm' => 'Clear log file?',
 'admin_logs_clear_confirm_system' => 'Clear system log? This action cannot be undone.',
 'admin_logs_clear_confirm_scanner' => 'Clear scanner log? This action cannot be undone.',
 'admin_logs_clear_confirm_php' => 'Clear PHP log? This action cannot be undone.',
@@ -1225,7 +1165,6 @@ return [
 'cache_store' => 'Cache store: %s (TTL: %d sec)',
 'cache_invalidated' => 'Cache: invalidated %d entries of type "%s"',
 'cache_deleted' => 'Cache: deleted entry %s',
-'cache_cleared' => 'Cache: entire cache cleared',
 'cache_clear_error' => 'Cache: cannot clear cache (APCu not available)',
 'cache_enabled_status' => 'Caching enabled (APCu)',
 'cache_disabled_status' => 'Caching disabled or APCu not available',
@@ -1335,24 +1274,8 @@ return [
 'opds_books_in_series' => 'Books in series %s',
 
 'error_csrf' => 'Security error: refresh page',
-'error_unknown' => 'Unknown error',
-'rating_vote_1' => 'rating',
-'rating_vote_2' => 'ratings',
-'rating_vote_5' => 'ratings',
-'rating_star_1' => 'star',
-'rating_star_2' => 'stars',
-'rating_star_5' => 'stars',
-'favorites_add' => 'Add to favorites',
-'favorites_remove' => 'Remove from favorites',
-'rating_your_value' => 'You Vote',
-'rating_no_votes' => 'No Votes',
-
-'close' => 'Close',
 
 'admin_book_add_new' => 'Add Book',
-'admin_book_add_title' => 'Adding a Book',
-'admin_book_year_invalid' => 'Year cannot be greater than the current year',
-
 'admin_book_field_file' => 'Book File',
 'admin_book_file_hint' => 'Supported formats: FB2, EPUB, PDF, TXT. Maximum size: 50 MB.',
 'admin_book_file_required' => 'Please select a book file',
@@ -1379,7 +1302,6 @@ return [
 'backup_library_limit_desc' => 'maximum 1 GB',
 'backup_library_status' => 'Status',
 'backup_library_can_backup' => 'Backup available',
-'backup_library_too_large' => 'Size too large',
 'backup_library_too_large_desc' => 'Library size exceeds 1 GB. Backup creation is unavailable.',
 'backup_library_stats' => 'Backup Statistics',
 'backup_library_backups_count' => 'Total Backups',
@@ -1392,7 +1314,6 @@ return [
 'backup_library_no_backups_desc' => 'Click "Create Backup" to create the first backup.',
 'backup_library_date' => 'Creation Date',
 'backup_library_filename' => 'Filename',
-'backup_library_size' => 'Size',
 'backup_library_books' => 'Books',
 'backup_library_actions' => 'Actions',
 'backup_library_download' => 'Download',
@@ -1414,7 +1335,6 @@ return [
 'backup_library_deleted' => 'Backup deleted.',
 'backup_library_delete_failed' => 'Failed to delete backup.',
 
-'admin_scanner_version' => 'Scanner version',
 'admin_scanner_version_unknown' => 'Unknown',
 'admin_scanner_version_updated' => 'Scanner version updated',
 'admin_scanner_version_error' => 'Failed to get scanner version',
@@ -1467,12 +1387,10 @@ return [
 'notes_count_label' => 'Notes',
 'highlights_count' => 'Highlights',
 'bookmarks_count' => 'Bookmarks',
-'all_books' => 'All Books',
 'go_to_reading' => 'Go to a location in a book',
 'search_to_notes' => 'Search in Notes...',
 'search_notes' => 'Search',
 
-'bookmarks' => 'Bookmarks',
 'notes_and_quotes' => 'Notes and Quotes',
 'no_bookmarks_desc' => 'Add bookmarks while reading books by tapping bookmark button.',
 'filter_by_type' => 'Type',
@@ -1489,25 +1407,8 @@ return [
 
 'no_notes_desc' => 'Add notes, quotes, and highlights while reading books.',
 
-'book_marks' => 'Bookmarks',
-'my_bookmark' => 'My bookmarks',
-'last_read' => 'Last read',
-'no_name_book' => 'Untitled',
-'incognito' => 'Unknown',
-'restore_read' => 'Continue reading',
 'no_bookmarks1' => 'You don t have any bookmarks yet.',
 'no_bookmarks2' => 'Add them while reading books.',
-'delete_bookmark' => 'Delete?',
-'bookmark_read' => 'Read',
-
-'read_book' => '● Reading',
-'save_bookmark' => '✓ Saved',
-'bookmark_add' => 'Bookmark added',
-'bookmark_name' => 'Enter bookmark name:',
-'bookmark_error' => 'Error:',
-'bookmark_msg' => 'An error occurred while adding the bookmark',
-'read_book_pause' => '○ Pause',
-'bookmark_error_' => '✗ Error',
 
 'notes_all' => 'All',
 'notes_c' => '💬 Quotes',
@@ -1569,7 +1470,6 @@ return [
 'author_deduplicate_merge3' => 'Merging',
 'author_deduplicate_scan_Done' => 'Done!',
 'author_deduplicate_not_found' => 'No duplicates found!',
-'author_deduplicate_scan' => 'Scanning',
 'author_deduplicate_merge_bath' => 'Select an option to merge',
 
 'stats_by_date' => 'Add by date',
@@ -1577,10 +1477,6 @@ return [
 'count' => 'Count',
 'stats_no_data_daily' => 'No data by date',
 'last_update' => 'Last updated:',
-
-'books' => 'books',
-
-
 
 // =======================================================
 // ABOUT PAGE
@@ -1652,5 +1548,10 @@ return [
 'filter_by_genre' => 'Filter by genre',
 'no_genres' => 'No genres',
 'books' => 'books',
+
+'settings_field_fts_enabled' => 'Full-text search (FTS)',
+'settings_field_fts_enabled_desc' => 'Use full-text search for SQLite. Speeds up search but requires more disk space.',
+'search_fts_enabled' => 'Full-text search enabled',
+'search_fts_disabled' => 'Full-text search disabled',
 
 ];
