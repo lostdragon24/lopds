@@ -296,16 +296,16 @@ LIMIT 10;
 
 |Интерфейс                                                                                            |Описание                                    |
 |-----------------------------------------------------------------------------------------------------|--------------------------------------------|
-|![https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/index_searche.png]        |Главная страница - поиск и навигация        |
-|![https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/book_info.png ]           |Информация о книге - Читать, скачать        |
-|![https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/book_read.png]           |Встроенная читалка - чтение прямо в браузере|
-|![https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/book_bokmark_and_citats.png]|Закладки и цитаты                           |
-|![https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/favorites.png]            |Избранное - личная коллекция                |
-|[https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/ratings.png](https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/ratings.pngg)|Система рейтингов - оценка книг             |
-|![https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/bookmarks.png]            |Система закладок - при онлайн чтении        |
-|![https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/citats.png]              |Цитаты - избранные цитаты...                |
-|![https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/stats.png]                |Статистика коллекции                        |
-|![https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/admin_dashboard.png]      |Главная страница - панели управления        |
+|!(https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/index_searche.png)        |Главная страница - поиск и навигация        |
+|!(https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/book_info.png)           |Информация о книге - Читать, скачать        |
+|!(https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/book_read.png)           |Встроенная читалка - чтение прямо в браузере|
+|!(https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/book_bokmark_and_citats.png)|Закладки и цитаты                           |
+|!(https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/favorites.png)            |Избранное - личная коллекция                |
+|[https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/ratings.png)|Система рейтингов - оценка книг             |
+|!(https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/bookmarks.png)            |Система закладок - при онлайн чтении        |
+|!(https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/citats.png)              |Цитаты - избранные цитаты...                |
+|!(https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/stats.png)                |Статистика коллекции                        |
+|!(https://raw.githubusercontent.com/lostdragon24/lopds/refs/heads/main/doc/admin_dashboard.png)      |Главная страница - панели управления        |
 
 ### Десктоп-клиент (Qt/C++)
 
@@ -314,10 +314,10 @@ LIMIT 10;
 
 |Интерфейс                                       |Описание                                    |
 |------------------------------------------------|--------------------------------------------|
-|![https://i.postimg.cc/6ppyqTJd/book1.png]      |Главное окно программы                      |
-|![https://i.postimg.cc/kggBGD3y/scanner-book.png]|Интерфейс сканера - управление сканированием|
-|![https://i.postimg.cc/GmmHt9wx/settings-book.png]|Окно настроек - конфигурация                |
-|![https://i.postimg.cc/Z55Cn0tc/reader-book.png]|Встроенная читалка FB2                      |
+|!(https://i.postimg.cc/6ppyqTJd/book1.png)      |Главное окно программы                      |
+|!(https://i.postimg.cc/kggBGD3y/scanner-book.png)|Интерфейс сканера - управление сканированием|
+|!(https://i.postimg.cc/GmmHt9wx/settings-book.png)|Окно настроек - конфигурация                |
+|!(https://i.postimg.cc/Z55Cn0tc/reader-book.png)|Встроенная читалка FB2                      |
 
 ### 🔍 Борьба с дубликатами
 
